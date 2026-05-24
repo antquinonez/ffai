@@ -1,0 +1,5 @@
+# FFAI Paths Configuration
+# =========================
+
+paths:
+  ffai_data: "./ffai_data"

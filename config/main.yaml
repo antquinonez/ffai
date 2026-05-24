@@ -1,0 +1,26 @@
+# FFAI Main Configuration
+# =======================
+# Retry and observability settings.
+
+retry:
+  max_attempts: 3
+  min_wait_seconds: 1
+  max_wait_seconds: 60
+  exponential_base: 2
+  exponential_jitter: true
+  retry_on_status_codes:
+    - 429
+    - 503
+    - 502
+    - 504
+  log_level: "INFO"
+
+observability:
+  enabled: false
+  otel:
+    service_name: "plico"
+    endpoint: "http://localhost:4317"
+    export_traces: true
+    insecure: true
+  token_tracking: true
+  cost_tracking: true

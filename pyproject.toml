@@ -1,0 +1,128 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ffai"
+version = "0.1.0"
+description = "Declarative multi-provider AI client with named-prompt context assembly, thread-safe parallel execution, and built-in cost/usage tracking"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Antonio Quinonez", email = "antquinonez@farfiner.com"}
+]
+
+dependencies = [
+    "mistralai>=1.12.4,<2.0.0",
+    "openai>=2.24.0,<3.0.0",
+    "polars[rtcompat]>=1.38.0,<2.0.0",
+    "python-dotenv>=1.2.0,<2.0.0",
+    "pyarrow>=23.0.0,<25.0.0",
+    "litellm>=1.81.0,<2.0.0",
+    "pydantic-settings>=2.13.0,<3.0.0",
+    "pyyaml>=6.0,<7.0",
+    "tenacity>=8.0.0,<10.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pyright",
+    "ruff",
+]
+otel = [
+    "opentelemetry-api>=1.40.0",
+    "opentelemetry-sdk>=1.40.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.40.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short -m 'not integration'"
+markers = [
+    "integration: tests requiring real API keys",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "PLC",    # pylint convention
+    "PLW",    # pylint warning
+    "RET",    # flake8-return
+    "RUF",    # ruff-specific
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # function call in default argument
+    "B905",   # zip without explicit strict
+    "B904",   # raise from err
+    "ARG001", # unused function argument
+    "ARG002", # unused method argument
+    "RUF001", # string with unescaped special chars
+    "RUF002", # docstring with unescaped special chars
+    "RUF003", # comment with unescaped special chars
+    "RET504", # unnecessary-assign-before-return
+    "RET505", # unnecessary-else-after-return
+    "RET506", # unnecessary-else-after-raise
+    "RET507", # unnecessary-else-after-break/continue
+    "RET508", # unnecessary-else-after-raise (variant)
+    "PLC0415", # import not at top-level
+    "RUF012", # mutable class attribute
+    "PLW0108", # unnecessary lambda
+    "PLW0603", # global statement
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG", "SIM", "E712", "F841", "F811", "SIM117", "C401", "PLW", "RET", "RUF"]
+"src/Clients/*" = ["B904", "F841", "UP038", "PLW"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+include = ["src"]
+typeCheckingMode = "basic"
+reportMissingImports = true
+reportMissingTypeStubs = false
+venvPath = "."
+venv = ".venv"

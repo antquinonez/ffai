@@ -17,7 +17,7 @@ from __future__ import annotations
 import pytest
 from pydantic_core import ValidationError
 
-from src.config import Config, get_config, reload_config
+from src.config import Config, RetryConfig, get_config, reload_config
 
 
 class TestConfigPrecedence:
@@ -39,7 +39,7 @@ class TestConfigPrecedence:
     def test_init_overrides_env(self, monkeypatch):
         """Init args should override env var."""
         monkeypatch.setenv("RETRY__MAX_ATTEMPTS", "7")
-        config = Config(retry={"max_attempts": 9})
+        config = Config(retry=RetryConfig(max_attempts=9))
         assert config.retry.max_attempts == 9
 
     def test_yaml_used_when_no_env_override(self):
@@ -136,7 +136,7 @@ class TestConfigTypeSafety:
     def test_invalid_type_raises_error(self):
         """Invalid types should raise validation error."""
         with pytest.raises(ValidationError):
-            Config(retry={"max_attempts": "not_a_number"})
+            Config(retry={"max_attempts": "not_a_number"})  # type: ignore[arg-type]
 
 
 class TestConfigSections:
@@ -245,7 +245,7 @@ class TestConfigExtraFields:
 
     def test_extra_fields_ignored_on_init(self):
         """Extra fields passed to Config are silently ignored, not rejected."""
-        config = Config(retry={"max_attempts": 3}, unknown_field="should_be_ignored")
+        config = Config(retry=RetryConfig(max_attempts=3), unknown_field="should_be_ignored")  # type: ignore[callArg]
         assert config.retry.max_attempts == 3
         assert not hasattr(config, "unknown_field")
 

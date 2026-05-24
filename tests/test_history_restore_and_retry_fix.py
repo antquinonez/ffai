@@ -20,7 +20,6 @@ import pytest
 
 from src.Clients.FFLiteLLMClient import FFLiteLLMClient
 from src.FFAI import FFAI
-from src.FFAIClientBase import FFAIClientBase
 
 
 class TestHistoryRestoreWithCopyReturningClient:
@@ -199,7 +198,6 @@ class TestFFLiteLLMClientRetryUsesSharedMechanism:
     @patch("src.Clients.FFLiteLLMClient.completion")
     def test_fallback_after_retries_exhausted(self, mock_completion):
         """Fallbacks should be tried after primary retries are exhausted."""
-        from tenacity import RetryError
 
         mock_fallback_response = MagicMock()
         mock_fallback_response.choices = [MagicMock()]

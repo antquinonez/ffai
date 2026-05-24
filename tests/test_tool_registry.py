@@ -171,7 +171,7 @@ class TestToolRegistry:
     def test_execute_tool_non_string_result(self):
         registry = ToolRegistry()
         registry.register(ToolDefinition(name="num", description="Return number"))
-        registry.register_executor("num", lambda args: 42)
+        registry.register_executor("num", lambda args: 42)  # type: ignore[arg-type]
         result = registry.execute_tool("num", {})
         assert result == "42"
 

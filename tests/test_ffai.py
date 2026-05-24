@@ -160,6 +160,7 @@ class TestFFAIHistoryAccess:
 
         latest = ffai.get_latest_interaction()
 
+        assert latest is not None
         assert latest["prompt_name"] == "b"
 
     def test_get_latest_interaction_empty(self, mock_ffmistralsmall):
@@ -182,6 +183,7 @@ class TestFFAIHistoryAccess:
 
         latest_qa = ffai.get_latest_interaction_by_prompt_name("qa")
 
+        assert latest_qa is not None
         assert latest_qa["prompt"] == "Q2"
 
     def test_get_last_n_interactions(self, mock_ffmistralsmall):

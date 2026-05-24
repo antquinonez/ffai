@@ -54,6 +54,7 @@ class TestParseValidationResponse:
     def test_fail_multiline_reason(self):
         passed, critique = _parse_validation_response("FAIL:\nline1\nline2")
         assert passed is False
+        assert critique is not None
         assert "line1" in critique
 
     def test_pass_embedded_in_text(self):
@@ -92,7 +93,7 @@ class TestResponseValidator:
 
         assert result.passed is False
         assert result.attempts == 1
-        assert "not valid" in result.critique
+        assert "not valid" in (result.critique or "")
 
     def test_validate_fail_with_retry_via_re_execute(self):
         call_count = [0]
@@ -129,7 +130,7 @@ class TestResponseValidator:
 
         assert result.passed is None
         assert result.attempts == 1
-        assert "API down" in result.critique
+        assert "API down" in (result.critique or "")
 
     def test_validate_passes_model_and_temperature(self):
         client = _make_mock_client(["PASS"])

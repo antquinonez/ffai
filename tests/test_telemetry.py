@@ -145,10 +145,10 @@ class TestTelemetryManagerEnabled:
             import src.observability.telemetry as mod
 
             mod.get_telemetry_manager()
-            old_provider = mod._manager._provider
+            old_provider = mod._manager._provider  # type: ignore[unionAttr]
             assert old_provider is not None
             new = mod.reload_telemetry()
-        assert new is not mod._manager or new._provider is not old_provider
+        assert new is not mod._manager or new._provider is not old_provider  # type: ignore[unionAttr]
 
 
 class TestTelemetryManagerSetupTracer:

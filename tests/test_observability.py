@@ -128,8 +128,8 @@ class TestLogContextFilter:
         f = LogContextFilter()
         record = logging.LogRecord("test", logging.INFO, "", 0, "msg", (), None)
         f.filter(record)
-        assert record.batch_name == "my_batch"
-        assert record.prompt_name == "my_prompt"
+        assert getattr(record, "batch_name", None) == "my_batch"
+        assert getattr(record, "prompt_name", None) == "my_prompt"
 
     def test_returns_true(self):
         f = LogContextFilter()
@@ -140,8 +140,8 @@ class TestLogContextFilter:
         f = LogContextFilter()
         record = logging.LogRecord("test", logging.INFO, "", 0, "msg", (), None)
         f.filter(record)
-        assert record.batch_name == "-"
-        assert record.prompt_name == "-"
+        assert getattr(record, "batch_name", None) == "-"
+        assert getattr(record, "prompt_name", None) == "-"
 
 
 class TestContextFormatter:

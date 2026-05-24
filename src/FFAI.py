@@ -176,9 +176,22 @@ class FFAI:
         history: list[str] | None = None,
         dependencies: list[str] | None = None,
         system_instructions: str | None = None,
+        response_format: str | dict | None = None,
         **kwargs: Any,
     ) -> ResponseResult:
         """Generate response using the configured AI client.
+
+        Args:
+            prompt: The user prompt (may contain ``{{name.response}}`` patterns).
+            model: Override model for this call.
+            prompt_name: Logical name for the prompt (used for interpolation).
+            history: List of prompt names to include in conversation context.
+            dependencies: Prompt names this call depends on.
+            system_instructions: Override system instructions for this call.
+            response_format: Response format hint (e.g. ``{"type": "json_object"}``).
+                Passed through to the underlying provider API.
+            **kwargs: Additional provider-specific parameters (temperature,
+                max_tokens, tools, tool_choice, etc.).
 
         Returns:
             ``ResponseResult`` with response, resolved prompt, usage, and cost.
@@ -221,6 +234,9 @@ class FFAI:
 
             if system_instructions is not None:
                 kwargs["system_instructions"] = system_instructions
+
+            if response_format is not None:
+                kwargs["response_format"] = response_format
 
             saved_client_history = None
             new_client_messages: list[dict[str, Any]] = []

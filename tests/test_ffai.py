@@ -622,14 +622,13 @@ class TestFFAIExtractJson:
         assert result == {"a": 1}
 
     def test_extract_json_no_json_in_first_20(self, mock_ffmistralsmall):
-        """Test returns None when no JSON in first 20 chars."""
+        """Test extracts JSON from markdown via json_repair."""
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        # Markdown doesn't have JSON in first 20 chars
         result = ffai._extract_json('```json\n{"key": "value"}\n```')
 
-        assert result is None
+        assert result == {"key": "value"}
 
     def test_extract_json_no_json(self, mock_ffmistralsmall):
         """Test returns None when no JSON found."""

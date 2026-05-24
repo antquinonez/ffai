@@ -163,3 +163,128 @@ class TestClientBaseAbstractMethodBodies:
     def test_super_clone_returns_none(self):
         client = self._make_delegating_client()
         assert client.clone() is None
+
+
+class TestClientBaseRetryConfigFromSettings:
+    def test_reads_from_config_retry_attribute(self):
+        from unittest.mock import MagicMock, patch
+
+        from src.core.client_base import FFAIClientBase
+
+        mock_config = MagicMock()
+        mock_retry = MagicMock()
+        mock_retry.max_attempts = 5
+        mock_retry.min_wait_seconds = 2
+        mock_retry.max_wait_seconds = 120
+        mock_retry.exponential_base = 3
+        mock_retry.exponential_jitter = False
+        mock_retry.log_level = "DEBUG"
+        mock_config.retry = mock_retry
+
+        with patch("src.config.get_config", return_value=mock_config):
+            result = FFAIClientBase.get_default_retry_config()
+
+        assert result["max_attempts"] == 5
+        assert result["min_wait_seconds"] == 2
+        assert result["max_wait_seconds"] == 120
+        assert result["exponential_base"] == 3
+        assert result["exponential_jitter"] is False
+        assert result["log_level"] == "DEBUG"
+
+    def test_returns_defaults_when_retry_is_none(self):
+        from unittest.mock import MagicMock, patch
+
+        from src.core.client_base import FFAIClientBase
+
+        mock_config = MagicMock()
+        mock_config.retry = None
+
+        with patch("src.config.get_config", return_value=mock_config):
+            result = FFAIClientBase.get_default_retry_config()
+
+        assert result["max_attempts"] == 3
+        assert result["min_wait_seconds"] == 1
+
+
+class TestClientBaseConfigureRetry:
+    @staticmethod
+    def _make_client():
+        from src.core.client_base import FFAIClientBase
+
+        class ConcreteClient(FFAIClientBase):
+            model = "test"
+            system_instructions = ""
+
+            def generate_response(self, prompt, **kwargs):
+                return ""
+
+            def clear_conversation(self):
+                pass
+
+            def get_conversation_history(self):
+                return []
+
+            def set_conversation_history(self, history):
+                pass
+
+            def clone(self):
+                return ConcreteClient()
+
+        return ConcreteClient()
+
+    def test_configure_retry_with_custom_config(self):
+        client = self._make_client()
+        client.configure_retry({"max_attempts": 10})
+        assert client.retry_config == {"max_attempts": 10}
+
+    def test_configure_retry_with_none_uses_defaults(self):
+        from unittest.mock import MagicMock, patch
+
+        mock_config = MagicMock()
+        mock_config.retry = None
+
+        client = self._make_client()
+        with patch("src.config.get_config", return_value=mock_config):
+            client.configure_retry(None)
+
+        assert client.retry_config is not None
+        assert client.retry_config["max_attempts"] == 3
+        assert client.retry_config["min_wait_seconds"] == 1
+
+
+class TestClientBaseAddToolResult:
+    @staticmethod
+    def _make_client():
+        from src.core.client_base import FFAIClientBase
+
+        class ConcreteClient(FFAIClientBase):
+            model = "test"
+            system_instructions = ""
+            _history: list
+
+            def __init__(self):
+                self._history = []
+
+            def generate_response(self, prompt, **kwargs):
+                return ""
+
+            def clear_conversation(self):
+                self._history = []
+
+            def get_conversation_history(self):
+                return self._history
+
+            def set_conversation_history(self, history):
+                self._history = history
+
+            def clone(self):
+                return ConcreteClient()
+
+        return ConcreteClient()
+
+    def test_add_tool_result_appends_to_history(self):
+        client = self._make_client()
+        client.add_tool_result("tc_123", "result text")
+        history = client.get_conversation_history()
+        assert len(history) == 1
+        assert history[0] == {"role": "tool", "tool_call_id": "tc_123", "content": "result text"}

@@ -232,3 +232,37 @@ class TestFFMistralSmallTestConnection:
     def test_failure_returns_false(self, client, mock_mistral_client):
         mock_mistral_client.chat.complete.side_effect = Exception("timeout")
         assert client.test_connection() is False
+
+
+class TestFFMistralSmallParameterValidation:
+    def test_invalid_max_completion_tokens_falls_through(self, client, mock_mistral_client):
+        result = client.generate_response("Hello", max_completion_tokens="abc")
+        assert result == "Test response"
+        call_kwargs = mock_mistral_client.chat.complete.call_args
+        assert call_kwargs.kwargs["max_tokens"] == 1024
+
+    def test_invalid_max_tokens_falls_through(self, client, mock_mistral_client):
+        result = client.generate_response("Hello", max_tokens="xyz")
+        assert result == "Test response"
+        call_kwargs = mock_mistral_client.chat.complete.call_args
+        assert call_kwargs.kwargs["max_tokens"] == 1024
+
+    def test_temperature_out_of_range(self, client, mock_mistral_client):
+        result = client.generate_response("Hello", temperature=5.0)
+        assert result == "Test response"
+        call_kwargs = mock_mistral_client.chat.complete.call_args
+        assert call_kwargs.kwargs["temperature"] == 0.5
+
+    def test_temperature_invalid_type(self, client, mock_mistral_client):
+        result = client.generate_response("Hello", temperature="hot")
+        assert result == "Test response"
+        call_kwargs = mock_mistral_client.chat.complete.call_args
+        assert call_kwargs.kwargs["temperature"] == 0.5
+
+
+class TestFFMistralSmallNonRetryableError:
+    def test_non_retryable_raises_runtime_error(self, client, mock_mistral_client):
+        mock_mistral_client.chat.complete.side_effect = ValueError("bad request")
+        with patch("src.Clients.FFMistralSmall.should_retry_exception", return_value=False):
+            with pytest.raises(RuntimeError, match="bad request"):
+                client.generate_response("Hello")

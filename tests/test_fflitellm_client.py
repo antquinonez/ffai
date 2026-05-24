@@ -391,3 +391,55 @@ class TestFFLiteLLMClientToolResult:
         assert len(client.conversation_history) == 4
         assert client.conversation_history[0]["content"] == "Q1"
         assert client.conversation_history[-1]["role"] == "tool"
+
+
+class TestFFLiteLLMClientConfigFallback:
+    def test_retry_config_fallback_on_exception(self):
+        with patch("src.config.get_config", side_effect=Exception("no config")):
+            client = FFLiteLLMClient(model_string="openai/gpt-4")
+        assert client._retry_config == {"max_attempts": 3}
+
+
+class TestFFLiteLLMClientModelOverrideWithProviderPrefix:
+    @patch("src.Clients.FFLiteLLMClient.completion")
+    def test_model_override_with_provider_prefix(self, mock_completion):
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Response"
+        mock_completion.return_value = mock_response
+
+        client = FFLiteLLMClient(model_string="openai/gpt-4")
+        client.generate_response("hello", model="anthropic/claude-3")
+
+        call_args = mock_completion.call_args
+        assert call_args[1]["model"] == "anthropic/claude-3"
+
+
+class TestFFLiteLLMClientApiBasePassthrough:
+    @patch("src.Clients.FFLiteLLMClient.completion")
+    def test_api_base_passthrough(self, mock_completion):
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Response"
+        mock_completion.return_value = mock_response
+
+        client = FFLiteLLMClient(model_string="openai/gpt-4", api_base="http://localhost:8080/v1")
+        client.generate_response("hello")
+
+        call_args = mock_completion.call_args
+        assert call_args[1]["api_base"] == "http://localhost:8080/v1"
+
+
+class TestFFLiteLLMClientApiVersionPassthrough:
+    @patch("src.Clients.FFLiteLLMClient.completion")
+    def test_api_version_passthrough(self, mock_completion):
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Response"
+        mock_completion.return_value = mock_response
+
+        client = FFLiteLLMClient(model_string="openai/gpt-4", api_version="2024-02-01")
+        client.generate_response("hello")
+
+        call_args = mock_completion.call_args
+        assert call_args[1]["api_version"] == "2024-02-01"

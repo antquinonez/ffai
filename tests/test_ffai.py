@@ -1486,3 +1486,48 @@ class TestFFAIAddClientMessageWithKwargs:
 
         assert result is True
         assert mock_ffmistralsmall.conversation_history[-1]["extra_field"] == "value"
+
+
+class TestFFAIPromptAttrHistorySetter:
+    def test_setter_delegates_to_context(self, mock_ffmistralsmall):
+        from src.FFAI import FFAI
+
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.prompt_attr_history = [{"test": True}]
+        assert ffai._context.prompt_attr_history == [{"test": True}]
+
+
+class TestFFAIBuildPromptPublicAPI:
+    def test_build_prompt_interpolates_dependencies(self, mock_ffmistralsmall):
+        from src.FFAI import FFAI
+
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai._context.record("original", "hello", "test-model", "name")
+        result, interpolated = ffai.build_prompt("Say {{name.response}}", dependencies=["name"])
+        assert "hello" in result
+        assert "name" in interpolated
+
+
+class TestFFAIResponseFormatPassthrough:
+    def test_response_format_passed_to_client(self, mock_ffmistralsmall):
+        from unittest.mock import MagicMock
+
+        from src.FFAI import FFAI
+
+        mock_ffmistralsmall.generate_response = MagicMock(return_value="response")
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("hello", response_format={"type": "json_object"})
+        call_kwargs = mock_ffmistralsmall.generate_response.call_args
+        assert call_kwargs.kwargs["response_format"] == {"type": "json_object"}
+
+
+class TestFFAIAddClientMessageError:
+    def test_add_client_message_returns_false_on_exception(self, mock_ffmistralsmall):
+        from unittest.mock import MagicMock
+
+        from src.FFAI import FFAI
+
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.get_client_conversation_history = MagicMock(side_effect=RuntimeError("boom"))
+        result = ffai.add_client_message("user", "test")
+        assert result is False

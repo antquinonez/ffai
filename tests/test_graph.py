@@ -10,7 +10,9 @@ from src.core.graph import (
     build_execution_graph,
     build_execution_graph_with_edges,
     evaluate_condition,
+    evaluate_condition_with_trace,
     get_ready_prompts,
+    is_abort_trigger,
 )
 from src.core.prompt_node import PromptNode
 
@@ -185,3 +187,77 @@ class TestPromptNode:
         b = PromptNode(sequence=0, prompt={"sequence": 0, "prompt_name": "a", "prompt": "go"})
         assert a == b
         assert hash(a) == hash(b)
+
+
+class TestAbortConditionEdges:
+    def test_abort_condition_creates_edge(self):
+        prompts = [
+            {"sequence": 0, "prompt_name": "first", "prompt": "do stuff", "history": []},
+            {
+                "sequence": 1,
+                "prompt_name": "second",
+                "prompt": "do more",
+                "history": [],
+                "abort_condition": '{{first.status}} == "failed"',
+            },
+        ]
+        graph = build_execution_graph_with_edges(prompts)
+        abort_edges = [e for e in graph.edges if e.source == "abort_condition"]
+        assert len(abort_edges) == 1
+        assert abort_edges[0].from_seq == 0
+        assert abort_edges[0].to_seq == 1
+        assert abort_edges[0].condition_text == '{{first.status}} == "failed"'
+
+    def test_abort_condition_adds_dependency(self):
+        prompts = [
+            {"sequence": 0, "prompt_name": "first", "prompt": "do stuff", "history": []},
+            {
+                "sequence": 1,
+                "prompt_name": "second",
+                "prompt": "do more",
+                "history": [],
+                "abort_condition": '{{first.status}} == "failed"',
+            },
+        ]
+        graph = build_execution_graph_with_edges(prompts)
+        assert 0 in graph.nodes[1].dependencies
+
+
+class TestEvaluateConditionWithTrace:
+    def test_returns_four_tuple(self):
+        prompt = {
+            "sequence": 0,
+            "prompt_name": "step",
+            "prompt": "go",
+            "condition": '{{fetch.status}} == "success"',
+        }
+        results = {
+            "fetch": {"status": "success", "response": "ok", "attempts": 1, "error": "", "has_response": True}
+        }
+        result = evaluate_condition_with_trace(prompt, results)
+        assert len(result) == 4
+        should_execute, cond_result, error, trace = result
+        assert should_execute is True
+        assert cond_result is True
+        assert error is None
+        assert trace is not None
+
+    def test_no_condition_returns_none_trace(self):
+        prompt = {"sequence": 0, "prompt_name": "step", "prompt": "go"}
+        should_execute, cond_result, error, trace = evaluate_condition_with_trace(prompt, {})
+        assert should_execute is True
+        assert trace is None
+
+
+class TestIsAbortTrigger:
+    def test_abort_trace_with_success(self):
+        result = {"abort_trace": "resolved condition", "status": "success"}
+        assert is_abort_trigger(result) is True
+
+    def test_no_abort_trace(self):
+        result = {"status": "success"}
+        assert is_abort_trigger(result) is False
+
+    def test_abort_trace_with_failed_status(self):
+        result = {"abort_trace": "resolved condition", "status": "failed"}
+        assert is_abort_trigger(result) is False

@@ -150,3 +150,24 @@ class TestCleanResponse:
     def test_malformed_json_repaired(self):
         result = clean_response('{"key": "value",}')
         assert result == {"key": "value"}
+
+
+class TestExtractJsonErrorPaths:
+    def test_markdown_with_non_json_falls_through(self):
+        from unittest.mock import patch
+
+        with patch("src.core.response_utils.json_repair_loads", side_effect=ValueError("bad")):
+            result = extract_json("```not valid json!!!```")
+        assert result is None
+
+    def test_irreparable_json_returns_none(self):
+        from unittest.mock import patch
+
+        with patch("src.core.response_utils.json_repair_loads", side_effect=ValueError("bad")):
+            result = extract_json("{broken !!! }")
+        assert result is None
+
+    def test_markdown_with_valid_json_prefix(self):
+        text = '{"a": 1} prefix ```json\n{"valid": true}\n```'
+        result = extract_json(text)
+        assert result == {"valid": True}

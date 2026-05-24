@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -197,11 +197,13 @@ class TestTelemetryManagerInit:
     def test_shutdown_safe_when_disabled(self):
         mgr = TelemetryManager()
         mgr.shutdown()
+        assert mgr._provider is None
 
     def test_shutdown_safe_when_no_provider(self):
         mgr = TelemetryManager()
         mgr._provider = None
         mgr.shutdown()
+        assert mgr._provider is None
 
 
 class TestTelemetrySingleton:
@@ -252,5 +254,32 @@ class TestTelemetryManagerSpan:
     def test_span_attribute_and_exception_on_noop(self):
         mgr = TelemetryManager()
         with mgr.span("test") as span:
-            span.set_attribute("key", "value")
-            span.record_exception(ValueError("err"))
+            assert span.is_recording() is False
+            assert span.set_attribute("key", "value") is None
+            assert span.record_exception(ValueError("err")) is None
+
+
+class TestTelemetryManagerSetupTracerGenericException:
+    def test_setup_tracer_generic_exception_disables(self):
+        mock_obs = MagicMock()
+        mock_obs.enabled = True
+        mock_obs.otel.service_name = "svc"
+        mock_obs.otel.endpoint = "http://localhost:4317"
+        mock_obs.otel.insecure = True
+        mock_config = MagicMock()
+        mock_config.observability = mock_obs
+
+        with (
+            patch("src.config.get_config", return_value=mock_config),
+            patch("opentelemetry.trace.set_tracer_provider", side_effect=RuntimeError("broken")),
+        ):
+            m = TelemetryManager()
+        assert m.enabled is False
+
+
+class TestTelemetryShutdownExceptionHandled:
+    def test_shutdown_exception_is_swallowed(self):
+        m = TelemetryManager()
+        m._provider = MagicMock()
+        m._provider.shutdown.side_effect = RuntimeError("failed")
+        m.shutdown()

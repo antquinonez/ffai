@@ -12,13 +12,13 @@ class TestNoOpSpan:
         from src.observability.telemetry import NoOpSpan
 
         span = NoOpSpan()
-        span.set_attribute("key", "value")
+        assert span.set_attribute("key", "value") is None
 
     def test_record_exception_is_noop(self):
         from src.observability.telemetry import NoOpSpan
 
         span = NoOpSpan()
-        span.record_exception(ValueError("test"))
+        assert span.record_exception(ValueError("test")) is None
 
     def test_is_recording_returns_false(self):
         from src.observability.telemetry import NoOpSpan
@@ -187,11 +187,15 @@ class TestTelemetryManagerSetupTracer:
         mock_config = MagicMock()
         mock_config.observability = mock_obs
 
-        with patch("src.config.get_config", return_value=mock_config):
-            from src.observability.telemetry import TelemetryManager
+        with (
+            patch("src.config.get_config", return_value=mock_config),
+            patch("opentelemetry.trace.set_tracer_provider", side_effect=RuntimeError("boom")),
+        ):
+            from src.observability.telemetry import TelemetryManager, reset_telemetry
 
+            reset_telemetry()
             m = TelemetryManager()
-        assert m.enabled is True
+        assert m.enabled is False
 
 
 class TestTraceLLMCall:
@@ -228,6 +232,7 @@ class TestTraceLLMCall:
             client = ConcreteClient()
             with client._trace_llm_call("test-model"):
                 pass
+        assert client.last_usage is None
 
     def test_trace_llm_call_sets_span_attributes(self):
         from src.core.client_base import FFAIClientBase
@@ -265,6 +270,9 @@ class TestTraceLLMCall:
 
             with client._trace_llm_call("test-model", "my_prompt") as span:
                 pass
+            assert span is None
+            assert client.last_usage is not None
+            assert client.last_usage.input_tokens == 10
 
     def test_extract_openai_usage_with_real_usage(self):
         from src.core.client_base import FFAIClientBase

@@ -1,3 +1,4 @@
+import time
 from unittest.mock import MagicMock
 
 from src.agent.agent_loop import AgentLoop
@@ -290,3 +291,77 @@ class TestToolCallRecord:
         assert record.round == 0
         assert record.tool_name == ""
         assert record.arguments == {}
+
+
+class TestAgentLoopEdgeCases:
+    def test_tool_args_invalid_json_falls_back_to_empty_dict(self):
+        client = _make_mock_client(["", "done"])
+        call_count = [0]
+
+        def mock_history():
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return [
+                    {"role": "assistant", "content": "", "tool_calls": [
+                        {"id": "tc_1", "function": {"name": "echo", "arguments": "not json{"}}
+                    ]}
+                ]
+            return [{"role": "assistant", "content": "done"}]
+
+        client.get_conversation_history = MagicMock(side_effect=mock_history)
+
+        registry = _make_registry_with_tools()
+        loop = AgentLoop(client, registry, max_rounds=3)
+
+        result = loop.execute(prompt="Go", tools=["echo"])
+
+        assert result.status == "success"
+        assert result.tool_calls[0].arguments == {}
+
+    def test_no_assistant_message_returns_empty(self):
+        client = _make_mock_client(["done"])
+        client.get_conversation_history = MagicMock(return_value=[
+            {"role": "user", "content": "hi"}
+        ])
+
+        registry = _make_registry_with_tools()
+        loop = AgentLoop(client, registry, max_rounds=3)
+
+        assert loop._extract_tool_calls() == []
+
+    def test_history_read_exception_returns_empty(self):
+        client = _make_mock_client(["done"])
+        client.get_conversation_history = MagicMock(side_effect=RuntimeError("history broken"))
+
+        registry = _make_registry_with_tools()
+        loop = AgentLoop(client, registry, max_rounds=3)
+
+        assert loop._extract_tool_calls() == []
+
+    def test_tool_execution_timeout(self):
+        client = _make_mock_client(["", "done"])
+        call_count = [0]
+
+        def mock_history():
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return [
+                    {"role": "assistant", "content": "", "tool_calls": [
+                        {"id": "tc_1", "function": {"name": "slow_tool", "arguments": '{}'}}
+                    ]}
+                ]
+            return [{"role": "assistant", "content": "done"}]
+
+        client.get_conversation_history = MagicMock(side_effect=mock_history)
+
+        registry = ToolRegistry()
+        registry.register(ToolDefinition(name="slow_tool", description="Slow tool"))
+        registry.register_executor("slow_tool", lambda args: (time.sleep(0.5), "late")[1])
+
+        loop = AgentLoop(client, registry, max_rounds=3, tool_timeout=0.05)
+
+        result = loop.execute(prompt="Go", tools=["slow_tool"])
+
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].error is not None
+        assert "timed out" in result.tool_calls[0].error

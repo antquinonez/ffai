@@ -38,3 +38,6 @@ htmlcov/
 ffai_data/
 logs/
 outputs/
+
+# Design documents (untracked)
+designs/

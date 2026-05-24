@@ -39,6 +39,7 @@ class PromptBuilder:
         prompt: str,
         history: list[str] | None = None,
         dependencies: Any | None = None,
+        strict: bool = False,
     ) -> tuple[str, set[str]]:
         """Build the final prompt with history and variable interpolation.
 
@@ -46,6 +47,7 @@ class PromptBuilder:
             prompt: The prompt template (may contain {{}} interpolation patterns)
             history: List of prompt names to include in conversation history
             dependencies: Additional dependencies (unused but kept for compatibility)
+            strict: If True, raise ValueError on unknown {{name.response}} references
 
         Returns:
             Tuple of (final_prompt, set_of_interpolated_prompt_names)
@@ -81,7 +83,7 @@ class PromptBuilder:
                     response = ""
                 history_dict[prompt_name] = response
 
-        resolved_prompt, interpolated_names = interpolate_prompt(prompt, history_dict)
+        resolved_prompt, interpolated_names = interpolate_prompt(prompt, history_dict, strict=strict)
 
         if interpolated_names:
             logger.info(f"Interpolated {len(interpolated_names)} prompt(s): {interpolated_names}")
@@ -106,7 +108,7 @@ class PromptBuilder:
             if matching_entries:
                 latest = matching_entries[-1]
                 stored_prompt = latest["prompt"]
-                resolved_history_prompt, _ = interpolate_prompt(stored_prompt, history_dict)
+                resolved_history_prompt, _ = interpolate_prompt(stored_prompt, history_dict, strict=strict)
                 resolved_history_prompt = REFERENCES_PATTERN.sub(
                     "", resolved_history_prompt
                 ).strip()

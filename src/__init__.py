@@ -6,6 +6,8 @@ from .agent.agent_loop import AgentLoop
 from .agent.agent_result import AgentResult, ToolCallRecord
 from .agent.response_validator import ResponseValidator, ValidationResult
 from .core.client_base import FFAIClientBase
+from .core.condition_evaluator import ConditionEvaluator
+from .core.graph import ExecutionGraph
 from .core.history.conversation import ConversationHistory
 from .core.history.ordered import OrderedPromptHistory
 from .core.history.permanent import PermanentHistory
@@ -16,7 +18,9 @@ __all__ = [
     "FFAI",
     "AgentLoop",
     "AgentResult",
+    "ConditionEvaluator",
     "ConversationHistory",
+    "ExecutionGraph",
     "FFAIClientBase",
     "OrderedPromptHistory",
     "PermanentHistory",

@@ -18,3 +18,12 @@ class Interaction(TypedDict):
     timestamp: NotRequired[float]
     model: NotRequired[str | None]
     history: NotRequired[list[str] | None]
+
+
+class PromptSpec(TypedDict, total=False):
+    sequence: int
+    prompt_name: str
+    prompt: str
+    history: list[str] | None
+    condition: str | None
+    abort_condition: str | None

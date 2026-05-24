@@ -13,7 +13,7 @@ from typing import Any
 INTERPOLATION_PATTERN = re.compile(r"\{\{(\w+)\.response(?:\.([\w.]+))?\}\}")
 
 
-def extract_json_field(data: dict | list, path: str) -> str:
+def extract_json_field(data: Any, path: str) -> str:
     """Extract a value from JSON using dot notation path.
 
     Supports:
@@ -56,12 +56,15 @@ def extract_json_field(data: dict | list, path: str) -> str:
 def interpolate_prompt(
     prompt: str,
     history: dict[str, str],
+    strict: bool = False,
 ) -> tuple[str, set[str]]:
     """Replace {{prompt_name.response}} patterns with actual content.
 
     Args:
         prompt: Template containing {{}} patterns
         history: Dict mapping prompt_name to response text
+        strict: If True, raise ValueError on unknown references instead of
+            silently replacing with empty string.
 
     Returns:
         Tuple of (resolved_prompt, set_of_interpolated_prompt_names)
@@ -76,6 +79,11 @@ def interpolate_prompt(
         field_path = match.group(2)
 
         if prompt_name not in history:
+            if strict:
+                raise ValueError(
+                    f"Unknown prompt reference: '{{{{{prompt_name}.response}}}}'. "
+                    f"Available: {sorted(history.keys())}"
+                )
             resolved = resolved.replace(full_match, "")
             continue
 

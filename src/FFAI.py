@@ -21,6 +21,8 @@ import polars as pl
 
 from .config import get_config
 from .core.client_base import FFAIClientBase
+from .core.condition_evaluator import ConditionEvaluator
+from .core.graph import ExecutionGraph, build_execution_graph_with_edges
 from .core.history.ordered import OrderedPromptHistory
 from .core.history.permanent import PermanentHistory
 from .core.history_exporter import HistoryExporter
@@ -151,9 +153,12 @@ class FFAI:
         prompt: str,
         history: list[str] | None = None,
         dependencies: Any | None = None,
+        strict: bool = False,
     ) -> tuple[str, set[str]]:
         """Build the final prompt with history and variable interpolation."""
-        result, interpolated = self._prompt_builder.build_prompt(prompt, history, dependencies)
+        result, interpolated = self._prompt_builder.build_prompt(
+            prompt, history, dependencies, strict=strict
+        )
         return result, interpolated
 
     def build_prompt(
@@ -161,12 +166,13 @@ class FFAI:
         prompt: str,
         history: list[str] | None = None,
         dependencies: Any | None = None,
+        strict: bool = False,
     ) -> tuple[str, set[str]]:
         """Public API for prompt building (delegates to PromptBuilder).
 
         Use this instead of the private ``_build_prompt()`` method.
         """
-        return self._build_prompt(prompt, history, dependencies)
+        return self._build_prompt(prompt, history, dependencies, strict=strict)
 
     def generate_response(
         self,
@@ -177,6 +183,9 @@ class FFAI:
         dependencies: list[str] | None = None,
         system_instructions: str | None = None,
         response_format: str | dict | None = None,
+        condition: str | None = None,
+        abort_condition: str | None = None,
+        strict: bool = False,
         **kwargs: Any,
     ) -> ResponseResult:
         """Generate response using the configured AI client.
@@ -190,6 +199,11 @@ class FFAI:
             system_instructions: Override system instructions for this call.
             response_format: Response format hint (e.g. ``{"type": "json_object"}``).
                 Passed through to the underlying provider API.
+            condition: Expression evaluated before execution. If false, prompt
+                is skipped with ``status="skipped"``.
+            abort_condition: Stored for future DAG executor use.
+            strict: If True, raise ValueError on unknown ``{{name.response}}``
+                references instead of silently replacing with empty string.
             **kwargs: Additional provider-specific parameters (temperature,
                 max_tokens, tools, tool_choice, etc.).
 
@@ -227,10 +241,48 @@ class FFAI:
                 dependencies_set = set(dependencies)
                 dependencies = list(dependencies_set)
 
-            final_prompt, interpolated_names = self._build_prompt(prompt, history, dependencies)
+            final_prompt, interpolated_names = self._build_prompt(prompt, history, dependencies, strict=strict)
             resolved_prompt = final_prompt
             logger.debug(f"final_prompt built: {final_prompt}")
             logger.debug(f"interpolated_names: {interpolated_names}")
+
+            if condition is not None:
+                results_by_name = self._build_results_by_name()
+                should_execute, error, trace = self._evaluate_condition(
+                    condition, results_by_name
+                )
+                logger.info(
+                    f"Condition evaluation for '{prompt_name}': "
+                    f"should_execute={should_execute}"
+                )
+                if error is not None:
+                    logger.warning(f"Condition evaluation error for '{prompt_name}': {error}")
+                    return ResponseResult(
+                        response=None,
+                        resolved_prompt=resolved_prompt,
+                        model=used_model,
+                        status="failed",
+                        condition_error=error,
+                    )
+                if not should_execute:
+                    interaction = {
+                        "prompt": prompt,
+                        "response": None,
+                        "prompt_name": prompt_name,
+                        "timestamp": time.time(),
+                        "model": used_model,
+                        "history": history,
+                        "status": "skipped",
+                        "condition_trace": trace,
+                    }
+                    self.history.append(interaction)
+                    return ResponseResult(
+                        response=None,
+                        resolved_prompt=resolved_prompt,
+                        model=used_model,
+                        status="skipped",
+                        condition_trace=trace,
+                    )
 
             if system_instructions is not None:
                 kwargs["system_instructions"] = system_instructions
@@ -284,6 +336,7 @@ class FFAI:
                 "timestamp": time.time(),
                 "model": used_model,
                 "history": history,
+                "status": "success",
             }
 
             self.history.append(interaction)
@@ -322,6 +375,76 @@ class FFAI:
     def clear_conversation(self) -> None:
         """Clear conversation in client but retain history."""
         self.client.clear_conversation()
+
+    # ===========================================================================
+    # Condition & DAG helpers
+    # ===========================================================================
+
+    def _build_results_by_name(self) -> dict[str, dict[str, Any]]:
+        """Build a name->result dict from history for condition evaluation."""
+        results: dict[str, dict[str, Any]] = {}
+        for entry in self.history:
+            name = entry.get("prompt_name")
+            if name:
+                response = entry.get("response")
+                results[name] = {
+                    "status": entry.get("status", "success"),
+                    "response": str(response) if response is not None else "",
+                    "attempts": 1,
+                    "error": "",
+                    "has_response": response is not None and len(str(response).strip()) > 0,
+                }
+        return results
+
+    def _evaluate_condition(
+        self, condition: str, results_by_name: dict[str, dict[str, Any]]
+    ) -> tuple[bool, str | None, str | None]:
+        """Evaluate a condition expression against known results."""
+        evaluator = ConditionEvaluator(results_by_name)
+        return evaluator.evaluate_with_trace(condition)
+
+    def validate_graph(
+        self,
+        prompts: list[dict[str, Any]],
+    ) -> tuple[ExecutionGraph, list[str]]:
+        """Validate a prompt dependency graph without executing.
+
+        Args:
+            prompts: List of dicts with keys: prompt_name, prompt, history, condition.
+
+        Returns:
+            Tuple of (ExecutionGraph, list of warning strings).
+
+        Raises:
+            ValueError: If a dependency cycle is detected.
+
+        """
+        specs: list[dict[str, Any]] = [
+            {
+                "sequence": i,
+                "prompt_name": p.get("prompt_name", f"unnamed_{i}"),
+                "prompt": p.get("prompt", ""),
+                "history": p.get("history"),
+                "condition": p.get("condition"),
+            }
+            for i, p in enumerate(prompts)
+        ]
+        graph = build_execution_graph_with_edges(specs)
+
+        history_edges = {
+            (e.from_seq, e.to_seq) for e in graph.edges if e.source == "history"
+        }
+        warnings = []
+        for edge in graph.edges:
+            if edge.source == "condition" and (edge.from_seq, edge.to_seq) not in history_edges:
+                from_name = graph.nodes[edge.from_seq].get_prompt_name()
+                to_name = graph.nodes[edge.to_seq].get_prompt_name()
+                warnings.append(
+                    f"Undeclared dependency: {to_name} conditions on {from_name} "
+                    f"but does not list it in history. Edge: {edge.condition_text}"
+                )
+
+        return graph, warnings
 
     # ===========================================================================
     # History accessors

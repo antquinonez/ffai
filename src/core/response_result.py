@@ -26,6 +26,9 @@ class ResponseResult:
         cost_usd: Estimated cost in USD for this call.
         model: Model identifier used for this call.
         duration_ms: Wall-clock duration of the LLM call in milliseconds.
+        status: Execution status -- "success", "skipped", or "failed".
+        condition_trace: The resolved condition expression (when condition is used).
+        condition_error: Error message if condition evaluation failed.
 
     """
 
@@ -35,3 +38,6 @@ class ResponseResult:
     cost_usd: float = 0.0
     model: str = ""
     duration_ms: float = 0.0
+    status: str = "success"
+    condition_trace: str | None = None
+    condition_error: str | None = None

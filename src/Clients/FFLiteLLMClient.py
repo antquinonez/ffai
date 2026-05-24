@@ -17,7 +17,6 @@ from __future__ import annotations
 import copy
 import logging
 import os
-import time
 from typing import Any
 
 import litellm
@@ -25,10 +24,7 @@ from litellm import completion
 
 from ..core.client_base import FFAIClientBase
 from ..core.usage import TokenUsage
-from ..retry_utils import (
-    extract_retry_after,
-    should_retry_exception,
-)
+from ..retry_utils import get_configured_retry_decorator
 from .model_defaults import get_model_defaults
 
 logger = logging.getLogger(__name__)
@@ -161,50 +157,10 @@ class FFLiteLLMClient(FFAIClientBase):
         self._extra_kwargs = kwargs
 
     def _configure_litellm_retry(self) -> None:
-        """Configure LiteLLM's built-in retry behavior from global config."""
-        from ..config import get_config
-
-        try:
-            app_config = get_config()
-            retry_settings = getattr(app_config, "retry", None)
-
-            if not retry_settings:
-                retry_settings = type(
-                    "RetryConfig",
-                    (),
-                    {
-                        "max_attempts": 3,
-                        "min_wait_seconds": 1,
-                        "max_wait_seconds": 60,
-                        "exponential_base": 2,
-                        "exponential_jitter": True,
-                    },
-                )()
-
-            max_attempts = getattr(retry_settings, "max_attempts", 3)
-            min_wait = getattr(retry_settings, "min_wait_seconds", 1)
-            max_wait = getattr(retry_settings, "max_wait_seconds", 60)
-
-            litellm.num_retries = max_attempts
-            litellm.retry_on_status_codes = getattr(  # type: ignore[reportAttributeAccessIssue]
-                retry_settings, "retry_on_status_codes", [429, 503, 502, 504]
-            )
-
-            litellm.suppress_debug_info = True
-            litellm_logger = logging.getLogger("LiteLLM")
-            litellm_logger.setLevel(logging.WARNING)
-
-            logger.info(
-                f"Configured LiteLLM retry: max_attempts={max_attempts}, "
-                f"min_wait={min_wait}s, max_wait={max_wait}s"
-            )
-
-        except Exception as e:
-            logger.warning(f"Failed to configure LiteLLM retry from config: {e}")
-            litellm.num_retries = 3
-            litellm.suppress_debug_info = True
-            litellm_logger = logging.getLogger("LiteLLM")
-            litellm_logger.setLevel(logging.WARNING)
+        """Disable LiteLLM's built-in retry; retry is handled by retry_utils."""
+        litellm.num_retries = 0
+        litellm.suppress_debug_info = True
+        logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
     def _get_env(self, suffix: str) -> str | None:
         """Get environment variable with provider-specific prefix."""
@@ -243,7 +199,11 @@ class FFLiteLLMClient(FFAIClientBase):
         max_tokens: int | None = None,
         **kwargs: Any,
     ) -> str:
-        """Generate a response from the AI model with retry logic.
+        """Generate a response from the AI model with retry and fallback logic.
+
+        Retries are handled by ``retry_utils.get_configured_retry_decorator``
+        on the inner ``_call_primary`` method. If the primary model (and all
+        its retries) fail, fallback models are tried once each.
 
         Args:
             prompt: The user prompt
@@ -298,73 +258,60 @@ class FFLiteLLMClient(FFAIClientBase):
             f"Calling LiteLLM with model={model_string}, temperature={api_params.get('temperature')}"
         )
 
-        retry_config = self._retry_config or {}
-        max_attempts = retry_config.get("max_attempts", 3) if isinstance(retry_config, dict) else 3
+        try:
+            with self._trace_llm_call(model_string):
+                return self._call_primary(api_params, model_string, prompt)
+        except Exception as e:
+            if self._fallbacks:
+                logger.warning(f"Primary model {model_string} failed, trying fallbacks")
+                return self._try_fallbacks(messages, api_params, str(e))
+            raise
 
-        with self._trace_llm_call(model_string):
-            for attempt in range(1, max_attempts + 1):
-                try:
-                    response = completion(**api_params)
-                    self._extract_usage(response, model_string)
-                    message = response.choices[0].message  # type: ignore[reportAttributeAccessIssue]
-                    tool_calls = getattr(message, "tool_calls", None)
+    @get_configured_retry_decorator()
+    def _call_primary(
+        self, api_params: dict[str, Any], model_string: str, prompt: str
+    ) -> str:
+        """Execute a single LiteLLM completion call (retried by decorator).
 
-                    if tool_calls:
-                        assistant_response = message.content or ""
-                        self.conversation_history.append({"role": "user", "content": prompt})
-                        self.conversation_history.append(
-                            {
-                                "role": "assistant",
-                                "content": assistant_response,
-                                "tool_calls": self._serialize_tool_calls(tool_calls),
-                            }
-                        )
-                        logger.debug(
-                            "Response received with %s tool call(s)",
-                            len(tool_calls),
-                        )
-                        return assistant_response
+        Args:
+            api_params: Parameters dict for ``litellm.completion()``.
+            model_string: Model identifier for logging.
+            prompt: Original user prompt (used for history).
 
-                    assistant_response = message.content or ""
+        Returns:
+            The assistant response text.
 
-                    self.conversation_history.append({"role": "user", "content": prompt})
-                    self.conversation_history.append(
-                        {"role": "assistant", "content": assistant_response}
-                    )
+        Raises:
+            Exception: Re-raised from ``completion()`` after retries exhausted.
 
-                    logger.debug(f"Response received: {assistant_response[:100]}...")
-                    return assistant_response
+        """
+        response = completion(**api_params)
+        self._extract_usage(response, model_string)
+        message = response.choices[0].message  # type: ignore[reportAttributeAccessIssue]
+        tool_calls = getattr(message, "tool_calls", None)
 
-                except Exception as e:
-                    error_str = str(e)
+        if tool_calls:
+            assistant_response = message.content or ""
+            self.conversation_history.append({"role": "user", "content": prompt})
+            self.conversation_history.append(
+                {
+                    "role": "assistant",
+                    "content": assistant_response,
+                    "tool_calls": self._serialize_tool_calls(tool_calls),
+                }
+            )
+            logger.debug("Response received with %s tool call(s)", len(tool_calls))
+            return assistant_response
 
-                    if attempt < max_attempts and should_retry_exception(e):
-                        retry_after = extract_retry_after(e)
+        assistant_response = message.content or ""
 
-                        if retry_after:
-                            wait_time = min(retry_after, 60)
-                            logger.warning(
-                                f"Rate limit hit for {model_string}. "
-                                f"Retrying in {wait_time:.1f}s (attempt {attempt}/{max_attempts})"
-                            )
-                        else:
-                            wait_time = min(2 ** (attempt - 1), 60)
-                            logger.warning(
-                                f"Transient error for {model_string}. "
-                                f"Retrying in {wait_time:.1f}s (attempt {attempt}/{max_attempts})"
-                            )
+        self.conversation_history.append({"role": "user", "content": prompt})
+        self.conversation_history.append(
+            {"role": "assistant", "content": assistant_response}
+        )
 
-                        time.sleep(wait_time)
-                        continue
-
-                    if self._fallbacks:
-                        logger.warning(f"Primary model {model_string} failed, trying fallbacks")
-                        return self._try_fallbacks(messages, api_params, error_str)
-
-                    logger.error(f"All retries exhausted for {model_string}: {error_str[:200]}")
-                    raise
-
-        raise RuntimeError(f"Unexpected error in retry loop for {model_string}")
+        logger.debug(f"Response received: {assistant_response[:100]}...")
+        return assistant_response
 
     def _extract_usage(self, response: Any, model_string: str) -> None:
         """Extract token usage and cost from a LiteLLM completion response.

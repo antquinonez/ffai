@@ -244,9 +244,8 @@ class FFAI:
                 if should_suspend_client_history and saved_client_history is not None:
                     with self._client_history_lock:
                         new_client_messages = self.client.get_conversation_history()
-                        self.client.set_conversation_history(saved_client_history)
-                        for msg in new_client_messages:
-                            self.client.get_conversation_history().append(msg)
+                        combined = list(saved_client_history) + list(new_client_messages)
+                        self.client.set_conversation_history(combined)
                         logger.debug(
                             f"Restored client conversation history (+{len(new_client_messages)} new messages)"
                         )

@@ -223,13 +223,16 @@ class FFAI:
                 kwargs["system_instructions"] = system_instructions
 
             saved_client_history = None
-            should_suspend_client_history = history is not None
+            should_suspend_client_history = history is not None or bool(interpolated_names)
 
             if should_suspend_client_history:
                 with self._client_history_lock:
                     saved_client_history = self.client.get_conversation_history().copy()
                     self.client.set_conversation_history([])
-                    logger.debug("Suspended client conversation history for declarative context")
+                    reason = "history injection" if history else f"interpolation of {interpolated_names}"
+                    logger.debug(
+                        f"Suspended client conversation history: {reason}"
+                    )
 
             call_start = time.monotonic()
             try:

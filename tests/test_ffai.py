@@ -563,6 +563,39 @@ class TestFFAIClientHistorySuspension:
         # Should have all 3 user messages from conversation history
         assert len(user_messages) == 3, "API should receive all 3 user messages from client history"
 
+    def test_interpolation_suspends_client_history(self, mock_ffmistralsmall):
+        """Verify that {{name.response}} interpolation also suspends client history."""
+        from src.FFAI import FFAI
+
+        ffai = FFAI(mock_ffmistralsmall)
+
+        # Build up client history with a named prompt
+        ffai.generate_response("What is Python?", prompt_name="python_q")
+
+        assert len(mock_ffmistralsmall.conversation_history) == 2
+
+        # Now use interpolation -- client history should be suspended
+        ffai.generate_response(
+            "Tell me more about {{python_q.response}}",
+            prompt_name="followup",
+        )
+
+        # Client history should still be 2 (suspended during interpolation call)
+        assert len(mock_ffmistralsmall.conversation_history) == 2
+
+    def test_no_interpolation_no_history_keeps_client_history(self, mock_ffmistralsmall):
+        """Verify that a plain prompt without interpolation accumulates client history."""
+        from src.FFAI import FFAI
+
+        ffai = FFAI(mock_ffmistralsmall)
+
+        ffai.generate_response("First question")
+        assert len(mock_ffmistralsmall.conversation_history) == 2
+
+        # Plain prompt, no interpolation, no history param -- client history accumulates
+        ffai.generate_response("Second question", prompt_name="q2")
+        assert len(mock_ffmistralsmall.conversation_history) == 4
+
 
 class TestFFAIExtractJson:
     """Tests for _extract_json method.

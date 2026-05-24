@@ -2,19 +2,25 @@
 # SPDX-License-Identifier: MIT
 # Contact: antquinonez@farfiner.com
 
-"""Response cleaning and JSON extraction utilities."""
+"""Response cleaning and JSON extraction utilities.
+
+Uses ``json_repair`` for fault-tolerant parsing of LLM output that may
+contain trailing commas, unquoted keys, or other common JSON mistakes.
+"""
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from typing import Any
+
+from json_repair import loads as json_repair_loads
 
 logger = logging.getLogger(__name__)
 
 _MARKDOWN_PATTERN = re.compile(r"```(?:json)?\s*(?P<content>[\s\S]*?)\s*```")
 _THINK_TAG_PATTERN = re.compile(r"<think[\s\S]*?</think\s*>")
+_JSON_LIKE_PATTERN = re.compile(r"^\s*[\[{]")
 
 
 def _clean_text(text: str) -> str:
@@ -28,10 +34,10 @@ def _extract_from_markdown(text: str) -> str | None:
 
 
 def extract_json(text: str) -> Any | None:
-    """Extract JSON from text, handling markdown code blocks.
+    """Extract JSON from text using fault-tolerant ``json_repair``.
 
-    Checks if JSON appears within the first 20 characters. If found,
-    tries markdown extraction first, then falls back to full text parse.
+    Handles markdown code blocks, trailing commas, unquoted keys, and
+    other common LLM JSON mistakes.
 
     Args:
         text: Response text that may contain JSON.
@@ -40,19 +46,22 @@ def extract_json(text: str) -> Any | None:
         Parsed JSON object or None if no valid JSON found.
 
     """
-    first_20_chars = text[:20]
-    try:
-        if json.loads(first_20_chars):
-            markdown_content = _extract_from_markdown(text)
-            if markdown_content:
-                try:
-                    return json.loads(markdown_content)
-                except json.JSONDecodeError:
-                    pass
+    text = _clean_text(text)
+    if not text:
+        return None
 
-            return json.loads(_clean_text(text))
-    except json.JSONDecodeError:
-        pass
+    markdown_content = _extract_from_markdown(text)
+    if markdown_content:
+        try:
+            return json_repair_loads(markdown_content)
+        except Exception:
+            pass
+
+    if _JSON_LIKE_PATTERN.match(text):
+        try:
+            return json_repair_loads(text)
+        except Exception:
+            pass
 
     return None
 

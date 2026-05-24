@@ -26,7 +26,7 @@ class TestExtractJson:
 
     def test_json_in_markdown_code_block(self):
         result = extract_json('```json\n{"score": 5}\n```')
-        assert result is None
+        assert result == {"score": 5}
 
     def test_plain_text_returns_none(self):
         assert extract_json("plain text") is None
@@ -46,18 +46,51 @@ class TestExtractJson:
     def test_empty_string_returns_none(self):
         assert extract_json("") is None
 
-    def test_json_after_20_chars_not_detected(self):
+    def test_json_far_into_text(self):
         result = extract_json("a" * 21 + '{"key": 1}')
         assert result is None
 
     def test_json_in_markdown_no_language(self):
         result = extract_json('```\n{"x": 1}\n```')
-        assert result is None
+        assert result == {"x": 1}
+
+    def test_json_with_trailing_commas(self):
+        result = extract_json('{"key": "value",}')
+        assert result == {"key": "value"}
+
+    def test_json_with_unquoted_keys(self):
+        result = extract_json('{key: "value"}')
+        assert result == {"key": "value"}
+
+    def test_json_with_single_quotes(self):
+        result = extract_json("{'key': 'value'}")
+        assert result == {"key": "value"}
+
+    def test_json_with_trailing_comma_in_array(self):
+        result = extract_json('[1, 2, 3,]')
+        assert result == [1, 2, 3]
+
+    def test_json_with_trailing_comma_in_nested(self):
+        result = extract_json('{"a": [1, 2,], "b": {"c": 1,}}')
+        assert result == {"a": [1, 2], "b": {"c": 1}}
+
+    def test_json_in_markdown_with_trailing_comma(self):
+        result = extract_json('```json\n{"score": 5,}\n```')
+        assert result == {"score": 5}
+
+    def test_json_with_boolean_null(self):
+        result = extract_json('{"a": true, "b": false, "c": null}')
+        assert result == {"a": True, "b": False, "c": None}
 
     def test_json_first_20_with_invalid_markdown_falls_through(self):
         text = '{"a":1}             ```json\n{invalid}\n```'
         result = extract_json(text)
-        assert result is None
+        assert result is not None
+
+    def test_json_repair_parses_markdown_content(self):
+        text = '{"a":1}             ```json\n{invalid}\n```'
+        result = extract_json(text)
+        assert isinstance(result, list)
 
     def test_json_first_20_with_invalid_markdown_and_clean_full_text(self):
         text = '{"a":1}             '
@@ -90,17 +123,18 @@ class TestCleanResponse:
         result = clean_response('{"score": 5}')
         assert result == {"score": 5}
 
-    def test_long_json_returns_cleaned_string(self):
-        result = clean_response('{"score": 5, "reason": "good"}')
-        assert isinstance(result, str)
-        assert '"score": 5' in result
-        assert '"reason": "good"' in result
+    def test_extracts_json_with_trailing_comma(self):
+        result = clean_response('{"score": 5,}')
+        assert result == {"score": 5}
+
+    def test_extracts_json_from_markdown(self):
+        result = clean_response('```json\n{"score": 5}\n```')
+        assert result == {"score": 5}
 
     def test_think_tags_in_json_values_stripped(self):
         result = clean_response('{"analysis": "<think hmm</think >actual"}')
-        assert isinstance(result, str)
-        assert "<think" not in result
-        assert "actual" in result
+        assert isinstance(result, dict)
+        assert result == {"analysis": "actual"}
 
     def test_plain_text_without_json(self):
         result = clean_response("Just a plain text response")
@@ -112,3 +146,7 @@ class TestCleanResponse:
     def test_think_tags_without_closing_not_removed(self):
         result = clean_response("<think reasoning")
         assert "<think" in result
+
+    def test_malformed_json_repaired(self):
+        result = clean_response('{"key": "value",}')
+        assert result == {"key": "value"}

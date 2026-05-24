@@ -81,7 +81,6 @@ src/
     response_result.py       # Typed response container
     response_context.py      # Thread-safe shared history
     usage.py                 # TokenUsage dataclass
-    pricing.py               # Per-model cost estimation
     history_exporter.py      # Polars DataFrame export
     history/
       ordered.py             # Ordered prompt-response history

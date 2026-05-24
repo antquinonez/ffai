@@ -223,6 +223,7 @@ class FFAI:
                 kwargs["system_instructions"] = system_instructions
 
             saved_client_history = None
+            new_client_messages: list[dict[str, Any]] = []
             should_suspend_client_history = history is not None or bool(interpolated_names)
 
             if should_suspend_client_history:
@@ -242,8 +243,13 @@ class FFAI:
             finally:
                 if should_suspend_client_history and saved_client_history is not None:
                     with self._client_history_lock:
+                        new_client_messages = self.client.get_conversation_history()
                         self.client.set_conversation_history(saved_client_history)
-                        logger.debug("Restored client conversation history")
+                        for msg in new_client_messages:
+                            self.client.get_conversation_history().append(msg)
+                        logger.debug(
+                            f"Restored client conversation history (+{len(new_client_messages)} new messages)"
+                        )
             call_duration_ms = (time.monotonic() - call_start) * 1000
             usage = getattr(self.client, "last_usage", None)
             cost_usd = getattr(self.client, "last_cost_usd", 0.0)

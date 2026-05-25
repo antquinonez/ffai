@@ -48,7 +48,7 @@ class TestConditionalExecution:
             options=ResponseOptions(condition='{{fetch.status}} == "success"'),
         )
         assert result.status == "success"
-        assert result.response is not None
+        assert result.response == "executed"
         mock_client.generate_response.assert_called_once()
 
     def test_condition_false_skips(self, ffai, mock_client):

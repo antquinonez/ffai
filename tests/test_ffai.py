@@ -279,10 +279,11 @@ class TestFFAIDataFrameExport:
 
         df = ffai.history_to_dataframe()
 
-        assert not df.is_empty()
         assert len(df) == 1
-        assert "prompt" in df.columns
-        assert "response" in df.columns
+        assert df["prompt"][0] == "Hello!"
+        assert df["response"][0] == "This is a test response."
+        assert df["prompt_name"][0] == "test"
+        assert df["model"][0] == "mistral-small-2503"
 
     def test_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty history to DataFrame."""
@@ -939,23 +940,32 @@ class TestFFAIGenerateResponseExtended:
 
     def test_generate_response_with_system_instructions(self, mock_ffmistralsmall):
         """Test system instructions are passed to client."""
+        from unittest.mock import MagicMock
+
         from src.FFAI import FFAI
 
+        mock_ffmistralsmall.generate_response = MagicMock(return_value="response")
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Test", options=ResponseOptions(system_instructions="Be helpful"))
 
+        call_kwargs = mock_ffmistralsmall.generate_response.call_args
+        assert call_kwargs.kwargs.get("system_instructions") == "Be helpful"
         assert len(ffai.history) == 1
 
     def test_generate_response_with_thread_lock(self, mock_ffmistralsmall):
         """Test thread lock is used when provided."""
         import threading
+        from unittest.mock import MagicMock
 
         from src.FFAI import FFAI
 
-        lock = threading.Lock()
+        lock = MagicMock(spec=threading.Lock)
+        lock.__enter__ = MagicMock(return_value=None)
+        lock.__exit__ = MagicMock(return_value=False)
         ffai = FFAI(mock_ffmistralsmall, history_lock=lock)
         ffai.generate_response("Test")
 
+        lock.__enter__.assert_called()
         assert len(ffai.prompt_attr_history) == 1
 
 
@@ -1167,12 +1177,13 @@ class TestFFAIDataFrameExtended:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Hello!")
+        ffai.generate_response("Hello!", prompt_name="test")
 
         df = ffai.clean_history_to_dataframe()
 
-        assert not df.is_empty()
         assert len(df) == 1
+        assert df["prompt"][0] == "Hello!"
+        assert df["response"][0] == "This is a test response."
 
     def test_clean_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty clean history to DataFrame."""
@@ -1188,11 +1199,12 @@ class TestFFAIDataFrameExtended:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Hello!")
+        ffai.generate_response("Hello!", prompt_name="test")
 
         df = ffai.prompt_attr_history_to_dataframe()
 
-        assert not df.is_empty()
+        assert len(df) == 1
+        assert df["prompt_name"][0] == "test"
 
     def test_prompt_attr_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty prompt attr history to DataFrame."""
@@ -1208,11 +1220,12 @@ class TestFFAIDataFrameExtended:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Hello!")
+        ffai.generate_response("Hello!", prompt_name="test")
 
         df = ffai.ordered_history_to_dataframe()
 
-        assert not df.is_empty()
+        assert len(df) == 1
+        assert df["prompt_name"][0] == "test"
 
     def test_ordered_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty ordered history to DataFrame."""
@@ -1271,9 +1284,9 @@ class TestFFAIDataFrameExtended:
 
         df = ffai.get_model_stats_df()
 
-        assert not df.is_empty()
-        assert "model" in df.columns
-        assert "count" in df.columns
+        assert len(df) == 1
+        assert df["model"][0] == "mistral-small-2503"
+        assert df["count"][0] == 2
 
     def test_get_prompt_name_stats_df(self, mock_ffmistralsmall):
         """Test getting prompt name stats as DataFrame."""
@@ -1285,8 +1298,9 @@ class TestFFAIDataFrameExtended:
 
         df = ffai.get_prompt_name_stats_df()
 
-        assert not df.is_empty()
-        assert "prompt_name" in df.columns
+        assert len(df) == 1
+        assert df["prompt_name"][0] == "a"
+        assert df["count"][0] == 2
 
     def test_get_response_length_stats(self, mock_ffmistralsmall):
         """Test getting response length stats."""
@@ -1298,7 +1312,7 @@ class TestFFAIDataFrameExtended:
 
         df = ffai.get_response_length_stats()
 
-        assert not df.is_empty()
+        assert len(df) == 2
         assert "prompt_name" in df.columns
         assert "mean_length" in df.columns
 
@@ -1321,9 +1335,8 @@ class TestFFAIDataFrameExtended:
 
         df = ffai.interaction_counts_by_date()
 
-        assert not df.is_empty()
-        assert "date" in df.columns
-        assert "len" in df.columns
+        assert len(df) == 1
+        assert df["len"][0] == 2
 
     def test_interaction_counts_by_date_empty(self, mock_ffmistralsmall):
         """Test getting interaction counts with empty history."""
@@ -1344,8 +1357,8 @@ class TestFFAIDataFrameExtended:
 
         df = ffai.history_to_dataframe()
 
-        assert not df.is_empty()
-        assert "response" in df.columns
+        assert len(df) == 1
+        assert df["response"][0] == "{'key': 'value'}"
 
 
 class TestFFAIPersistence:

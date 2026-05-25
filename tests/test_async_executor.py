@@ -28,6 +28,7 @@ class _MockAsyncClient(AsyncFFAIClientBase):
         self.conversation_history.append({"role": "assistant", "content": response})
         return response
 
+
     def clear_conversation(self):
         self.conversation_history = []
 
@@ -712,3 +713,29 @@ class TestFFAIExecuteGraphEnhanced:
         result = asyncio.run(ffai.execute_graph(prompts))
         assert result.aborted is True
         assert result.results["c"].status == "skipped"
+
+
+class TestAsyncClientBasePassthrough:
+    def test_super_generate_response_returns_none(self):
+        class DelegatingAsyncClient(AsyncFFAIClientBase):
+            model = "test"
+            system_instructions = ""
+
+            async def generate_response(self, prompt: str, **kwargs):
+                return await super().generate_response(prompt, **kwargs)
+
+            async def clone(self):
+                return await super().clone()
+
+            def clear_conversation(self):
+                pass
+
+            def get_conversation_history(self):
+                return []
+
+            def set_conversation_history(self, history):
+                pass
+
+        client = DelegatingAsyncClient()
+        assert asyncio.run(client.generate_response("test")) is None
+        assert asyncio.run(client.clone()) is None

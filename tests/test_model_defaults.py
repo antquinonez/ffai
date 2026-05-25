@@ -5,7 +5,8 @@ class TestGetModelDefaults:
     def test_known_model_returns_copy(self):
         defaults = get_model_defaults("mistral-small-2503")
         assert isinstance(defaults, dict)
-        assert "temperature" in defaults or "max_tokens" in defaults
+        assert "temperature" in defaults
+        assert "max_tokens" in defaults
 
     def test_returns_copy_not_reference(self):
         defaults = get_model_defaults("mistral-small-2503")

@@ -1,0 +1,140 @@
+# Integration Test Configuration
+# ===============================
+# Configures which LLM clients the integration tests exercise.
+# These tests make REAL API calls — valid API keys are required.
+#
+# Usage:
+#   pytest tests/integration/ -m integration -v
+#
+# How it works:
+#   - Every client with "enabled: true" runs through the full contract
+#     test suite (basic generation, history, usage tracking, etc.)
+#   - Client-specific features (tool calling, fallbacks) have dedicated
+#     test classes that only run for matching client_class values
+#   - If the required API key env var is missing, that client's tests
+#     are skipped automatically with a clear message
+#
+# Adding a new client:
+#   1. Uncomment or add a block below
+#   2. Set enabled: true
+#   3. Make sure the API key env var is in your .env file
+#   4. Run the tests — the contract suite runs automatically
+
+clients:
+
+  # ──────────────────────────────────────────────
+  # Mistral Small — Native SDK (mistralai package)
+  # ──────────────────────────────────────────────
+  # Uses the official Mistral Python client directly.
+  # Requires: MISTRALSMALL_KEY in environment
+  mistral-small:
+    enabled: true
+    client_class: "FFMistralSmall"
+    api_key_env: "MISTRALSMALL_KEY"
+    params:
+      model: "mistral-small-2503"
+      temperature: 0
+      max_tokens: 50
+      system_instructions: "Be concise. Answer in one sentence."
+
+  # ──────────────────────────────────────────────
+  # Mistral Small — via LiteLLM
+  # ──────────────────────────────────────────────
+  # Routes through LiteLLM's unified interface.
+  # Requires: MISTRAL_API_KEY in environment
+  litellm-mistral-small:
+    enabled: true
+    client_class: "FFLiteLLMClient"
+    api_key_env: "MISTRAL_API_KEY"
+    params:
+      model_string: "mistral/mistral-small-2503"
+      temperature: 0
+      max_tokens: 50
+      system_instructions: "Be concise. Answer in one sentence."
+
+  # ──────────────────────────────────────────────
+  # Mistral Large — via LiteLLM
+  # ──────────────────────────────────────────────
+  # Same as above but uses the larger model.
+  # Requires: MISTRAL_API_KEY in environment
+  # litellm-mistral-large:
+  #   enabled: false
+  #   client_class: "FFLiteLLMClient"
+  #   api_key_env: "MISTRAL_API_KEY"
+  #   params:
+  #     model_string: "mistral/mistral-large-latest"
+  #     temperature: 0
+  #     max_tokens: 50
+  #     system_instructions: "Be concise. Answer in one sentence."
+
+  # ──────────────────────────────────────────────
+  # OpenAI GPT-4o Mini — via LiteLLM
+  # ──────────────────────────────────────────────
+  # Requires: OPENAI_API_KEY in environment
+  # openai:
+  #   enabled: false
+  #   client_class: "FFLiteLLMClient"
+  #   api_key_env: "OPENAI_API_KEY"
+  #   params:
+  #     model_string: "openai/gpt-4o-mini"
+  #     temperature: 0
+  #     max_tokens: 50
+  #     system_instructions: "Be concise. Answer in one sentence."
+
+  # ──────────────────────────────────────────────
+  # Anthropic Claude 3.5 Sonnet — via LiteLLM
+  # ──────────────────────────────────────────────
+  # Requires: ANTHROPIC_API_KEY in environment
+  # anthropic:
+  #   enabled: false
+  #   client_class: "FFLiteLLMClient"
+  #   api_key_env: "ANTHROPIC_API_KEY"
+  #   params:
+  #     model_string: "anthropic/claude-3-5-sonnet-20241022"
+  #     temperature: 0
+  #     max_tokens: 50
+  #     system_instructions: "Be concise. Answer in one sentence."
+
+  # ──────────────────────────────────────────────
+  # Azure OpenAI — via LiteLLM
+  # ──────────────────────────────────────────────
+  # Requires: AZURE_API_KEY and AZURE_API_BASE in environment
+  # azure:
+  #   enabled: false
+  #   client_class: "FFLiteLLMClient"
+  #   api_key_env: "AZURE_API_KEY"
+  #   params:
+  #     model_string: "azure/your-deployment-name"
+  #     api_base: "https://your-resource.openai.azure.com"
+  #     api_version: "2024-02-15-preview"
+  #     temperature: 0
+  #     max_tokens: 50
+  #     system_instructions: "Be concise. Answer in one sentence."
+
+  # ──────────────────────────────────────────────
+  # Google Gemini — via LiteLLM
+  # ──────────────────────────────────────────────
+  # Requires: GEMINI_API_KEY in environment
+  # gemini:
+  #   enabled: false
+  #   client_class: "FFLiteLLMClient"
+  #   api_key_env: "GEMINI_API_KEY"
+  #   params:
+  #     model_string: "gemini/gemini-2.5-flash-lite"
+  #     temperature: 0
+  #     max_tokens: 50
+  #     system_instructions: "Be concise. Answer in one sentence."
+
+  # ──────────────────────────────────────────────
+  # Perplexity Sonar — via LiteLLM
+  # ──────────────────────────────────────────────
+  # Requires: PERPLEXITY_API_KEY in environment
+  # perplexity:
+  #   enabled: false
+  #   client_class: "FFLiteLLMClient"
+  #   api_key_env: "PERPLEXITY_API_KEY"
+  #   params:
+  #     model_string: "perplexity/sonar"
+  #     temperature: 0
+  #     max_tokens: 50
+  #     system_instructions: "Be concise. Answer in one sentence."

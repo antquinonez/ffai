@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Contact: antquinonez@farfiner.com
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -212,7 +212,7 @@ class TestFFAIClientManagement:
 
         ffai = FFAI(mock_ffmistralsmall)
 
-        with patch("src.Clients.FFMistralSmall.Mistral"):
+        with patch.object(FFMistralSmall, "_initialize_client", return_value=MagicMock()):
             new_client = FFMistralSmall(api_key="new-key")
             ffai.set_client(new_client)
 

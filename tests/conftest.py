@@ -55,17 +55,16 @@ def mock_openai_client(mock_openai_response):
 @pytest.fixture
 def mock_ffmistralsmall(mock_mistral_client):
     """Mock FFMistralSmall instance."""
-    with patch("src.Clients.FFMistralSmall.Mistral") as MockMistral:
-        MockMistral.return_value = mock_mistral_client
-        from src.Clients.FFMistralSmall import FFMistralSmall
+    from src.Clients.FFMistralSmall import FFMistralSmall
 
+    with patch.object(FFMistralSmall, "_initialize_client", return_value=mock_mistral_client):
         client = FFMistralSmall(
             api_key="test-api-key",
             model="mistral-small-2503",
             temperature=0.8,
             max_tokens=128000,
         )
-        yield client
+    yield client
 
 
 @pytest.fixture

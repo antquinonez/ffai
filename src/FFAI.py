@@ -21,7 +21,7 @@ import polars as pl
 
 from .config import get_config
 from .core.client_base import FFAIClientBase
-from .core.condition_evaluator import ConditionEvaluator
+from .core.execution_result import ExecutionResult
 from .core.graph import ExecutionGraph, build_execution_graph_with_edges
 from .core.graph_execution_helpers import resolve_graph_prompt
 from .core.history.ordered import OrderedPromptHistory
@@ -30,10 +30,11 @@ from .core.history_exporter import HistoryExporter
 from .core.prompt_builder import PromptBuilder
 from .core.prompt_utils import extract_json_field, interpolate_prompt
 from .core.response_context import ResponseContext
+from .core.response_executor import ResponseExecutor
+from .core.response_options import ResponseOptions
 from .core.response_result import ResponseResult
 from .core.response_utils import clean_response as _clean_response_impl
 from .core.response_utils import extract_json
-from .core.usage import TokenUsage
 
 __all__ = ["FFAI", "extract_json_field", "interpolate_prompt"]
 
@@ -71,17 +72,6 @@ class FFAI:
         shared_prompt_attr_history: list[dict[str, Any]] | None = None,
         history_lock: threading.Lock | None = None,
     ) -> None:
-        """Initialize the FFAI wrapper.
-
-        Args:
-            client: AI client instance to wrap.
-            persist_dir: Directory for persistence files. Uses config default if None.
-            persist_name: Base name for persisted files.
-            auto_persist: Whether to automatically persist DataFrames.
-            shared_prompt_attr_history: Optional shared history list for parallel execution.
-            history_lock: Optional lock for thread-safe history access.
-
-        """
         logger.info("Initializing FFAI wrapper")
 
         config = get_config()
@@ -105,6 +95,11 @@ class FFAI:
         self.ordered_history = OrderedPromptHistory()
 
         self._prompt_builder = PromptBuilder(self._context.prompt_attr_history)
+        self._executor = ResponseExecutor(
+            prompt_builder=self._prompt_builder.build_prompt,
+            condition_evaluator_fn=self._evaluate_condition,
+            results_by_name_fn=self._build_results_by_name,
+        )
         self._exporter = HistoryExporter(
             history=self.history,
             clean_history=self.clean_history,
@@ -122,12 +117,10 @@ class FFAI:
 
     @prompt_attr_history.setter
     def prompt_attr_history(self, value: list[dict[str, Any]]) -> None:
-        """Allow external reassignment for backward compatibility."""
         self._context.prompt_attr_history = value
 
     @property
     def _history_lock(self) -> threading.Lock | None:
-        """Backward-compatible access to the history lock."""
         return self._context.history_lock
 
     def set_client(self, client: FFAIClientBase) -> None:
@@ -136,31 +129,15 @@ class FFAI:
         self.client = client
 
     def _extract_json(self, text: str) -> Any | None:
-        """Extract JSON from text, handling markdown code blocks and JSON within first 20 chars."""
         return extract_json(text)
 
     def get_system_instructions(self) -> str | None:
-        """Get system instructions from the client."""
         if hasattr(self.client, "system_instructions"):
             return self.client.system_instructions
         return None
 
     def _clean_response(self, response: Any) -> Any:
-        """Process and validate the evaluation response."""
         return _clean_response_impl(response)
-
-    def _build_prompt(
-        self,
-        prompt: str,
-        history: list[str] | None = None,
-        dependencies: Any | None = None,
-        strict: bool = False,
-    ) -> tuple[str, set[str]]:
-        """Build the final prompt with history and variable interpolation."""
-        result, interpolated = self._prompt_builder.build_prompt(
-            prompt, history, dependencies, strict=strict
-        )
-        return result, interpolated
 
     def build_prompt(
         self,
@@ -169,46 +146,28 @@ class FFAI:
         dependencies: Any | None = None,
         strict: bool = False,
     ) -> tuple[str, set[str]]:
-        """Public API for prompt building (delegates to PromptBuilder).
+        """Public API for prompt building (delegates to PromptBuilder)."""
+        return self._prompt_builder.build_prompt(prompt, history, dependencies, strict=strict)
 
-        Use this instead of the private ``_build_prompt()`` method.
-        """
-        return self._build_prompt(prompt, history, dependencies, strict=strict)
+    # ===========================================================================
+    # Core: generate_response
+    # ===========================================================================
 
     def generate_response(
         self,
         prompt: str,
-        model: str | None = None,
         prompt_name: str | None = None,
-        history: list[str] | None = None,
-        dependencies: list[str] | None = None,
-        system_instructions: str | None = None,
-        response_format: str | dict | None = None,
-        response_model: type | None = None,
-        condition: str | None = None,
-        abort_condition: str | None = None,
-        strict: bool = False,
+        options: ResponseOptions | None = None,
         **kwargs: Any,
     ) -> ResponseResult:
         """Generate response using the configured AI client.
 
         Args:
             prompt: The user prompt (may contain ``{{name.response}}`` patterns).
-            model: Override model for this call.
             prompt_name: Logical name for the prompt (used for interpolation).
-            history: List of prompt names to include in conversation context.
-            dependencies: Prompt names this call depends on.
-            system_instructions: Override system instructions for this call.
-            response_format: Response format hint (e.g. ``{"type": "json_object"}``).
-                Passed through to the underlying provider API.
-            response_model: Pydantic BaseModel subclass for structured output.
-                When set, the response is validated against the model schema
-                with up to 3 total attempts on validation failure.
-            condition: Expression evaluated before execution. If false, prompt
-                is skipped with ``status="skipped"``.
-            abort_condition: Stored for future DAG executor use.
-            strict: If True, raise ValueError on unknown ``{{name.response}}``
-                references instead of silently replacing with empty string.
+            options: Configuration for this call.  Groups model override,
+                history, dependencies, system_instructions, response_format,
+                response_model, condition, abort_condition, and strict.
             **kwargs: Additional provider-specific parameters (temperature,
                 max_tokens, tools, tool_choice, etc.).
 
@@ -216,6 +175,9 @@ class FFAI:
             ``ResponseResult`` with response, resolved prompt, usage, and cost.
 
         """
+        opts = options or ResponseOptions()
+        used_model = opts.model or self.client.model
+
         logger.debug(
             "\n==================================================================================="
         )
@@ -224,263 +186,127 @@ class FFAI:
             f"Generating response for '{prompt_name}' ({len(prompt)} chars): '{prompt_preview}'"
         )
         logger.debug(f"Full prompt: '{prompt}'")
-        logger.debug(f"Prompt_name: '{prompt_name}'")
-        logger.debug(
-            f"System instructions: '{system_instructions}'"
-        ) if system_instructions else logger.debug("No system instructions provided")
-        logger.debug(f"History: {history}") if history else logger.debug("No history provided")
-        logger.debug(f"Dependencies: {dependencies}") if dependencies else logger.debug(
-            "No dependencies provided"
-        )
-
-        used_model = model if model else self.client.model
         logger.debug(f"Using model: {used_model}")
 
-        cleaned_response = None
-        usage: TokenUsage | None = None
-        cost_usd: float = 0.0
-        resolved_prompt: str = prompt
+        should_suspend, saved_client_history = self._maybe_suspend_history(opts, prompt)
+
+        base_fn = self.client.generate_response
+        provider_kwargs = kwargs
+
+        def dispatch(prompt: str, model: str, **extra: Any) -> str:
+            merged = {**provider_kwargs, **extra}
+            return base_fn(prompt=prompt, model=model, **merged)
 
         try:
-            if dependencies:
-                dependencies_set = set(dependencies)
-                dependencies = list(dependencies_set)
-
-            final_prompt, interpolated_names = self._build_prompt(prompt, history, dependencies, strict=strict)
-            resolved_prompt = final_prompt
-            logger.debug(f"final_prompt built: {final_prompt}")
-            logger.debug(f"interpolated_names: {interpolated_names}")
-
-            if condition is not None:
-                results_by_name = self._build_results_by_name()
-                should_execute, error, trace = self._evaluate_condition(
-                    condition, results_by_name
-                )
-                logger.info(
-                    f"Condition evaluation for '{prompt_name}': "
-                    f"should_execute={should_execute}"
-                )
-                if error is not None:
-                    logger.warning(f"Condition evaluation error for '{prompt_name}': {error}")
-                    return ResponseResult(
-                        response=None,
-                        resolved_prompt=resolved_prompt,
-                        model=used_model,
-                        status="failed",
-                        condition_error=error,
-                    )
-                if not should_execute:
-                    interaction = {
-                        "prompt": prompt,
-                        "response": None,
-                        "prompt_name": prompt_name,
-                        "timestamp": time.time(),
-                        "model": used_model,
-                        "history": history,
-                        "status": "skipped",
-                        "condition_trace": trace,
-                    }
-                    self.history.append(interaction)
-                    return ResponseResult(
-                        response=None,
-                        resolved_prompt=resolved_prompt,
-                        model=used_model,
-                        status="skipped",
-                        condition_trace=trace,
-                    )
-
-            if system_instructions is not None:
-                kwargs["system_instructions"] = system_instructions
-
-            if response_model is not None:
-                from pydantic import BaseModel as _BaseModel
-
-                if not (isinstance(response_model, type) and issubclass(response_model, _BaseModel)):
-                    raise TypeError(
-                        f"response_model must be a Pydantic BaseModel subclass, got {type(response_model)}"
-                    )
-
-                from .core.structured_output import StructuredOutputHandler
-
-                so_handler = StructuredOutputHandler(max_retries=2)
-                if response_format is None:
-                    response_format = so_handler.build_response_format(response_model)
-                schema_suffix = so_handler.build_system_suffix(response_model)
-                current_system = kwargs.get("system_instructions") or system_instructions or ""
-                kwargs["system_instructions"] = current_system + schema_suffix
-
-            if response_format is not None:
-                kwargs["response_format"] = response_format
-
-            saved_client_history = None
-            new_client_messages: list[dict[str, Any]] = []
-            should_suspend_client_history = history is not None or bool(interpolated_names)
-
-            if should_suspend_client_history:
-                with self._client_history_lock:
-                    saved_client_history = self.client.get_conversation_history().copy()
-                    self.client.set_conversation_history([])
-                    reason = "history injection" if history else f"interpolation of {interpolated_names}"
-                    logger.debug(
-                        f"Suspended client conversation history: {reason}"
-                    )
-
-            so_result = None
-            call_start = time.monotonic()
-            try:
-                if response_model is not None:
-                    response, so_result = self._execute_structured(
-                        so_handler, response_model, final_prompt, used_model, kwargs,
-                        should_suspend_client_history, saved_client_history,
-                    )
-                else:
-                    response = self.client.generate_response(
-                        prompt=final_prompt, model=used_model, **kwargs
-                    )
-            finally:
-                if should_suspend_client_history and saved_client_history is not None and so_result is None:
-                    with self._client_history_lock:
-                        new_client_messages = self.client.get_conversation_history()
-                        combined = list(saved_client_history) + list(new_client_messages)
-                        self.client.set_conversation_history(combined)
-                        logger.debug(
-                            f"Restored client conversation history (+{len(new_client_messages)} new messages)"
-                        )
-            call_duration_ms = (time.monotonic() - call_start) * 1000
-            usage = getattr(self.client, "last_usage", None)
-            cost_usd = getattr(self.client, "last_cost_usd", 0.0)
-
-            logger.debug(f"Generated response: {response}")
-
-            cleaned_response = self._clean_response(response)
-            logger.debug(f"cleaned_response: {cleaned_response}")
-
-            self.permanent_history.add_turn_user(prompt)
-            self.permanent_history.add_turn_assistant(cleaned_response)
-
-            interaction = {
-                "prompt": prompt,
-                "response": cleaned_response,
-                "prompt_name": prompt_name,
-                "timestamp": time.time(),
-                "model": used_model,
-                "history": history,
-                "status": "success",
-            }
-
-            self.history.append(interaction)
-            self.clean_history.append(interaction)
-
-            self._context.record(prompt, cleaned_response, used_model, prompt_name, history)
-
-            self.ordered_history.add_interaction(
-                model=used_model,
+            exec_result = self._executor.execute(
+                generate_fn=dispatch,
                 prompt=prompt,
-                response=cleaned_response,
                 prompt_name=prompt_name,
-                history=history,
+                options=opts,
+                default_model=used_model,
             )
-
-            return ResponseResult(
-                response=cleaned_response,
-                resolved_prompt=resolved_prompt,
-                usage=usage,
-                cost_usd=cost_usd,
-                model=used_model,
-                duration_ms=round(call_duration_ms, 1),
-                parsed=so_result.parsed if so_result else None,
-                parsing_errors=so_result.parsing_errors if so_result and so_result.parsing_errors else None,
-            )
-
         except Exception as e:
             logger.error(f"Problem with response generation: {e!s}")
             logger.error(f"Prompt: {prompt}")
             logger.error(f"Model: {used_model}")
             logger.error(f"Prompt name: {prompt_name}")
-            logger.error(
-                f"Response: {cleaned_response if cleaned_response is not None else 'No response generated'}"
-            )
-            logger.error(f"History: {history}")
             raise
+        finally:
+            self._maybe_restore_history(should_suspend, saved_client_history)
 
-    def clear_conversation(self) -> None:
-        """Clear conversation in client but retain history."""
-        self.client.clear_conversation()
+        usage = getattr(self.client, "last_usage", None)
+        cost_usd = getattr(self.client, "last_cost_usd", 0.0)
+        exec_result.usage = usage
+        exec_result.cost_usd = cost_usd
 
-    # ===========================================================================
-    # Structured output helpers
-    # ===========================================================================
+        self._record_interaction(prompt, exec_result, prompt_name, opts, used_model)
 
-    def _execute_structured(
-        self,
-        handler: Any,
-        response_model: type,
-        prompt: str,
-        model: str,
-        kwargs: dict[str, Any],
-        should_suspend: bool,
-        saved_history: list[dict[str, Any]] | None,
-    ) -> tuple[str, Any]:
-        """Execute LLM call with structured output validation retry loop.
-
-        Args:
-            handler: StructuredOutputHandler instance.
-            response_model: Pydantic BaseModel subclass.
-            prompt: The resolved prompt to send.
-            model: Model identifier.
-            kwargs: Additional kwargs for the client.
-            should_suspend: Whether client history suspension is active.
-            saved_history: Saved client history to restore.
-
-        Returns:
-            Tuple of (raw_response, StructuredResult).
-
-        """
-        max_attempts = handler.max_retries + 1
-        all_errors, current_prompt, best_result = handler.prepare_retry_state(
-            prompt, response_model
+        return ResponseResult(
+            response=self._clean_response(exec_result.response),
+            resolved_prompt=exec_result.resolved_prompt,
+            usage=exec_result.usage,
+            cost_usd=exec_result.cost_usd,
+            model=used_model,
+            duration_ms=exec_result.duration_ms,
+            status=exec_result.status,
+            condition_trace=exec_result.condition_trace,
+            condition_error=exec_result.condition_error,
+            parsed=exec_result.parsed,
+            parsing_errors=exec_result.parsing_errors,
         )
 
-        for attempt in range(max_attempts):
-            response = self.client.generate_response(
-                prompt=current_prompt, model=model, **kwargs
+    # ===========================================================================
+    # History suspension helpers
+    # ===========================================================================
+
+    def _maybe_suspend_history(
+        self, options: ResponseOptions, prompt: str
+    ) -> tuple[bool, list[dict[str, Any]] | None]:
+        has_interpolation = "{{" in prompt and "}}" in prompt
+        should_suspend = options.history is not None or has_interpolation
+        if not should_suspend:
+            return False, None
+        with self._client_history_lock:
+            saved = self.client.get_conversation_history().copy()
+            self.client.set_conversation_history([])
+        reason = "history injection" if options.history else "interpolation"
+        logger.debug(f"Suspended client conversation history: {reason}")
+        return True, saved
+
+    def _maybe_restore_history(
+        self, should_suspend: bool, saved: list[dict[str, Any]] | None
+    ) -> None:
+        if not should_suspend or saved is None:
+            return
+        with self._client_history_lock:
+            new_msgs = self.client.get_conversation_history()
+            combined = list(saved) + list(new_msgs)
+            self.client.set_conversation_history(combined)
+            logger.debug(
+                f"Restored client conversation history (+{len(new_msgs)} new messages)"
             )
 
-            best_result, current_prompt, all_errors, should_stop = (
-                handler.process_attempt(
-                    response, response_model, prompt, attempt, all_errors, best_result
-                )
-            )
+    def _record_interaction(
+        self,
+        prompt: str,
+        result: ExecutionResult,
+        prompt_name: str | None,
+        options: ResponseOptions,
+        used_model: str,
+    ) -> None:
+        cleaned = self._clean_response(result.response)
 
-            if should_stop:
-                if should_suspend and saved_history is not None:
-                    with self._client_history_lock:
-                        new_msgs = self.client.get_conversation_history()
-                        combined = list(saved_history) + list(new_msgs)
-                        self.client.set_conversation_history(combined)
-                        logger.debug(
-                            f"Restored client conversation history (+{len(new_msgs)} new messages)"
-                        )
-                return response, best_result
+        self.permanent_history.add_turn_user(prompt)
+        self.permanent_history.add_turn_assistant(cleaned)
 
-        if should_suspend and saved_history is not None:
-            with self._client_history_lock:
-                new_msgs = self.client.get_conversation_history()
-                combined = list(saved_history) + list(new_msgs)
-                self.client.set_conversation_history(combined)
-                logger.debug(
-                    f"Restored client conversation history (+{len(new_msgs)} new messages)"
-                )
+        interaction: dict[str, Any] = {
+            "prompt": prompt,
+            "response": cleaned,
+            "prompt_name": prompt_name,
+            "timestamp": time.time(),
+            "model": used_model,
+            "history": options.history,
+            "status": result.status,
+        }
 
-        final_result = handler.finalize_retry(best_result, all_errors, max_attempts)
-        return final_result.raw_response, final_result
+        self.history.append(interaction)
+        self.clean_history.append(interaction)
+
+        self._context.record(prompt, cleaned, used_model, prompt_name, options.history)
+
+        self.ordered_history.add_interaction(
+            model=used_model,
+            prompt=prompt,
+            response=cleaned,
+            prompt_name=prompt_name,
+            history=options.history,
+        )
 
     # ===========================================================================
     # Condition & DAG helpers
     # ===========================================================================
 
     def _build_results_by_name(self) -> dict[str, dict[str, Any]]:
-        """Build a name->result dict from history for condition evaluation."""
         results: dict[str, dict[str, Any]] = {}
         for entry in self.history:
             name = entry.get("prompt_name")
@@ -498,7 +324,8 @@ class FFAI:
     def _evaluate_condition(
         self, condition: str, results_by_name: dict[str, dict[str, Any]]
     ) -> tuple[bool, str | None, str | None]:
-        """Evaluate a condition expression against known results."""
+        from .core.condition_evaluator import ConditionEvaluator
+
         evaluator = ConditionEvaluator(results_by_name)
         return evaluator.evaluate_with_trace(condition)
 
@@ -506,18 +333,7 @@ class FFAI:
         self,
         prompts: list[dict[str, Any]],
     ) -> tuple[ExecutionGraph, list[str]]:
-        """Validate a prompt dependency graph without executing.
-
-        Args:
-            prompts: List of dicts with keys: prompt_name, prompt, history, condition.
-
-        Returns:
-            Tuple of (ExecutionGraph, list of warning strings).
-
-        Raises:
-            ValueError: If a dependency cycle is detected.
-
-        """
+        """Validate a prompt dependency graph without executing."""
         specs: list[dict[str, Any]] = [
             {
                 "sequence": i,
@@ -554,32 +370,7 @@ class FFAI:
         prompts: list[dict[str, Any]],
         max_concurrency: int = 10,
     ) -> Any:
-        """Execute a prompt dependency graph with topological-parallel async calls.
-
-        Prompts on the same DAG level run concurrently via ``asyncio.gather``.
-        Levels execute sequentially.  Requires an ``AsyncFFAIClientBase`` client.
-
-        Supports the same declarative features as ``generate_response()``:
-        ``{{name.response}}`` interpolation, ``history=`` context injection,
-        ``condition`` / ``abort_condition`` gating, ``response_model`` for
-        structured output, and per-prompt ``model`` / ``system_instructions``
-        overrides.
-
-        Args:
-            prompts: List of dicts with keys: prompt_name, prompt, history,
-                condition, abort_condition, response_model, system_instructions,
-                model.
-            max_concurrency: Maximum concurrent API calls.
-
-        Returns:
-            ``GraphResult`` with per-prompt ``ResponseResult`` instances and
-            aggregate counts.
-
-        Raises:
-            TypeError: If the client is not an ``AsyncFFAIClientBase``.
-            ValueError: If a dependency cycle is detected.
-
-        """
+        """Execute a prompt dependency graph with topological-parallel async calls."""
         from .core.async_client_base import AsyncFFAIClientBase
         from .core.async_executor import AsyncGraphExecutor
 
@@ -591,105 +382,40 @@ class FFAI:
             )
 
         async_client: AsyncFFAIClientBase = self.client
-        ffai_ref = self
 
         async def run_prompt(**spec: Any) -> ResponseResult:
-            prompt_text = spec.get("prompt", "")
-            spec_model = spec.get("model")
-            spec_system = spec.get("system_instructions")
-            response_model = spec.get("response_model")
-
-            used_model = spec_model if spec_model else async_client.model
+            opts = ResponseOptions.from_dict(spec)
+            used_model = opts.model or async_client.model
 
             cloned = await async_client.clone()
-
             saved_history = cloned.get_conversation_history()
             cloned.set_conversation_history([])
 
-            kwargs: dict[str, Any] = {}
-            if spec_system is not None:
-                kwargs["system_instructions"] = spec_system
-
-            so_result = None
-            call_start = time.monotonic()
-
             try:
-                if response_model is not None:
-                    from pydantic import BaseModel as _BaseModel
-
-                    if not (
-                        isinstance(response_model, type)
-                        and issubclass(response_model, _BaseModel)
-                    ):
-                        raise TypeError(
-                            f"response_model must be a Pydantic BaseModel subclass, "
-                            f"got {type(response_model)}"
-                        )
-
-                    from .core.structured_output import StructuredOutputHandler
-
-                    so_handler = StructuredOutputHandler(max_retries=2)
-                    kwargs["response_format"] = so_handler.build_response_format(
-                        response_model
-                    )
-                    schema_suffix = so_handler.build_system_suffix(response_model)
-                    current_system = kwargs.get("system_instructions") or ""
-                    kwargs["system_instructions"] = current_system + schema_suffix
-
-                    max_attempts = so_handler.max_retries + 1
-                    all_errors, current_prompt, _best = so_handler.prepare_retry_state(
-                        prompt_text, response_model
-                    )
-                    so_result = None
-
-                    for attempt in range(max_attempts):
-                        response = await cloned.generate_response(
-                            prompt=current_prompt, model=used_model, **kwargs
-                        )
-
-                        _best, current_prompt, all_errors, should_stop = (
-                            so_handler.process_attempt(
-                                response, response_model, prompt_text,
-                                attempt, all_errors, _best,
-                            )
-                        )
-
-                        if should_stop:
-                            so_result = _best
-                            break
-
-                    if so_result is None:
-                        so_result = so_handler.finalize_retry(
-                            _best, all_errors, max_attempts
-                        )
-
-                    response = so_result.raw_response
-                else:
-                    response = await cloned.generate_response(
-                        prompt=prompt_text, model=used_model, **kwargs
-                    )
+                exec_result = await self._executor.execute_async(
+                    generate_fn=cloned.generate_response,
+                    prompt=spec.get("prompt", ""),
+                    prompt_name=spec.get("prompt_name"),
+                    options=opts,
+                    default_model=used_model,
+                    skip_condition=True,
+                )
             finally:
                 cloned.set_conversation_history(saved_history)
 
-            call_duration_ms = (time.monotonic() - call_start) * 1000
-            cleaned = ffai_ref._clean_response(response)
             usage = getattr(cloned, "last_usage", None)
             cost_usd = getattr(cloned, "last_cost_usd", 0.0)
 
             return ResponseResult(
-                response=cleaned,
-                resolved_prompt=prompt_text,
+                response=self._clean_response(exec_result.response),
+                resolved_prompt=exec_result.resolved_prompt,
                 model=used_model,
-                status="success",
+                status=exec_result.status,
                 usage=usage,
                 cost_usd=cost_usd,
-                duration_ms=round(call_duration_ms, 1),
-                parsed=so_result.parsed if so_result else None,
-                parsing_errors=(
-                    so_result.parsing_errors
-                    if so_result and so_result.parsing_errors
-                    else None
-                ),
+                duration_ms=exec_result.duration_ms,
+                parsed=exec_result.parsed,
+                parsing_errors=exec_result.parsing_errors,
             )
 
         executor = AsyncGraphExecutor(
@@ -745,8 +471,12 @@ class FFAI:
         return graph_result
 
     # ===========================================================================
-    # History accessors
+    # Client conversation history access
     # ===========================================================================
+
+    def clear_conversation(self) -> None:
+        """Clear conversation in client but retain history."""
+        self.client.clear_conversation()
 
     def get_interaction_history(self) -> list[dict[str, Any]]:
         """Get complete history."""
@@ -884,7 +614,6 @@ class FFAI:
     # ===========================================================================
 
     def _convert_unix_seconds_to_datetime(self, df: pl.DataFrame) -> pl.DataFrame:
-        """Convert Unix timestamps in seconds to datetime."""
         return self._exporter._convert_unix_seconds_to_datetime(df)
 
     def history_to_dataframe(self) -> pl.DataFrame:

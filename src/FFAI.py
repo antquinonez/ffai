@@ -399,7 +399,23 @@ class FFAI:
         async_client: AsyncFFAIClientBase = self.client
 
         async def run_prompt(**spec: Any) -> ResponseResult:
-            opts = ResponseOptions.from_dict(spec)
+            raw_opts = ResponseOptions.from_dict(spec)
+
+            if raw_opts.history:
+                opts = ResponseOptions(
+                    model=raw_opts.model,
+                    system_instructions=raw_opts.system_instructions,
+                    response_format=raw_opts.response_format,
+                    response_model=raw_opts.response_model,
+                    condition=raw_opts.condition,
+                    abort_condition=raw_opts.abort_condition,
+                    strict=raw_opts.strict,
+                    history=None,
+                    dependencies=raw_opts.dependencies,
+                )
+            else:
+                opts = raw_opts
+
             used_model = opts.model or async_client.model
 
             cloned = await async_client.clone()

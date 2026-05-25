@@ -193,7 +193,7 @@ class TestFFLiteLLMClientRetryUsesSharedMechanism:
         with pytest.raises(RateLimitError):
             client.generate_response("Hello")
 
-        assert mock_completion.call_count >= 2
+        assert mock_completion.call_count == 3
 
     @patch("src.Clients.FFLiteLLMClient.completion")
     def test_fallback_after_retries_exhausted(self, mock_completion):
@@ -225,7 +225,7 @@ class TestFFLiteLLMClientRetryUsesSharedMechanism:
         response = client.generate_response("Hello")
 
         assert response == "Fallback OK"
-        assert call_count >= 2  # At least 1 primary attempt + 1 fallback
+        assert call_count == 4  # 3 primary retries + 1 fallback
 
     @patch("src.Clients.FFLiteLLMClient.completion")
     def test_litellm_internal_retries_disabled(self, mock_completion):

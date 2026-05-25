@@ -27,3 +27,6 @@ class PromptSpec(TypedDict, total=False):
     history: list[str] | None
     condition: str | None
     abort_condition: str | None
+    response_model: type | None
+    system_instructions: str | None
+    model: str | None

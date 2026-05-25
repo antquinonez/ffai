@@ -1,6 +1,6 @@
 # FFAI
 
-Declarative multi-provider AI client with named-prompt context assembly, thread-safe parallel execution, and built-in cost/usage tracking.
+Declarative multi-provider AI client with named-prompt context assembly, thread-safe parallel execution, agentic tool-call loops, and built-in cost/usage tracking.
 
 ## What It Does
 
@@ -10,6 +10,13 @@ FFAI wraps AI provider clients (LiteLLM for 100+ providers, Mistral native SDK) 
 - **Multi-client support** -- named client profiles with lazy instantiation and thread-safe cloning for parallel execution
 - **Usage and cost tracking** -- automatic per-call token counting and cost estimation across providers
 - **History management** -- four history views (raw, cleaned, prompt-attribute-keyed, ordered) with Polars DataFrame export
+- **DAG execution** -- dependency graph with topological-parallel prompt execution and condition-based branching
+- **Agentic execution loop** -- multi-round tool-call-driven execution with automatic tool dispatch
+- **Tool registry** -- declarative tool definition with dynamic `python:<module>.<function>` import support
+- **Structured output** -- Pydantic model validation with automatic retry on schema failures
+- **Response validation** -- LLM-as-judge PASS/FAIL validation with automatic re-execution
+- **Async support** -- async client base and DAG executor for concurrent I/O-bound workloads
+- **Model fallbacks** -- automatic fallback to alternate models on failure
 - **OpenTelemetry tracing** -- optional span emission with model, token, and cost attributes
 - **Retry with exponential backoff** -- tenacity-based retry with configurable status codes and jitter
 
@@ -20,8 +27,8 @@ from src.Clients import FFLiteLLMClient
 from src.FFAI import FFAI
 
 client = FFLiteLLMClient(
+    model_string="mistral/mistral-small-latest",
     api_key="your-key",
-    model="mistral/mistral-small-latest"
 )
 
 ffai = FFAI(client)
@@ -53,16 +60,47 @@ result = ffai.generate_response(
 ### Multi-step with dependencies
 
 ```python
+from src import ResponseOptions
+
 ffai.generate_response(
     prompt="List three programming languages",
     prompt_name="languages"
 )
 
 result = ffai.generate_response(
-    prompt="Which of {{languages.response}} is best for beginners?",
+    "Which of {{languages.response}} is best for beginners?",
     prompt_name="recommendation",
-    dependencies=["languages"]
+    options=ResponseOptions(dependencies=["languages"]),
 )
+```
+
+### Configuration with ResponseOptions
+
+Use ``ResponseOptions`` for advanced features like model overrides,
+structured output, conditions, and history injection:
+
+```python
+from pydantic import BaseModel
+from src import ResponseOptions
+
+class Sentiment(BaseModel):
+    label: str
+    confidence: float
+
+result = ffai.generate_response(
+    "Analyze the tone",
+    prompt_name="sentiment",
+    options=ResponseOptions(
+        model="gpt-4",
+        response_model=Sentiment,
+        condition='{{fetch.status}} == "success"',
+        history=["fetch"],
+    ),
+    temperature=0.3,
+)
+
+print(result.parsed.label)       # "positive"
+print(result.parsed.confidence)  # 0.95
 ```
 
 ## Architecture
@@ -70,13 +108,27 @@ result = ffai.generate_response(
 ```
 src/
   FFAI.py                    # High-level declarative wrapper
+  FFAIClientBase.py          # Compatibility shim → core/client_base.py
   config.py                  # YAML-based configuration (pydantic-settings)
   retry_utils.py             # Tenacity-based retry decorators
+  ConversationHistory.py     # Compatibility shim → core/history/conversation.py
+  OrderedPromptHistory.py    # Compatibility shim → core/history/ordered.py
   core/
     client_base.py           # Abstract base class for all providers
+    async_client_base.py     # Async abstract base class
+    async_executor.py        # Async DAG executor (asyncio.gather per level)
     types.py                 # Shared type definitions
+    response_options.py      # ResponseOptions frozen dataclass
+    execution_result.py      # Internal ExecutionResult dataclass
+    response_executor.py     # Orchestration: prompt resolve + condition + retry
     prompt_builder.py        # {{name.response}} interpolation engine
     prompt_utils.py          # Regex-based prompt substitution
+    prompt_node.py           # Prompt node for execution dependency graph
+    graph.py                 # Dependency graph construction and condition eval
+    graph_execution_helpers.py  # Prompt resolution and abort checking for DAG
+    execution_state.py       # Thread-safe parallel execution state
+    condition_evaluator.py   # AST-based safe condition evaluation
+    structured_output.py     # Pydantic-validated structured output
     response_utils.py        # Response cleaning, JSON extraction
     response_result.py       # Typed response container
     response_context.py      # Thread-safe shared history
@@ -87,9 +139,17 @@ src/
       permanent.py           # Chronological turn history
       conversation.py        # Raw conversation history
   Clients/
-    FFLiteLLMClient.py       # Universal client (100+ providers via LiteLLM)
-    FFMistralSmall.py        # Native Mistral SDK client (reference implementation)
-    model_defaults.py        # Per-model default parameters
+    BaseLiteLLMClient.py      # Shared mixin for sync/async LiteLLM clients
+    FFLiteLLMClient.py        # Sync universal client (100+ providers via LiteLLM)
+    AsyncFFLiteLLMClient.py   # Async LiteLLM client (litellm.acompletion)
+    FFMistralSmall.py         # Native Mistral SDK client (reference implementation)
+    model_defaults.py         # Per-model default parameters
+  agent/
+    agent_loop.py            # Multi-round tool-call execution loop
+    agent_result.py          # AgentResult and ToolCallRecord dataclasses
+    response_validator.py    # LLM-as-judge response validation with retry
+  tools/
+    tool_registry.py         # Declarative tool definition and execution
   observability/
     telemetry.py             # OpenTelemetry span management
     log_context.py           # Context-aware logging

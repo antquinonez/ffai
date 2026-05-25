@@ -22,6 +22,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.Clients import FFLiteLLMClient
+from src.core.response_options import ResponseOptions
 from src.FFAI import FFAI
 
 
@@ -93,7 +94,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     print_section("Step 2: Fetch data (unconditional)")
     r1 = ffai.generate_response(
-        prompt="List 3 facts about renewable energy adoption in 2024.",
+        "List 3 facts about renewable energy adoption in 2024.",
         prompt_name="fetch",
     )
     print_result(r1)
@@ -103,10 +104,12 @@ def main() -> None:
     # ------------------------------------------------------------------
     print_section("Step 3: Analyze (condition: fetch succeeded)")
     r2 = ffai.generate_response(
-        prompt="Based on the facts above, which renewable source has the most growth potential?",
+        "Based on the facts above, which renewable source has the most growth potential?",
         prompt_name="analyze",
-        history=["fetch"],
-        condition='{{fetch.status}} == "success"',
+        options=ResponseOptions(
+            history=["fetch"],
+            condition='{{fetch.status}} == "success"',
+        ),
     )
     print_result(r2)
 
@@ -115,9 +118,9 @@ def main() -> None:
     # ------------------------------------------------------------------
     print_section("Step 4: Skip (condition: False)")
     r3 = ffai.generate_response(
-        prompt="This prompt should never execute.",
+        "This prompt should never execute.",
         prompt_name="skip_me",
-        condition="False",
+        options=ResponseOptions(condition="False"),
     )
     print_result(r3)
 
@@ -126,9 +129,9 @@ def main() -> None:
     # ------------------------------------------------------------------
     print_section("Step 5: Error (unknown reference)")
     r4 = ffai.generate_response(
-        prompt="This references a prompt that doesn't exist.",
+        "This references a prompt that doesn't exist.",
         prompt_name="bad_ref",
-        condition='{{nonexistent.status}} == "success"',
+        options=ResponseOptions(condition='{{nonexistent.status}} == "success"'),
     )
     print_result(r4)
 

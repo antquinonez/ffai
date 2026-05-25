@@ -4,9 +4,12 @@
 
 import os
 import sys
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from src.core.client_base import FFAIClientBase
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -101,3 +104,35 @@ def sample_config():
         "max_tokens": 4096,
         "system_instructions": "You are a helpful assistant.",
     }
+
+
+class ConcreteClient(FFAIClientBase):
+    """Minimal concrete implementation of FFAIClientBase for testing."""
+
+    def __init__(self):
+        self._history: list[dict[str, Any]] = []
+        self.model = "test-model"
+        self.system_instructions = ""
+
+    def generate_response(self, prompt: str, **kwargs: Any) -> str:
+        return ""
+
+    def clear_conversation(self) -> None:
+        self._history = []
+
+    def get_conversation_history(self) -> list[dict[str, Any]]:
+        return list(self._history)
+
+    def set_conversation_history(self, history: list[dict[str, Any]]) -> None:
+        self._history = list(history)
+
+    def clone(self) -> "ConcreteClient":
+        c = ConcreteClient()
+        c._history = list(self._history)
+        return c
+
+
+@pytest.fixture
+def concrete_client():
+    """Provide a ConcreteClient instance for tests that need a real FFAIClientBase."""
+    return ConcreteClient()

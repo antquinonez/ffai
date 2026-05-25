@@ -414,3 +414,446 @@ class TestConditionEvaluatorInOperator:
         evaluator = ConditionEvaluator({"step": {"status": "success", "response": "a", "attempts": 1, "error": "", "has_response": True}})
         result, error = evaluator.evaluate('{{step.response}} in {"a": 1, "b": 2}')
         assert result is True
+
+
+class TestConditionEvaluatorAdditionalCoverage:
+    def test_resolve_display_trace_unknown_name(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "ok", "attempts": 1, "error": "", "has_response": True}})
+        trace = evaluator._resolve_display_trace("{{missing.status}}")
+        assert trace == "{{missing.status}}"
+
+    def test_value_to_literal_none(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._value_to_literal(None) == '""'
+
+    def test_value_to_literal_bool(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._value_to_literal(True) == "True"
+        assert evaluator._value_to_literal(False) == "False"
+
+    def test_value_to_literal_numeric(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._value_to_literal(42) == "42"
+        assert evaluator._value_to_literal(3.14) == "3.14"
+
+    def test_value_to_literal_special_chars(self):
+        evaluator = ConditionEvaluator({})
+        result = evaluator._value_to_literal("line1\nline2\ttab")
+        assert "\\n" in result
+        assert "\\t" in result
+
+    def test_value_to_literal_non_string(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._value_to_literal([1, 2]) == '"[1, 2]"'
+
+    def test_value_to_display_json(self):
+        evaluator = ConditionEvaluator({})
+        result = evaluator._value_to_display('{"key": "value"}')
+        assert "key" in result
+
+    def test_value_to_display_none(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._value_to_display(None) == '""'
+
+    def test_value_to_display_bool(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._value_to_display(True) == "True"
+
+    def test_value_to_display_numeric(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._value_to_display(42) == "42"
+        assert evaluator._value_to_display(3.14) == "3.14"
+
+    def test_value_to_display_non_string(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._value_to_display([1, 2]) == '"[1, 2]"'
+
+    def test_compute_property_has_response_bool(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._compute_property({"has_response": True}, "has_response", True) is True
+
+    def test_compute_property_has_response_computed_true(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._compute_property({"response": "hello", "has_response": None}, "has_response", None) is True
+
+    def test_compute_property_has_response_computed_false(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._compute_property({"response": "", "has_response": None}, "has_response", None) is False
+
+    def test_compute_property_status_default(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._compute_property({"status": None}, "status", None) == "pending"
+
+    def test_compute_property_response_none(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._compute_property({"response": None}, "response", None) == ""
+
+    def test_compute_property_error_none(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._compute_property({"error": None}, "error", None) == ""
+
+    def test_compute_property_error_value(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._compute_property({"error": "timeout"}, "error", "timeout") == "timeout"
+
+    def test_compute_property_attempts_none(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._compute_property({"attempts": None}, "attempts", None) == 0
+
+    def test_compute_property_attempts_value(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._compute_property({"attempts": 3}, "attempts", 3) == 3
+
+    def test_compute_property_unknown(self):
+        evaluator = ConditionEvaluator({})
+        assert evaluator._compute_property({"custom": "val"}, "custom", "val") == "val"
+
+
+class TestConditionEvaluatorAstErrors:
+    def test_unknown_name(self):
+        evaluator = ConditionEvaluator({})
+        result, error = evaluator.evaluate("unknown_var")
+        assert result is False
+        assert error is not None
+
+    def test_unsupported_node_type(self):
+        evaluator = ConditionEvaluator({})
+        result, error = evaluator.evaluate("lambda x: x")
+        assert result is False
+        assert error is not None
+
+    def test_in_operator_non_string_left(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate("42 in {{step.response}}")
+        assert result is False
+        assert error is not None
+
+    def test_in_operator_unsupported_right_type(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('len({{step.response}}) in 42')
+        assert result is False
+        assert error is not None
+
+    def test_unknown_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate("unknown_func({{step.response}})")
+        assert result is False
+        assert error is not None
+
+    def test_keyword_args_rejected(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('len({{step.response}}, key="val")')
+        assert result is False
+        assert error is not None
+
+    def test_method_keyword_args_rejected(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('{{step.response}}.split(sep=",")')
+        assert result is False
+        assert error is not None
+
+    def test_private_attribute_blocked(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate("{{step.response}}.__class__")
+        assert result is False
+        assert error is not None
+
+    def test_unknown_string_method_blocked(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('{{step.response}}.format("x")')
+        assert result is False
+        assert error is not None
+
+    def test_unknown_list_method_blocked(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('split({{step.response}}, ",").append("x")')
+        assert result is False
+        assert error is not None
+
+    def test_unknown_dict_method_blocked(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": '{"a": 1}', "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('json_parse({{step.response}}).popitem()')
+        assert result is False
+        assert error is not None
+
+    def test_attribute_on_unsupported_type(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate("len({{step.response}}).real")
+        assert result is False
+        assert error is not None
+
+    def test_private_method_on_string(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('{{step.response}}.__len__()')
+        assert result is False
+        assert error is not None
+
+    def test_private_method_on_list(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('split({{step.response}}, ",")._private()')
+        assert result is False
+        assert error is not None
+
+    def test_private_method_on_dict(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": '{"a": 1}', "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('json_parse({{step.response}})._private()')
+        assert result is False
+        assert error is not None
+
+    def test_unsupported_binary_operator(self):
+        evaluator = ConditionEvaluator({})
+        result, error = evaluator.evaluate("1 ** 2 == 1")
+        assert result is False
+        assert error is not None
+
+    def test_matches_requires_strings(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate("42 % 7")
+        assert result is False
+        assert error is not None
+
+    def test_invalid_regex_pattern(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('{{step.response}} % "[invalid"')
+        assert result is False
+        assert error is not None
+
+    def test_subscript_slice_rejected(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('json_parse({{step.response}})[1:3]')
+        assert result is False
+        assert error is not None
+
+    def test_subscript_missing_key(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": '{"a": 1}', "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('json_parse({{step.response}})["missing"]')
+        assert result is False
+        assert error is not None
+
+    def test_method_on_unsupported_type(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate("abs(1).something")
+        assert result is False
+        assert error is not None
+
+    def test_unsupported_comparison_operator(self):
+        evaluator = ConditionEvaluator({})
+        result, error = evaluator.evaluate("1 is 1")
+        assert result is False
+        assert error is not None
+
+    def test_unknown_list_attribute(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "a,b", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('split({{step.response}}, ",").sort()')
+        assert result is False
+        assert error is not None
+
+    def test_unknown_dict_attribute(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": '{"a": 1}', "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('json_parse({{step.response}}).items()')
+        assert result is False
+        assert error is not None
+
+    def test_attribute_on_unsupported_value(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate("(1 + 1).something")
+        assert result is False
+        assert error is not None
+
+
+class TestConditionEvaluatorMethodCalls:
+    def test_list_method_count(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "a,b,c", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('split({{step.response}}, ",").count("a") == 1')
+        assert result is True
+
+    def test_list_method_index(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "a,b,c", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('split({{step.response}}, ",").index("b") == 1')
+        assert result is True
+
+    def test_dict_method_get(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": '{"a": 1, "b": 2}', "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('json_parse({{step.response}}).get("a") == 1')
+        assert result is True
+
+    def test_dict_attribute_keys(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": '{"x": 1}', "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('json_parse({{step.response}}).get("x") == 1')
+        assert result is True
+
+    def test_dict_attribute_values(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": '{"x": 1}', "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('json_parse({{step.response}}).get("missing") == None')
+        assert result is True
+
+    def test_string_attribute_returns_unbound(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('{{step.response}}.upper')
+        assert error is None
+
+
+class TestConditionEvaluatorBuiltins:
+    def test_json_values_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": '{"x": 1, "y": 2}', "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('json_values({{step.response}}) == [1, 2]')
+        assert result is True
+
+    def test_json_get_default_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": '{"a": 1}', "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('json_get_default({{step.response}}, "b", 99) == 99')
+        assert result is True
+
+    def test_is_null_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": None, "attempts": 1, "error": "", "has_response": False}})
+        result, error = evaluator.evaluate('is_empty({{step.response}})')
+        assert result is True
+
+    def test_is_empty_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "", "attempts": 1, "error": "", "has_response": False}})
+        result, error = evaluator.evaluate('is_empty({{step.response}})')
+        assert result is True
+
+    def test_is_empty_list(self):
+        evaluator = ConditionEvaluator({})
+        result, error = evaluator.evaluate('is_empty([])')
+        assert result is True
+
+    def test_is_empty_dict(self):
+        evaluator = ConditionEvaluator({})
+        result, error = evaluator.evaluate('is_empty({})')
+        assert result is True
+
+    def test_float_conversion(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "3.14", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('float({{step.response}}) > 3.0')
+        assert result is True
+
+    def test_bool_conversion(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('bool({{step.response}}) == True')
+        assert result is True
+
+    def test_int_conversion(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "42", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('int({{step.response}}) == 42')
+        assert result is True
+
+    def test_str_conversion(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate('str({{step.attempts}}) == "1"')
+        assert result is True
+
+    def test_abs_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "", "attempts": 5, "error": "", "has_response": True}})
+        result, error = evaluator.evaluate("abs({{step.attempts}}) == 5")
+        assert result is True
+
+    def test_round_function(self):
+        evaluator = ConditionEvaluator({})
+        result, error = evaluator.evaluate("round(3.7) == 4")
+        assert result is True
+
+    def test_min_max_functions(self):
+        evaluator = ConditionEvaluator({})
+        result, _ = evaluator.evaluate("min(1, 2) == 1")
+        assert result is True
+        result, _ = evaluator.evaluate("max(1, 2) == 2")
+        assert result is True
+
+    def test_string_functions(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "  Hello  ", "attempts": 1, "error": "", "has_response": True}})
+        result, _ = evaluator.evaluate('lower({{step.response}}) == "  hello  "')
+        assert result is True
+        result, _ = evaluator.evaluate('upper({{step.response}}) == "  HELLO  "')
+        assert result is True
+        result, _ = evaluator.evaluate('trim({{step.response}}) == "Hello"')
+        assert result is True
+
+    def test_replace_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello world", "attempts": 1, "error": "", "has_response": True}})
+        result, _ = evaluator.evaluate('replace({{step.response}}, "world", "earth") == "hello earth"')
+        assert result is True
+
+    def test_count_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "banana", "attempts": 1, "error": "", "has_response": True}})
+        result, _ = evaluator.evaluate('count({{step.response}}, "a") == 3')
+        assert result is True
+
+    def test_find_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, _ = evaluator.evaluate('find({{step.response}}, "ll") == 2')
+        assert result is True
+
+    def test_rfind_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, _ = evaluator.evaluate('rfind({{step.response}}, "l") == 3')
+        assert result is True
+
+    def test_slice_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "hello", "attempts": 1, "error": "", "has_response": True}})
+        result, _ = evaluator.evaluate('slice({{step.response}}, 0, 3) == "hel"')
+        assert result is True
+
+    def test_none_conversions(self):
+        evaluator = ConditionEvaluator({})
+        result, _ = evaluator.evaluate('int(None) == 0')
+        assert result is True
+        result, _ = evaluator.evaluate('float(None) == 0.0')
+        assert result is True
+        result, _ = evaluator.evaluate('str(None) == ""')
+        assert result is True
+        result, _ = evaluator.evaluate('bool(None) == False')
+        assert result is True
+
+    def test_none_string_functions(self):
+        evaluator = ConditionEvaluator({})
+        result, _ = evaluator.evaluate('split(None) == []')
+        assert result is True
+        result, _ = evaluator.evaluate('replace(None, "a", "b") == ""')
+        assert result is True
+        result, _ = evaluator.evaluate('count(None, "a") == 0')
+        assert result is True
+        result, _ = evaluator.evaluate('find(None, "a") != 0')
+        assert result is True
+        result, _ = evaluator.evaluate('rfind(None, "a") != 0')
+        assert result is True
+        result, _ = evaluator.evaluate('slice(None) == ""')
+        assert result is True
+
+    def test_json_parse_empty(self):
+        evaluator = ConditionEvaluator({})
+        result, _ = evaluator.evaluate('json_parse("") == {}')
+        assert result is True
+
+    def test_json_keys_non_dict(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "not json", "attempts": 1, "error": "", "has_response": True}})
+        result, _ = evaluator.evaluate('json_keys({{step.response}}) == []')
+        assert result is True
+
+    def test_json_values_non_dict(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "not json", "attempts": 1, "error": "", "has_response": True}})
+        result, _ = evaluator.evaluate('json_values({{step.response}}) == []')
+        assert result is True
+
+    def test_split_no_sep(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "a b c", "attempts": 1, "error": "", "has_response": True}})
+        result, _ = evaluator.evaluate('split({{step.response}}) == ["a", "b", "c"]')
+        assert result is True
+
+    def test_rsplit_function(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "a,b,c", "attempts": 1, "error": "", "has_response": True}})
+        result, _ = evaluator.evaluate('rsplit({{step.response}}, ",")[0] == "a"')
+        assert result is True
+
+    def test_lstrip_rstrip(self):
+        evaluator = ConditionEvaluator({"step": {"status": "success", "response": "  hello  ", "attempts": 1, "error": "", "has_response": True}})
+        result, _ = evaluator.evaluate('lstrip({{step.response}}) == "hello  "')
+        assert result is True
+        result, _ = evaluator.evaluate('rstrip({{step.response}}) == "  hello"')
+        assert result is True
+
+    def test_is_null_none(self):
+        evaluator = ConditionEvaluator({})
+        result, _ = evaluator.evaluate('is_null(None)')
+        assert result is True

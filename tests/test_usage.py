@@ -45,56 +45,19 @@ class TestTokenUsage:
 class TestClientBaseUsage:
     """Tests for usage metadata on FFAIClientBase."""
 
-    def test_reset_usage(self):
-        from src.core.client_base import FFAIClientBase
+    def test_reset_usage(self, concrete_client):
         from src.core.usage import TokenUsage
 
-        class ConcreteClient(FFAIClientBase):
-            def generate_response(self, prompt, **kwargs):
-                return ""
+        concrete_client._last_usage = TokenUsage(input_tokens=10, output_tokens=5, total_tokens=15)
+        concrete_client._last_cost_usd = 0.001
 
-            def clear_conversation(self):
-                pass
+        concrete_client._reset_usage()
+        assert concrete_client.last_usage is None
+        assert concrete_client.last_cost_usd == 0.0
 
-            def get_conversation_history(self):
-                return []
-
-            def set_conversation_history(self, history):
-                pass
-
-            def clone(self):
-                return ConcreteClient()
-
-        client = ConcreteClient()
-        client._last_usage = TokenUsage(input_tokens=10, output_tokens=5, total_tokens=15)
-        client._last_cost_usd = 0.001
-
-        client._reset_usage()
-        assert client.last_usage is None
-        assert client.last_cost_usd == 0.0
-
-    def test_initial_state(self):
-        from src.core.client_base import FFAIClientBase
-
-        class ConcreteClient(FFAIClientBase):
-            def generate_response(self, prompt, **kwargs):
-                return ""
-
-            def clear_conversation(self):
-                pass
-
-            def get_conversation_history(self):
-                return []
-
-            def set_conversation_history(self, history):
-                pass
-
-            def clone(self):
-                return ConcreteClient()
-
-        client = ConcreteClient()
-        assert client.last_usage is None
-        assert client.last_cost_usd == 0.0
+    def test_initial_state(self, concrete_client):
+        assert concrete_client.last_usage is None
+        assert concrete_client.last_cost_usd == 0.0
 
 
 class TestClientBaseRetryFallback:
@@ -207,84 +170,27 @@ class TestClientBaseRetryConfigFromSettings:
 
 
 class TestClientBaseConfigureRetry:
-    @staticmethod
-    def _make_client():
-        from src.core.client_base import FFAIClientBase
+    def test_configure_retry_with_custom_config(self, concrete_client):
+        concrete_client.configure_retry({"max_attempts": 10})
+        assert concrete_client.retry_config == {"max_attempts": 10}
 
-        class ConcreteClient(FFAIClientBase):
-            model = "test"
-            system_instructions = ""
-
-            def generate_response(self, prompt, **kwargs):
-                return ""
-
-            def clear_conversation(self):
-                pass
-
-            def get_conversation_history(self):
-                return []
-
-            def set_conversation_history(self, history):
-                pass
-
-            def clone(self):
-                return ConcreteClient()
-
-        return ConcreteClient()
-
-    def test_configure_retry_with_custom_config(self):
-        client = self._make_client()
-        client.configure_retry({"max_attempts": 10})
-        assert client.retry_config == {"max_attempts": 10}
-
-    def test_configure_retry_with_none_uses_defaults(self):
+    def test_configure_retry_with_none_uses_defaults(self, concrete_client):
         from unittest.mock import MagicMock, patch
 
         mock_config = MagicMock()
         mock_config.retry = None
 
-        client = self._make_client()
         with patch("src.config.get_config", return_value=mock_config):
-            client.configure_retry(None)
+            concrete_client.configure_retry(None)
 
-        assert client.retry_config is not None
-        assert client.retry_config["max_attempts"] == 3
-        assert client.retry_config["min_wait_seconds"] == 1
+        assert concrete_client.retry_config is not None
+        assert concrete_client.retry_config["max_attempts"] == 3
+        assert concrete_client.retry_config["min_wait_seconds"] == 1
 
 
 class TestClientBaseAddToolResult:
-    @staticmethod
-    def _make_client():
-        from src.core.client_base import FFAIClientBase
-
-        class ConcreteClient(FFAIClientBase):
-            model = "test"
-            system_instructions = ""
-            _history: list
-
-            def __init__(self):
-                self._history = []
-
-            def generate_response(self, prompt, **kwargs):
-                return ""
-
-            def clear_conversation(self):
-                self._history = []
-
-            def get_conversation_history(self):
-                return self._history
-
-            def set_conversation_history(self, history):
-                self._history = history
-
-            def clone(self):
-                return ConcreteClient()
-
-        return ConcreteClient()
-
-    def test_add_tool_result_appends_to_history(self):
-        client = self._make_client()
-        client.add_tool_result("tc_123", "result text")
-        history = client.get_conversation_history()
+    def test_add_tool_result_appends_to_history(self, concrete_client):
+        concrete_client.add_tool_result("tc_123", "result text")
+        history = concrete_client.get_conversation_history()
         assert len(history) == 1
         assert history[0] == {"role": "tool", "tool_call_id": "tc_123", "content": "result text"}

@@ -139,6 +139,7 @@ class TestTelemetryManagerEnabled:
             m = TelemetryManager()
         m.shutdown()
         m.shutdown()
+        assert m._provider is not None
 
     def test_reload_shuts_down_old_provider(self):
         with patch("src.config.get_config", return_value=self._make_enabled_config()):
@@ -207,23 +208,7 @@ class TestTraceLLMCall:
         reset_telemetry()
 
     def test_trace_llm_call_noop_when_disabled(self):
-        from src.core.client_base import FFAIClientBase
-
-        class ConcreteClient(FFAIClientBase):
-            def generate_response(self, prompt, **kwargs):
-                return ""
-
-            def clear_conversation(self):
-                pass
-
-            def get_conversation_history(self):
-                return []
-
-            def set_conversation_history(self, history):
-                pass
-
-            def clone(self):
-                return ConcreteClient()
+        from conftest import ConcreteClient
 
         with patch("src.config.get_config", side_effect=Exception("no config")):
             from src.observability.telemetry import reset_telemetry
@@ -235,25 +220,9 @@ class TestTraceLLMCall:
         assert client.last_usage is None
 
     def test_trace_llm_call_sets_span_attributes(self):
-        from src.core.client_base import FFAIClientBase
+        from conftest import ConcreteClient
+
         from src.core.usage import TokenUsage
-
-        class ConcreteClient(FFAIClientBase):
-            def generate_response(self, prompt, **kwargs):
-                return ""
-
-            def clear_conversation(self):
-                pass
-
-            def get_conversation_history(self):
-                return []
-
-            def set_conversation_history(self, history):
-                pass
-
-            def clone(self):
-                return ConcreteClient()
-
         mock_obs_config = MagicMock()
         mock_obs_config.enabled = False
 
@@ -275,23 +244,7 @@ class TestTraceLLMCall:
             assert client.last_usage.input_tokens == 10
 
     def test_extract_openai_usage_with_real_usage(self):
-        from src.core.client_base import FFAIClientBase
-
-        class ConcreteClient(FFAIClientBase):
-            def generate_response(self, prompt, **kwargs):
-                return ""
-
-            def clear_conversation(self):
-                pass
-
-            def get_conversation_history(self):
-                return []
-
-            def set_conversation_history(self, history):
-                pass
-
-            def clone(self):
-                return ConcreteClient()
+        from conftest import ConcreteClient
 
         mock_response = MagicMock()
         mock_response.usage.prompt_tokens = 100
@@ -308,23 +261,7 @@ class TestTraceLLMCall:
         assert client.last_cost_usd == 0.0
 
     def test_extract_token_usage_skips_when_no_usage(self):
-        from src.core.client_base import FFAIClientBase
-
-        class ConcreteClient(FFAIClientBase):
-            def generate_response(self, prompt, **kwargs):
-                return ""
-
-            def clear_conversation(self):
-                pass
-
-            def get_conversation_history(self):
-                return []
-
-            def set_conversation_history(self, history):
-                pass
-
-            def clone(self):
-                return ConcreteClient()
+        from conftest import ConcreteClient
 
         mock_response = MagicMock(spec=[])
         client = ConcreteClient()

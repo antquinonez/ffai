@@ -228,18 +228,21 @@ class TestTelemetrySingleton:
     def test_reload_shuts_down_previous(self):
         m1 = get_telemetry_manager()
         m1._provider = MagicMock()
+        old_provider = m1._provider
         reload_telemetry()
-        m1._provider.shutdown.assert_called_once()
+        old_provider.shutdown.assert_called_once()
 
     def test_reset_shuts_down_provider(self):
         m1 = get_telemetry_manager()
         m1._provider = MagicMock()
+        old_provider = m1._provider
         reset_telemetry()
-        m1._provider.shutdown.assert_called_once()
+        old_provider.shutdown.assert_called_once()
 
     def test_reset_safe_when_none(self):
         reset_telemetry()
         reset_telemetry()
+        assert get_telemetry_manager() is not None
 
 
 class TestTelemetryManagerSpan:
@@ -283,3 +286,4 @@ class TestTelemetryShutdownExceptionHandled:
         m._provider = MagicMock()
         m._provider.shutdown.side_effect = RuntimeError("failed")
         m.shutdown()
+        m._provider.shutdown.assert_called_once()

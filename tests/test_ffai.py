@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
+from src.core.response_options import ResponseOptions
+
 
 class TestFFAIInit:
     """Tests for FFAI initialization."""
@@ -107,7 +109,7 @@ class TestFFAIGenerateResponse:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Hello!", model="custom-model")
+        ffai.generate_response("Hello!", options=ResponseOptions(model="custom-model"))
 
         assert ffai.history[0]["model"] == "custom-model"
 
@@ -277,10 +279,11 @@ class TestFFAIDataFrameExport:
 
         df = ffai.history_to_dataframe()
 
-        assert not df.is_empty()
         assert len(df) == 1
-        assert "prompt" in df.columns
-        assert "response" in df.columns
+        assert df["prompt"][0] == "Hello!"
+        assert df["response"][0] == "This is a test response."
+        assert df["prompt_name"][0] == "test"
+        assert df["model"][0] == "mistral-small-2503"
 
     def test_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty history to DataFrame."""
@@ -703,7 +706,7 @@ class TestFFAIBuildPrompt:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        result, interpolated = ffai._build_prompt("Test prompt", history=None)
+        result, interpolated = ffai.build_prompt("Test prompt", history=None)
 
         assert result == "Test prompt"
         assert interpolated == set()
@@ -713,7 +716,7 @@ class TestFFAIBuildPrompt:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        result, interpolated = ffai._build_prompt("Test prompt", history=[])
+        result, interpolated = ffai.build_prompt("Test prompt", history=[])
 
         assert result == "Test prompt"
         assert interpolated == set()
@@ -727,7 +730,7 @@ class TestFFAIBuildPrompt:
             [{"prompt_name": "prev", "prompt": "Previous Q", "response": "Previous A"}]
         )
 
-        result, interpolated = ffai._build_prompt("New question", history=["prev"])
+        result, interpolated = ffai.build_prompt("New question", history=["prev"])
 
         assert "<conversation_history>" in result
         assert "Previous Q" in result
@@ -741,7 +744,7 @@ class TestFFAIBuildPrompt:
 
         ffai = FFAI(mock_ffmistralsmall)
 
-        result, interpolated = ffai._build_prompt("New question", history=["missing"])
+        result, interpolated = ffai.build_prompt("New question", history=["missing"])
 
         assert result == "New question"
         assert interpolated == set()
@@ -758,7 +761,7 @@ class TestFFAIBuildPrompt:
             ]
         )
 
-        result, interpolated = ffai._build_prompt("New", history=["q1", "q2"])
+        result, interpolated = ffai.build_prompt("New", history=["q1", "q2"])
 
         assert "Q1" in result
         assert "A1" in result
@@ -778,7 +781,7 @@ class TestFFAIBuildPrompt:
             ]
         )
 
-        result, interpolated = ffai._build_prompt("New", history=["q1"])
+        result, interpolated = ffai.build_prompt("New", history=["q1"])
 
         assert "Q1 new" in result
         assert "A1 new" in result
@@ -915,7 +918,7 @@ class TestFFAIGenerateResponseExtended:
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="a")
-        ffai.generate_response("Q2", dependencies=["a", "a", "b", "b"])
+        ffai.generate_response("Q2", options=ResponseOptions(dependencies=["a", "a", "b", "b"]))
 
         assert ffai.history[1]["history"] is None
 
@@ -937,23 +940,32 @@ class TestFFAIGenerateResponseExtended:
 
     def test_generate_response_with_system_instructions(self, mock_ffmistralsmall):
         """Test system instructions are passed to client."""
+        from unittest.mock import MagicMock
+
         from src.FFAI import FFAI
 
+        mock_ffmistralsmall.generate_response = MagicMock(return_value="response")
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Test", system_instructions="Be helpful")
+        ffai.generate_response("Test", options=ResponseOptions(system_instructions="Be helpful"))
 
+        call_kwargs = mock_ffmistralsmall.generate_response.call_args
+        assert call_kwargs.kwargs.get("system_instructions") == "Be helpful"
         assert len(ffai.history) == 1
 
     def test_generate_response_with_thread_lock(self, mock_ffmistralsmall):
         """Test thread lock is used when provided."""
         import threading
+        from unittest.mock import MagicMock
 
         from src.FFAI import FFAI
 
-        lock = threading.Lock()
+        lock = MagicMock(spec=threading.Lock)
+        lock.__enter__ = MagicMock(return_value=None)
+        lock.__exit__ = MagicMock(return_value=False)
         ffai = FFAI(mock_ffmistralsmall, history_lock=lock)
         ffai.generate_response("Test")
 
+        lock.__enter__.assert_called()
         assert len(ffai.prompt_attr_history) == 1
 
 
@@ -990,7 +1002,7 @@ class TestFFAIHistoryAccessExtended:
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
-        ffai.generate_response("Q2", model="other-model")
+        ffai.generate_response("Q2", options=ResponseOptions(model="other-model"))
 
         interactions = ffai.get_model_interactions("other-model")
 
@@ -1165,12 +1177,13 @@ class TestFFAIDataFrameExtended:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Hello!")
+        ffai.generate_response("Hello!", prompt_name="test")
 
         df = ffai.clean_history_to_dataframe()
 
-        assert not df.is_empty()
         assert len(df) == 1
+        assert df["prompt"][0] == "Hello!"
+        assert df["response"][0] == "This is a test response."
 
     def test_clean_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty clean history to DataFrame."""
@@ -1186,11 +1199,12 @@ class TestFFAIDataFrameExtended:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Hello!")
+        ffai.generate_response("Hello!", prompt_name="test")
 
         df = ffai.prompt_attr_history_to_dataframe()
 
-        assert not df.is_empty()
+        assert len(df) == 1
+        assert df["prompt_name"][0] == "test"
 
     def test_prompt_attr_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty prompt attr history to DataFrame."""
@@ -1206,11 +1220,12 @@ class TestFFAIDataFrameExtended:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Hello!")
+        ffai.generate_response("Hello!", prompt_name="test")
 
         df = ffai.ordered_history_to_dataframe()
 
-        assert not df.is_empty()
+        assert len(df) == 1
+        assert df["prompt_name"][0] == "test"
 
     def test_ordered_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty ordered history to DataFrame."""
@@ -1227,7 +1242,7 @@ class TestFFAIDataFrameExtended:
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
-        ffai.generate_response("Q2", model="other-model")
+        ffai.generate_response("Q2", options=ResponseOptions(model="other-model"))
 
         results = ffai.search_history(model="other-model")
 
@@ -1269,9 +1284,9 @@ class TestFFAIDataFrameExtended:
 
         df = ffai.get_model_stats_df()
 
-        assert not df.is_empty()
-        assert "model" in df.columns
-        assert "count" in df.columns
+        assert len(df) == 1
+        assert df["model"][0] == "mistral-small-2503"
+        assert df["count"][0] == 2
 
     def test_get_prompt_name_stats_df(self, mock_ffmistralsmall):
         """Test getting prompt name stats as DataFrame."""
@@ -1283,8 +1298,9 @@ class TestFFAIDataFrameExtended:
 
         df = ffai.get_prompt_name_stats_df()
 
-        assert not df.is_empty()
-        assert "prompt_name" in df.columns
+        assert len(df) == 1
+        assert df["prompt_name"][0] == "a"
+        assert df["count"][0] == 2
 
     def test_get_response_length_stats(self, mock_ffmistralsmall):
         """Test getting response length stats."""
@@ -1296,7 +1312,7 @@ class TestFFAIDataFrameExtended:
 
         df = ffai.get_response_length_stats()
 
-        assert not df.is_empty()
+        assert len(df) == 2
         assert "prompt_name" in df.columns
         assert "mean_length" in df.columns
 
@@ -1319,9 +1335,8 @@ class TestFFAIDataFrameExtended:
 
         df = ffai.interaction_counts_by_date()
 
-        assert not df.is_empty()
-        assert "date" in df.columns
-        assert "len" in df.columns
+        assert len(df) == 1
+        assert df["len"][0] == 2
 
     def test_interaction_counts_by_date_empty(self, mock_ffmistralsmall):
         """Test getting interaction counts with empty history."""
@@ -1342,8 +1357,8 @@ class TestFFAIDataFrameExtended:
 
         df = ffai.history_to_dataframe()
 
-        assert not df.is_empty()
-        assert "response" in df.columns
+        assert len(df) == 1
+        assert df["response"][0] == "{'key': 'value'}"
 
 
 class TestFFAIPersistence:
@@ -1438,7 +1453,7 @@ class TestFFAIGenerateResponseException:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Q1", dependencies=["dep1", "dep2"])
+        ffai.generate_response("Q1", options=ResponseOptions(dependencies=["dep1", "dep2"]))
 
         assert len(ffai.history) == 1
 
@@ -1516,7 +1531,7 @@ class TestFFAIResponseFormatPassthrough:
 
         mock_ffmistralsmall.generate_response = MagicMock(return_value="response")
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("hello", response_format={"type": "json_object"})
+        ffai.generate_response("hello", options=ResponseOptions(response_format={"type": "json_object"}))
         call_kwargs = mock_ffmistralsmall.generate_response.call_args
         assert call_kwargs.kwargs["response_format"] == {"type": "json_object"}
 
@@ -1531,3 +1546,359 @@ class TestFFAIAddClientMessageError:
         ffai.get_client_conversation_history = MagicMock(side_effect=RuntimeError("boom"))
         result = ffai.add_client_message("user", "test")
         assert result is False
+
+
+class TestFFAIStructuredOutput:
+    """Integration tests for response_model parameter on generate_response()."""
+
+    def test_structured_output_valid_json(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Sentiment(BaseModel):
+            label: str
+            confidence: float
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"label": "positive", "confidence": 0.95})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        result = ffai.generate_response("Analyze sentiment", options=ResponseOptions(response_model=Sentiment))
+
+        assert result.parsed is not None
+        assert result.parsed.label == "positive"
+        assert result.parsed.confidence == 0.95
+        assert result.parsing_errors is None
+
+    def test_structured_output_invalid_then_valid(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Score(BaseModel):
+            value: int
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            side_effect=["not json", json.dumps({"value": 42})]
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        result = ffai.generate_response("Give me a score", options=ResponseOptions(response_model=Score))
+
+        assert result.parsed is not None
+        assert result.parsed.value == 42
+        assert mock_ffmistralsmall.generate_response.call_count == 2
+
+    def test_structured_output_all_retries_fail(self, mock_ffmistralsmall):
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Strict(BaseModel):
+            score: int
+
+        mock_ffmistralsmall.generate_response = MagicMock(return_value="not json at all")
+        ffai = FFAI(mock_ffmistralsmall)
+        result = ffai.generate_response("score", options=ResponseOptions(response_model=Strict))
+
+        assert result.parsed is None
+        assert result.parsing_errors is not None
+        assert len(result.parsing_errors) > 0
+        assert mock_ffmistralsmall.generate_response.call_count == 3
+
+    def test_structured_output_schema_in_system_instructions(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Item(BaseModel):
+            name: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"name": "widget"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("name an item", options=ResponseOptions(response_model=Item))
+
+        call_kwargs = mock_ffmistralsmall.generate_response.call_args
+        sys_instr = call_kwargs.kwargs.get("system_instructions", "")
+        assert "json" in sys_instr.lower()
+        assert "name" in sys_instr
+
+    def test_structured_output_with_interpolation(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Result(BaseModel):
+            answer: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"answer": "42"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("What is 2+2?", prompt_name="math")
+        result = ffai.generate_response(
+            "Based on {{math.response}}, explain", options=ResponseOptions(response_model=Result)
+        )
+
+        assert result.parsed is not None
+        assert result.parsed.answer == "42"
+
+    def test_structured_output_parsed_none_without_model(self, mock_ffmistralsmall):
+        from src.FFAI import FFAI
+
+        ffai = FFAI(mock_ffmistralsmall)
+        result = ffai.generate_response("Hello!")
+
+        assert result.parsed is None
+        assert result.parsing_errors is None
+
+    def test_structured_output_with_condition(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Output(BaseModel):
+            text: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"text": "hello"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("setup", prompt_name="setup")
+
+        result = ffai.generate_response(
+            "respond",
+            options=ResponseOptions(response_model=Output, condition='{{setup.status}} == "success"'),
+        )
+
+        assert result.parsed is not None
+        assert result.parsed.text == "hello"
+
+    def test_structured_output_invalid_model_type(self, mock_ffmistralsmall):
+        from src.FFAI import FFAI
+
+        ffai = FFAI(mock_ffmistralsmall)
+        with pytest.raises(TypeError, match="Pydantic BaseModel"):
+            ffai.generate_response("test", options=ResponseOptions(response_model=str))
+
+    def test_structured_output_history_recorded(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Val(BaseModel):
+            x: int
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"x": 1})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("val", prompt_name="v1", options=ResponseOptions(response_model=Val))
+
+        assert len(ffai.history) == 1
+        assert ffai.history[0]["prompt_name"] == "v1"
+        assert ffai.history[0]["status"] == "success"
+
+    def test_structured_output_response_format_auto_set(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Simple(BaseModel):
+            val: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"val": "ok"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("test", options=ResponseOptions(response_model=Simple))
+
+        call_kwargs = mock_ffmistralsmall.generate_response.call_args
+        rf = call_kwargs.kwargs.get("response_format")
+        assert rf is not None
+        assert rf["type"] == "json_object"
+        assert "schema" in rf
+
+    def test_structured_output_custom_response_format_preserved(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Simple(BaseModel):
+            val: str
+
+        custom_format = {"type": "json_object", "custom": True}
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"val": "ok"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("test", options=ResponseOptions(response_model=Simple, response_format=custom_format))
+
+        call_kwargs = mock_ffmistralsmall.generate_response.call_args
+        rf = call_kwargs.kwargs.get("response_format")
+        assert rf == custom_format
+
+    def test_structured_output_retries_with_history_suspension(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Score(BaseModel):
+            value: int
+
+        mock_client = MagicMock()
+        mock_client.model = "test"
+        mock_client.generate_response = MagicMock(
+            side_effect=["not json", json.dumps({"value": 42})]
+        )
+        mock_client.get_conversation_history.return_value = []
+        mock_client.set_conversation_history = MagicMock()
+        mock_client.clear_conversation = MagicMock()
+        mock_client.last_usage = None
+        mock_client.last_cost_usd = 0.0
+        ffai = FFAI(mock_client)
+        ffai.generate_response("setup", prompt_name="setup")
+
+        result = ffai.generate_response(
+            "score it",
+            options=ResponseOptions(response_model=Score, history=["setup"]),
+        )
+
+        assert result.parsed is not None
+        assert result.parsed.value == 42
+        assert mock_client.generate_response.call_count == 2
+
+    def test_structured_output_all_retries_fail_with_history_suspension(self, mock_ffmistralsmall):
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Val(BaseModel):
+            x: int
+
+        mock_client = MagicMock()
+        mock_client.model = "test"
+        mock_client.generate_response = MagicMock(return_value="not json")
+        mock_client.get_conversation_history.return_value = []
+        mock_client.set_conversation_history = MagicMock()
+        mock_client.clear_conversation = MagicMock()
+        mock_client.last_usage = None
+        mock_client.last_cost_usd = 0.0
+        ffai = FFAI(mock_client)
+        ffai.generate_response("setup", prompt_name="setup")
+
+        result = ffai.generate_response(
+            "val",
+            options=ResponseOptions(response_model=Val, history=["setup"]),
+        )
+
+        assert result.parsed is None
+        assert result.parsing_errors is not None
+        assert len(result.parsing_errors) > 0
+
+    def test_structured_output_exception_with_history_suspension(self, mock_ffmistralsmall):
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Val(BaseModel):
+            x: int
+
+        mock_client = MagicMock()
+        mock_client.model = "test"
+        mock_client.get_conversation_history.return_value = []
+        mock_client.set_conversation_history = MagicMock()
+        mock_client.clear_conversation = MagicMock()
+        mock_client.last_usage = None
+        mock_client.last_cost_usd = 0.0
+        ffai = FFAI(mock_client)
+        mock_client.generate_response.return_value = "setup done"
+        ffai.generate_response("setup", prompt_name="setup")
+
+        mock_client.generate_response.side_effect = RuntimeError("API down")
+
+        with pytest.raises(RuntimeError, match="API down"):
+            ffai.generate_response(
+                "val",
+                options=ResponseOptions(response_model=Val, history=["setup"]),
+            )
+
+    def test_structured_output_with_explicit_system_instructions(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Item(BaseModel):
+            name: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"name": "widget"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response(
+            "name it",
+            options=ResponseOptions(response_model=Item, system_instructions="You are a product cataloger."),
+        )
+
+        call_kwargs = mock_ffmistralsmall.generate_response.call_args
+        sys_instr = call_kwargs.kwargs.get("system_instructions", "")
+        assert sys_instr.startswith("You are a product cataloger.")
+        assert "json" in sys_instr.lower()
+
+    def test_structured_output_parsing_errors_none_on_success(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Simple(BaseModel):
+            val: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"val": "ok"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        result = ffai.generate_response("test", options=ResponseOptions(response_model=Simple))
+
+        assert result.parsed is not None
+        assert result.parsing_errors is None

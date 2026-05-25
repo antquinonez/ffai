@@ -87,7 +87,7 @@ class TestFFAIGenerateResponse:
         ffai.generate_response(
             "What was my math question?",
             prompt_name="followup",
-            options=ResponseOptions(history=["math", "greeting"]),
+            history=["math", "greeting"],
         )
 
         assert len(ffai.history) == 3
@@ -403,7 +403,7 @@ class TestFFAIClientHistorySuspension:
 
         # Now use declarative context - client history should be suspended
         ffai.generate_response(
-            "Third question with context", prompt_name="contextual", options=ResponseOptions(history=["nonexistent"])
+            "Third question with context", prompt_name="contextual", history=["nonexistent"]
         )
 
         # After the call, client history should have original 4 + 2 new messages
@@ -421,7 +421,7 @@ class TestFFAIClientHistorySuspension:
         assert len(original_history) == 2
 
         # Use declarative context
-        ffai.generate_response("Question B", options=ResponseOptions(history=["some_context"]))
+        ffai.generate_response("Question B", history=["some_context"])
 
         # History should be original + the 2 new messages from the declarative call
         assert len(mock_ffmistralsmall.conversation_history) == 4
@@ -452,7 +452,7 @@ class TestFFAIClientHistorySuspension:
         assert len(mock_ffmistralsmall.conversation_history) == 2
 
         # Even with empty list, should suspend but still append back
-        ffai.generate_response("With empty history", options=ResponseOptions(history=[]))
+        ffai.generate_response("With empty history", history=[])
         assert len(mock_ffmistralsmall.conversation_history) == 4
 
     def test_ffai_history_still_records_with_declarative_context(self, mock_ffmistralsmall):
@@ -462,7 +462,7 @@ class TestFFAIClientHistorySuspension:
         ffai = FFAI(mock_ffmistralsmall)
 
         ffai.generate_response("Question 1", prompt_name="q1")
-        ffai.generate_response("Question 2", prompt_name="q2", options=ResponseOptions(history=["q1"]))
+        ffai.generate_response("Question 2", prompt_name="q2", history=["q1"])
 
         # FFAI should record both interactions
         assert len(ffai.history) == 2
@@ -483,7 +483,7 @@ class TestFFAIClientHistorySuspension:
         assert len(mock_ffmistralsmall.conversation_history) == 2
 
         # Declarative call - suspended during call but appended back
-        ffai.generate_response("Declarative 1", prompt_name="d1", options=ResponseOptions(history=["n1"]))
+        ffai.generate_response("Declarative 1", prompt_name="d1", history=["n1"])
         assert len(mock_ffmistralsmall.conversation_history) == 4  # 2 + 2 new
 
         # Another normal call - adds to client history
@@ -491,7 +491,7 @@ class TestFFAIClientHistorySuspension:
         assert len(mock_ffmistralsmall.conversation_history) == 6  # Now 6
 
         # Another declarative call - suspended but appended back
-        ffai.generate_response("Declarative 2", prompt_name="d2", options=ResponseOptions(history=["n2"]))
+        ffai.generate_response("Declarative 2", prompt_name="d2", history=["n2"])
         assert len(mock_ffmistralsmall.conversation_history) == 8  # 6 + 2 new
 
         # FFAI should have all 4 interactions recorded
@@ -520,7 +520,7 @@ class TestFFAIClientHistorySuspension:
         mock_ffmistralsmall.client.chat.complete = capture_api_call
 
         # Make declarative call - should NOT include accumulated client history
-        ffai.generate_response("Third question", prompt_name="q3", options=ResponseOptions(history=["q1"]))
+        ffai.generate_response("Third question", prompt_name="q3", history=["q1"])
 
         # Verify API received empty conversation (just system + current prompt)
         assert len(captured_messages) == 1

@@ -157,6 +157,7 @@ class FFAI:
         self,
         prompt: str,
         prompt_name: str | None = None,
+        history: list[str] | None = None,
         options: ResponseOptions | None = None,
         **kwargs: Any,
     ) -> ResponseResult:
@@ -165,8 +166,10 @@ class FFAI:
         Args:
             prompt: The user prompt (may contain ``{{name.response}}`` patterns).
             prompt_name: Logical name for the prompt (used for interpolation).
+            history: List of prompt names to include in conversation context.
+                Top-level takes precedence over ``options.history``.
             options: Configuration for this call.  Groups model override,
-                history, dependencies, system_instructions, response_format,
+                dependencies, system_instructions, response_format,
                 response_model, condition, abort_condition, and strict.
             **kwargs: Additional provider-specific parameters (temperature,
                 max_tokens, tools, tool_choice, etc.).
@@ -176,6 +179,18 @@ class FFAI:
 
         """
         opts = options or ResponseOptions()
+        if history is not None:
+            opts = ResponseOptions(
+                model=opts.model,
+                system_instructions=opts.system_instructions,
+                response_format=opts.response_format,
+                response_model=opts.response_model,
+                condition=opts.condition,
+                abort_condition=opts.abort_condition,
+                strict=opts.strict,
+                history=history,
+                dependencies=opts.dependencies,
+            )
         used_model = opts.model or self.client.model
 
         logger.debug(

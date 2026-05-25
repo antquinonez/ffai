@@ -22,7 +22,6 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.Clients import FFLiteLLMClient
-from src.core.response_options import ResponseOptions
 from src.FFAI import FFAI
 
 
@@ -98,7 +97,7 @@ def main() -> None:
     r4 = ffai.generate_response(
         "Summarize everything discussed so far in two sentences.",
         prompt_name="summary",
-        options=ResponseOptions(history=["languages", "recommendation", "learning_plan"]),
+        history=["languages", "recommendation", "learning_plan"],
     )
     print_result(r4)
 

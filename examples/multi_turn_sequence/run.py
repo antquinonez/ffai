@@ -22,6 +22,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from src.Clients import FFLiteLLMClient
+from src.core.response_options import ResponseOptions
 from src.FFAI import FFAI
 
 
@@ -95,9 +96,9 @@ def main() -> None:
     # ------------------------------------------------------------------
     print_section("Turn 4: History-based context (declarative)")
     r4 = ffai.generate_response(
-        prompt="Summarize everything discussed so far in two sentences.",
+        "Summarize everything discussed so far in two sentences.",
         prompt_name="summary",
-        history=["languages", "recommendation", "learning_plan"],
+        options=ResponseOptions(history=["languages", "recommendation", "learning_plan"]),
     )
     print_result(r4)
 

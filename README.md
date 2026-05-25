@@ -59,16 +59,47 @@ result = ffai.generate_response(
 ### Multi-step with dependencies
 
 ```python
+from src import ResponseOptions
+
 ffai.generate_response(
     prompt="List three programming languages",
     prompt_name="languages"
 )
 
 result = ffai.generate_response(
-    prompt="Which of {{languages.response}} is best for beginners?",
+    "Which of {{languages.response}} is best for beginners?",
     prompt_name="recommendation",
-    dependencies=["languages"]
+    options=ResponseOptions(dependencies=["languages"]),
 )
+```
+
+### Configuration with ResponseOptions
+
+Use ``ResponseOptions`` for advanced features like model overrides,
+structured output, conditions, and history injection:
+
+```python
+from pydantic import BaseModel
+from src import ResponseOptions
+
+class Sentiment(BaseModel):
+    label: str
+    confidence: float
+
+result = ffai.generate_response(
+    "Analyze the tone",
+    prompt_name="sentiment",
+    options=ResponseOptions(
+        model="gpt-4",
+        response_model=Sentiment,
+        condition='{{fetch.status}} == "success"',
+        history=["fetch"],
+    ),
+    temperature=0.3,
+)
+
+print(result.parsed.label)       # "positive"
+print(result.parsed.confidence)  # 0.95
 ```
 
 ## Architecture
@@ -86,6 +117,9 @@ src/
     async_client_base.py     # Async abstract base class
     async_executor.py        # Async DAG executor (asyncio.gather per level)
     types.py                 # Shared type definitions
+    response_options.py      # ResponseOptions frozen dataclass
+    execution_result.py      # Internal ExecutionResult dataclass
+    response_executor.py     # Orchestration: prompt resolve + condition + retry
     prompt_builder.py        # {{name.response}} interpolation engine
     prompt_utils.py          # Regex-based prompt substitution
     prompt_node.py           # Prompt node for execution dependency graph

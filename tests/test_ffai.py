@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
+from src.core.response_options import ResponseOptions
+
 
 class TestFFAIInit:
     """Tests for FFAI initialization."""
@@ -85,7 +87,7 @@ class TestFFAIGenerateResponse:
         ffai.generate_response(
             "What was my math question?",
             prompt_name="followup",
-            history=["math", "greeting"],
+            options=ResponseOptions(history=["math", "greeting"]),
         )
 
         assert len(ffai.history) == 3
@@ -107,7 +109,7 @@ class TestFFAIGenerateResponse:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Hello!", model="custom-model")
+        ffai.generate_response("Hello!", options=ResponseOptions(model="custom-model"))
 
         assert ffai.history[0]["model"] == "custom-model"
 
@@ -401,7 +403,7 @@ class TestFFAIClientHistorySuspension:
 
         # Now use declarative context - client history should be suspended
         ffai.generate_response(
-            "Third question with context", prompt_name="contextual", history=["nonexistent"]
+            "Third question with context", prompt_name="contextual", options=ResponseOptions(history=["nonexistent"])
         )
 
         # After the call, client history should have original 4 + 2 new messages
@@ -419,7 +421,7 @@ class TestFFAIClientHistorySuspension:
         assert len(original_history) == 2
 
         # Use declarative context
-        ffai.generate_response("Question B", history=["some_context"])
+        ffai.generate_response("Question B", options=ResponseOptions(history=["some_context"]))
 
         # History should be original + the 2 new messages from the declarative call
         assert len(mock_ffmistralsmall.conversation_history) == 4
@@ -450,7 +452,7 @@ class TestFFAIClientHistorySuspension:
         assert len(mock_ffmistralsmall.conversation_history) == 2
 
         # Even with empty list, should suspend but still append back
-        ffai.generate_response("With empty history", history=[])
+        ffai.generate_response("With empty history", options=ResponseOptions(history=[]))
         assert len(mock_ffmistralsmall.conversation_history) == 4
 
     def test_ffai_history_still_records_with_declarative_context(self, mock_ffmistralsmall):
@@ -460,7 +462,7 @@ class TestFFAIClientHistorySuspension:
         ffai = FFAI(mock_ffmistralsmall)
 
         ffai.generate_response("Question 1", prompt_name="q1")
-        ffai.generate_response("Question 2", prompt_name="q2", history=["q1"])
+        ffai.generate_response("Question 2", prompt_name="q2", options=ResponseOptions(history=["q1"]))
 
         # FFAI should record both interactions
         assert len(ffai.history) == 2
@@ -481,7 +483,7 @@ class TestFFAIClientHistorySuspension:
         assert len(mock_ffmistralsmall.conversation_history) == 2
 
         # Declarative call - suspended during call but appended back
-        ffai.generate_response("Declarative 1", prompt_name="d1", history=["n1"])
+        ffai.generate_response("Declarative 1", prompt_name="d1", options=ResponseOptions(history=["n1"]))
         assert len(mock_ffmistralsmall.conversation_history) == 4  # 2 + 2 new
 
         # Another normal call - adds to client history
@@ -489,7 +491,7 @@ class TestFFAIClientHistorySuspension:
         assert len(mock_ffmistralsmall.conversation_history) == 6  # Now 6
 
         # Another declarative call - suspended but appended back
-        ffai.generate_response("Declarative 2", prompt_name="d2", history=["n2"])
+        ffai.generate_response("Declarative 2", prompt_name="d2", options=ResponseOptions(history=["n2"]))
         assert len(mock_ffmistralsmall.conversation_history) == 8  # 6 + 2 new
 
         # FFAI should have all 4 interactions recorded
@@ -518,7 +520,7 @@ class TestFFAIClientHistorySuspension:
         mock_ffmistralsmall.client.chat.complete = capture_api_call
 
         # Make declarative call - should NOT include accumulated client history
-        ffai.generate_response("Third question", prompt_name="q3", history=["q1"])
+        ffai.generate_response("Third question", prompt_name="q3", options=ResponseOptions(history=["q1"]))
 
         # Verify API received empty conversation (just system + current prompt)
         assert len(captured_messages) == 1
@@ -703,7 +705,7 @@ class TestFFAIBuildPrompt:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        result, interpolated = ffai._build_prompt("Test prompt", history=None)
+        result, interpolated = ffai.build_prompt("Test prompt", history=None)
 
         assert result == "Test prompt"
         assert interpolated == set()
@@ -713,7 +715,7 @@ class TestFFAIBuildPrompt:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        result, interpolated = ffai._build_prompt("Test prompt", history=[])
+        result, interpolated = ffai.build_prompt("Test prompt", history=[])
 
         assert result == "Test prompt"
         assert interpolated == set()
@@ -727,7 +729,7 @@ class TestFFAIBuildPrompt:
             [{"prompt_name": "prev", "prompt": "Previous Q", "response": "Previous A"}]
         )
 
-        result, interpolated = ffai._build_prompt("New question", history=["prev"])
+        result, interpolated = ffai.build_prompt("New question", history=["prev"])
 
         assert "<conversation_history>" in result
         assert "Previous Q" in result
@@ -741,7 +743,7 @@ class TestFFAIBuildPrompt:
 
         ffai = FFAI(mock_ffmistralsmall)
 
-        result, interpolated = ffai._build_prompt("New question", history=["missing"])
+        result, interpolated = ffai.build_prompt("New question", history=["missing"])
 
         assert result == "New question"
         assert interpolated == set()
@@ -758,7 +760,7 @@ class TestFFAIBuildPrompt:
             ]
         )
 
-        result, interpolated = ffai._build_prompt("New", history=["q1", "q2"])
+        result, interpolated = ffai.build_prompt("New", history=["q1", "q2"])
 
         assert "Q1" in result
         assert "A1" in result
@@ -778,7 +780,7 @@ class TestFFAIBuildPrompt:
             ]
         )
 
-        result, interpolated = ffai._build_prompt("New", history=["q1"])
+        result, interpolated = ffai.build_prompt("New", history=["q1"])
 
         assert "Q1 new" in result
         assert "A1 new" in result
@@ -915,7 +917,7 @@ class TestFFAIGenerateResponseExtended:
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="a")
-        ffai.generate_response("Q2", dependencies=["a", "a", "b", "b"])
+        ffai.generate_response("Q2", options=ResponseOptions(dependencies=["a", "a", "b", "b"]))
 
         assert ffai.history[1]["history"] is None
 
@@ -940,7 +942,7 @@ class TestFFAIGenerateResponseExtended:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Test", system_instructions="Be helpful")
+        ffai.generate_response("Test", options=ResponseOptions(system_instructions="Be helpful"))
 
         assert len(ffai.history) == 1
 
@@ -990,7 +992,7 @@ class TestFFAIHistoryAccessExtended:
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
-        ffai.generate_response("Q2", model="other-model")
+        ffai.generate_response("Q2", options=ResponseOptions(model="other-model"))
 
         interactions = ffai.get_model_interactions("other-model")
 
@@ -1227,7 +1229,7 @@ class TestFFAIDataFrameExtended:
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
-        ffai.generate_response("Q2", model="other-model")
+        ffai.generate_response("Q2", options=ResponseOptions(model="other-model"))
 
         results = ffai.search_history(model="other-model")
 
@@ -1438,7 +1440,7 @@ class TestFFAIGenerateResponseException:
         from src.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("Q1", dependencies=["dep1", "dep2"])
+        ffai.generate_response("Q1", options=ResponseOptions(dependencies=["dep1", "dep2"]))
 
         assert len(ffai.history) == 1
 
@@ -1516,7 +1518,7 @@ class TestFFAIResponseFormatPassthrough:
 
         mock_ffmistralsmall.generate_response = MagicMock(return_value="response")
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("hello", response_format={"type": "json_object"})
+        ffai.generate_response("hello", options=ResponseOptions(response_format={"type": "json_object"}))
         call_kwargs = mock_ffmistralsmall.generate_response.call_args
         assert call_kwargs.kwargs["response_format"] == {"type": "json_object"}
 
@@ -1552,7 +1554,7 @@ class TestFFAIStructuredOutput:
             return_value=json.dumps({"label": "positive", "confidence": 0.95})
         )
         ffai = FFAI(mock_ffmistralsmall)
-        result = ffai.generate_response("Analyze sentiment", response_model=Sentiment)
+        result = ffai.generate_response("Analyze sentiment", options=ResponseOptions(response_model=Sentiment))
 
         assert result.parsed is not None
         assert result.parsed.label == "positive"
@@ -1574,7 +1576,7 @@ class TestFFAIStructuredOutput:
             side_effect=["not json", json.dumps({"value": 42})]
         )
         ffai = FFAI(mock_ffmistralsmall)
-        result = ffai.generate_response("Give me a score", response_model=Score)
+        result = ffai.generate_response("Give me a score", options=ResponseOptions(response_model=Score))
 
         assert result.parsed is not None
         assert result.parsed.value == 42
@@ -1592,7 +1594,7 @@ class TestFFAIStructuredOutput:
 
         mock_ffmistralsmall.generate_response = MagicMock(return_value="not json at all")
         ffai = FFAI(mock_ffmistralsmall)
-        result = ffai.generate_response("score", response_model=Strict)
+        result = ffai.generate_response("score", options=ResponseOptions(response_model=Strict))
 
         assert result.parsed is None
         assert result.parsing_errors is not None
@@ -1614,7 +1616,7 @@ class TestFFAIStructuredOutput:
             return_value=json.dumps({"name": "widget"})
         )
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("name an item", response_model=Item)
+        ffai.generate_response("name an item", options=ResponseOptions(response_model=Item))
 
         call_kwargs = mock_ffmistralsmall.generate_response.call_args
         sys_instr = call_kwargs.kwargs.get("system_instructions", "")
@@ -1638,7 +1640,7 @@ class TestFFAIStructuredOutput:
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("What is 2+2?", prompt_name="math")
         result = ffai.generate_response(
-            "Based on {{math.response}}, explain", response_model=Result
+            "Based on {{math.response}}, explain", options=ResponseOptions(response_model=Result)
         )
 
         assert result.parsed is not None
@@ -1672,8 +1674,7 @@ class TestFFAIStructuredOutput:
 
         result = ffai.generate_response(
             "respond",
-            response_model=Output,
-            condition='{{setup.status}} == "success"',
+            options=ResponseOptions(response_model=Output, condition='{{setup.status}} == "success"'),
         )
 
         assert result.parsed is not None
@@ -1684,7 +1685,7 @@ class TestFFAIStructuredOutput:
 
         ffai = FFAI(mock_ffmistralsmall)
         with pytest.raises(TypeError, match="Pydantic BaseModel"):
-            ffai.generate_response("test", response_model=str)
+            ffai.generate_response("test", options=ResponseOptions(response_model=str))
 
     def test_structured_output_history_recorded(self, mock_ffmistralsmall):
         import json
@@ -1701,7 +1702,7 @@ class TestFFAIStructuredOutput:
             return_value=json.dumps({"x": 1})
         )
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("val", response_model=Val, prompt_name="v1")
+        ffai.generate_response("val", prompt_name="v1", options=ResponseOptions(response_model=Val))
 
         assert len(ffai.history) == 1
         assert ffai.history[0]["prompt_name"] == "v1"
@@ -1722,7 +1723,7 @@ class TestFFAIStructuredOutput:
             return_value=json.dumps({"val": "ok"})
         )
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("test", response_model=Simple)
+        ffai.generate_response("test", options=ResponseOptions(response_model=Simple))
 
         call_kwargs = mock_ffmistralsmall.generate_response.call_args
         rf = call_kwargs.kwargs.get("response_format")
@@ -1746,7 +1747,7 @@ class TestFFAIStructuredOutput:
             return_value=json.dumps({"val": "ok"})
         )
         ffai = FFAI(mock_ffmistralsmall)
-        ffai.generate_response("test", response_model=Simple, response_format=custom_format)
+        ffai.generate_response("test", options=ResponseOptions(response_model=Simple, response_format=custom_format))
 
         call_kwargs = mock_ffmistralsmall.generate_response.call_args
         rf = call_kwargs.kwargs.get("response_format")
@@ -1778,8 +1779,7 @@ class TestFFAIStructuredOutput:
 
         result = ffai.generate_response(
             "score it",
-            response_model=Score,
-            history=["setup"],
+            options=ResponseOptions(response_model=Score, history=["setup"]),
         )
 
         assert result.parsed is not None
@@ -1809,8 +1809,7 @@ class TestFFAIStructuredOutput:
 
         result = ffai.generate_response(
             "val",
-            response_model=Val,
-            history=["setup"],
+            options=ResponseOptions(response_model=Val, history=["setup"]),
         )
 
         assert result.parsed is None
@@ -1843,8 +1842,7 @@ class TestFFAIStructuredOutput:
         with pytest.raises(RuntimeError, match="API down"):
             ffai.generate_response(
                 "val",
-                response_model=Val,
-                history=["setup"],
+                options=ResponseOptions(response_model=Val, history=["setup"]),
             )
 
     def test_structured_output_with_explicit_system_instructions(self, mock_ffmistralsmall):
@@ -1864,8 +1862,7 @@ class TestFFAIStructuredOutput:
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response(
             "name it",
-            response_model=Item,
-            system_instructions="You are a product cataloger.",
+            options=ResponseOptions(response_model=Item, system_instructions="You are a product cataloger."),
         )
 
         call_kwargs = mock_ffmistralsmall.generate_response.call_args
@@ -1888,7 +1885,7 @@ class TestFFAIStructuredOutput:
             return_value=json.dumps({"val": "ok"})
         )
         ffai = FFAI(mock_ffmistralsmall)
-        result = ffai.generate_response("test", response_model=Simple)
+        result = ffai.generate_response("test", options=ResponseOptions(response_model=Simple))
 
         assert result.parsed is not None
         assert result.parsing_errors is None

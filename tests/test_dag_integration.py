@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.core.response_options import ResponseOptions
+
 
 @pytest.fixture
 def mock_client():
@@ -41,9 +43,9 @@ class TestConditionalExecution:
         ]
 
         result = ffai.generate_response(
-            prompt="process",
+            "process",
             prompt_name="process",
-            condition='{{fetch.status}} == "success"',
+            options=ResponseOptions(condition='{{fetch.status}} == "success"'),
         )
         assert result.status == "success"
         assert result.response is not None
@@ -55,9 +57,9 @@ class TestConditionalExecution:
         ]
 
         result = ffai.generate_response(
-            prompt="process",
+            "process",
             prompt_name="process",
-            condition='{{fetch.status}} == "success"',
+            options=ResponseOptions(condition='{{fetch.status}} == "success"'),
         )
         assert result.status == "skipped"
         assert result.response is None
@@ -69,18 +71,18 @@ class TestConditionalExecution:
         ]
 
         result = ffai.generate_response(
-            prompt="process",
+            "process",
             prompt_name="process",
-            condition='{{fetch.status}} == "success"',
+            options=ResponseOptions(condition='{{fetch.status}} == "success"'),
         )
         assert result.condition_trace is not None
         assert "failed" in result.condition_trace
 
     def test_unknown_prompt_name_returns_failed(self, ffai, mock_client):
         result = ffai.generate_response(
-            prompt="process",
+            "process",
             prompt_name="process",
-            condition='{{nonexistent.status}} == "success"',
+            options=ResponseOptions(condition='{{nonexistent.status}} == "success"'),
         )
         assert result.status == "failed"
         assert result.condition_error is not None
@@ -159,9 +161,9 @@ class TestStrictMode:
     def test_strict_raises_on_unknown_reference(self, ffai, mock_client):
         with pytest.raises(ValueError, match="Unknown prompt reference"):
             ffai.generate_response(
-                prompt="Based on {{nonexistent.response}}, elaborate",
+                "Based on {{nonexistent.response}}, elaborate",
                 prompt_name="test",
-                strict=True,
+                options=ResponseOptions(strict=True),
             )
 
     def test_non_strict_silently_replaces(self, ffai, mock_client):

@@ -185,6 +185,8 @@ class TestResponseResultExtended:
         assert result.status == "success"
         assert result.condition_trace is None
         assert result.condition_error is None
+        assert result.parsed is None
+        assert result.parsing_errors is None
 
     def test_skipped_status(self):
         from src.core.response_result import ResponseResult

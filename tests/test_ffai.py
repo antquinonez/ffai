@@ -1531,3 +1531,364 @@ class TestFFAIAddClientMessageError:
         ffai.get_client_conversation_history = MagicMock(side_effect=RuntimeError("boom"))
         result = ffai.add_client_message("user", "test")
         assert result is False
+
+
+class TestFFAIStructuredOutput:
+    """Integration tests for response_model parameter on generate_response()."""
+
+    def test_structured_output_valid_json(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Sentiment(BaseModel):
+            label: str
+            confidence: float
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"label": "positive", "confidence": 0.95})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        result = ffai.generate_response("Analyze sentiment", response_model=Sentiment)
+
+        assert result.parsed is not None
+        assert result.parsed.label == "positive"
+        assert result.parsed.confidence == 0.95
+        assert result.parsing_errors is None
+
+    def test_structured_output_invalid_then_valid(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Score(BaseModel):
+            value: int
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            side_effect=["not json", json.dumps({"value": 42})]
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        result = ffai.generate_response("Give me a score", response_model=Score)
+
+        assert result.parsed is not None
+        assert result.parsed.value == 42
+        assert mock_ffmistralsmall.generate_response.call_count == 2
+
+    def test_structured_output_all_retries_fail(self, mock_ffmistralsmall):
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Strict(BaseModel):
+            score: int
+
+        mock_ffmistralsmall.generate_response = MagicMock(return_value="not json at all")
+        ffai = FFAI(mock_ffmistralsmall)
+        result = ffai.generate_response("score", response_model=Strict)
+
+        assert result.parsed is None
+        assert result.parsing_errors is not None
+        assert len(result.parsing_errors) > 0
+        assert mock_ffmistralsmall.generate_response.call_count == 3
+
+    def test_structured_output_schema_in_system_instructions(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Item(BaseModel):
+            name: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"name": "widget"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("name an item", response_model=Item)
+
+        call_kwargs = mock_ffmistralsmall.generate_response.call_args
+        sys_instr = call_kwargs.kwargs.get("system_instructions", "")
+        assert "json" in sys_instr.lower()
+        assert "name" in sys_instr
+
+    def test_structured_output_with_interpolation(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Result(BaseModel):
+            answer: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"answer": "42"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("What is 2+2?", prompt_name="math")
+        result = ffai.generate_response(
+            "Based on {{math.response}}, explain", response_model=Result
+        )
+
+        assert result.parsed is not None
+        assert result.parsed.answer == "42"
+
+    def test_structured_output_parsed_none_without_model(self, mock_ffmistralsmall):
+        from src.FFAI import FFAI
+
+        ffai = FFAI(mock_ffmistralsmall)
+        result = ffai.generate_response("Hello!")
+
+        assert result.parsed is None
+        assert result.parsing_errors is None
+
+    def test_structured_output_with_condition(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Output(BaseModel):
+            text: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"text": "hello"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("setup", prompt_name="setup")
+
+        result = ffai.generate_response(
+            "respond",
+            response_model=Output,
+            condition='{{setup.status}} == "success"',
+        )
+
+        assert result.parsed is not None
+        assert result.parsed.text == "hello"
+
+    def test_structured_output_invalid_model_type(self, mock_ffmistralsmall):
+        from src.FFAI import FFAI
+
+        ffai = FFAI(mock_ffmistralsmall)
+        with pytest.raises(TypeError, match="Pydantic BaseModel"):
+            ffai.generate_response("test", response_model=str)
+
+    def test_structured_output_history_recorded(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Val(BaseModel):
+            x: int
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"x": 1})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("val", response_model=Val, prompt_name="v1")
+
+        assert len(ffai.history) == 1
+        assert ffai.history[0]["prompt_name"] == "v1"
+        assert ffai.history[0]["status"] == "success"
+
+    def test_structured_output_response_format_auto_set(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Simple(BaseModel):
+            val: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"val": "ok"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("test", response_model=Simple)
+
+        call_kwargs = mock_ffmistralsmall.generate_response.call_args
+        rf = call_kwargs.kwargs.get("response_format")
+        assert rf is not None
+        assert rf["type"] == "json_object"
+        assert "schema" in rf
+
+    def test_structured_output_custom_response_format_preserved(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Simple(BaseModel):
+            val: str
+
+        custom_format = {"type": "json_object", "custom": True}
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"val": "ok"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response("test", response_model=Simple, response_format=custom_format)
+
+        call_kwargs = mock_ffmistralsmall.generate_response.call_args
+        rf = call_kwargs.kwargs.get("response_format")
+        assert rf == custom_format
+
+    def test_structured_output_retries_with_history_suspension(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Score(BaseModel):
+            value: int
+
+        mock_client = MagicMock()
+        mock_client.model = "test"
+        mock_client.generate_response = MagicMock(
+            side_effect=["not json", json.dumps({"value": 42})]
+        )
+        mock_client.get_conversation_history.return_value = []
+        mock_client.set_conversation_history = MagicMock()
+        mock_client.clear_conversation = MagicMock()
+        mock_client.last_usage = None
+        mock_client.last_cost_usd = 0.0
+        ffai = FFAI(mock_client)
+        ffai.generate_response("setup", prompt_name="setup")
+
+        result = ffai.generate_response(
+            "score it",
+            response_model=Score,
+            history=["setup"],
+        )
+
+        assert result.parsed is not None
+        assert result.parsed.value == 42
+        assert mock_client.generate_response.call_count == 2
+
+    def test_structured_output_all_retries_fail_with_history_suspension(self, mock_ffmistralsmall):
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Val(BaseModel):
+            x: int
+
+        mock_client = MagicMock()
+        mock_client.model = "test"
+        mock_client.generate_response = MagicMock(return_value="not json")
+        mock_client.get_conversation_history.return_value = []
+        mock_client.set_conversation_history = MagicMock()
+        mock_client.clear_conversation = MagicMock()
+        mock_client.last_usage = None
+        mock_client.last_cost_usd = 0.0
+        ffai = FFAI(mock_client)
+        ffai.generate_response("setup", prompt_name="setup")
+
+        result = ffai.generate_response(
+            "val",
+            response_model=Val,
+            history=["setup"],
+        )
+
+        assert result.parsed is None
+        assert result.parsing_errors is not None
+        assert len(result.parsing_errors) > 0
+
+    def test_structured_output_exception_with_history_suspension(self, mock_ffmistralsmall):
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Val(BaseModel):
+            x: int
+
+        mock_client = MagicMock()
+        mock_client.model = "test"
+        mock_client.get_conversation_history.return_value = []
+        mock_client.set_conversation_history = MagicMock()
+        mock_client.clear_conversation = MagicMock()
+        mock_client.last_usage = None
+        mock_client.last_cost_usd = 0.0
+        ffai = FFAI(mock_client)
+        mock_client.generate_response.return_value = "setup done"
+        ffai.generate_response("setup", prompt_name="setup")
+
+        mock_client.generate_response.side_effect = RuntimeError("API down")
+
+        with pytest.raises(RuntimeError, match="API down"):
+            ffai.generate_response(
+                "val",
+                response_model=Val,
+                history=["setup"],
+            )
+
+    def test_structured_output_with_explicit_system_instructions(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Item(BaseModel):
+            name: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"name": "widget"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        ffai.generate_response(
+            "name it",
+            response_model=Item,
+            system_instructions="You are a product cataloger.",
+        )
+
+        call_kwargs = mock_ffmistralsmall.generate_response.call_args
+        sys_instr = call_kwargs.kwargs.get("system_instructions", "")
+        assert sys_instr.startswith("You are a product cataloger.")
+        assert "json" in sys_instr.lower()
+
+    def test_structured_output_parsing_errors_none_on_success(self, mock_ffmistralsmall):
+        import json
+        from unittest.mock import MagicMock
+
+        from pydantic import BaseModel
+
+        from src.FFAI import FFAI
+
+        class Simple(BaseModel):
+            val: str
+
+        mock_ffmistralsmall.generate_response = MagicMock(
+            return_value=json.dumps({"val": "ok"})
+        )
+        ffai = FFAI(mock_ffmistralsmall)
+        result = ffai.generate_response("test", response_model=Simple)
+
+        assert result.parsed is not None
+        assert result.parsing_errors is None

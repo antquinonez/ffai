@@ -20,7 +20,7 @@ def mock_mistral_client():
 
 @pytest.fixture
 def client(mock_mistral_client):
-    with patch("src.Clients.FFMistralSmall.Mistral", return_value=mock_mistral_client):
+    with patch.object(FFMistralSmall, "_initialize_client", return_value=mock_mistral_client):
         c = FFMistralSmall(
             api_key="test-key",
             model="mistral-small-2503",
@@ -39,7 +39,7 @@ class TestFFMistralSmallInit:
         assert client.system_instructions == "Be brief."
 
     def test_config_via_dict(self, mock_mistral_client):
-        with patch("src.Clients.FFMistralSmall.Mistral", return_value=mock_mistral_client):
+        with patch.object(FFMistralSmall, "_initialize_client", return_value=mock_mistral_client):
             c = FFMistralSmall(
                 config={"model": "custom-model", "temperature": 0.3, "max_tokens": 512},
                 api_key="test-key",

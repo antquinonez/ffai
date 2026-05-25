@@ -23,6 +23,7 @@ from .config import get_config
 from .core.client_base import FFAIClientBase
 from .core.condition_evaluator import ConditionEvaluator
 from .core.graph import ExecutionGraph, build_execution_graph_with_edges
+from .core.graph_execution_helpers import resolve_graph_prompt
 from .core.history.ordered import OrderedPromptHistory
 from .core.history.permanent import PermanentHistory
 from .core.history_exporter import HistoryExporter
@@ -183,6 +184,7 @@ class FFAI:
         dependencies: list[str] | None = None,
         system_instructions: str | None = None,
         response_format: str | dict | None = None,
+        response_model: type | None = None,
         condition: str | None = None,
         abort_condition: str | None = None,
         strict: bool = False,
@@ -199,6 +201,9 @@ class FFAI:
             system_instructions: Override system instructions for this call.
             response_format: Response format hint (e.g. ``{"type": "json_object"}``).
                 Passed through to the underlying provider API.
+            response_model: Pydantic BaseModel subclass for structured output.
+                When set, the response is validated against the model schema
+                with up to 3 total attempts on validation failure.
             condition: Expression evaluated before execution. If false, prompt
                 is skipped with ``status="skipped"``.
             abort_condition: Stored for future DAG executor use.
@@ -287,6 +292,23 @@ class FFAI:
             if system_instructions is not None:
                 kwargs["system_instructions"] = system_instructions
 
+            if response_model is not None:
+                from pydantic import BaseModel as _BaseModel
+
+                if not (isinstance(response_model, type) and issubclass(response_model, _BaseModel)):
+                    raise TypeError(
+                        f"response_model must be a Pydantic BaseModel subclass, got {type(response_model)}"
+                    )
+
+                from .core.structured_output import StructuredOutputHandler
+
+                so_handler = StructuredOutputHandler(max_retries=2)
+                if response_format is None:
+                    response_format = so_handler.build_response_format(response_model)
+                schema_suffix = so_handler.build_system_suffix(response_model)
+                current_system = kwargs.get("system_instructions") or system_instructions or ""
+                kwargs["system_instructions"] = current_system + schema_suffix
+
             if response_format is not None:
                 kwargs["response_format"] = response_format
 
@@ -303,13 +325,20 @@ class FFAI:
                         f"Suspended client conversation history: {reason}"
                     )
 
+            so_result = None
             call_start = time.monotonic()
             try:
-                response = self.client.generate_response(
-                    prompt=final_prompt, model=used_model, **kwargs
-                )
+                if response_model is not None:
+                    response, so_result = self._execute_structured(
+                        so_handler, response_model, final_prompt, used_model, kwargs,
+                        should_suspend_client_history, saved_client_history,
+                    )
+                else:
+                    response = self.client.generate_response(
+                        prompt=final_prompt, model=used_model, **kwargs
+                    )
             finally:
-                if should_suspend_client_history and saved_client_history is not None:
+                if should_suspend_client_history and saved_client_history is not None and so_result is None:
                     with self._client_history_lock:
                         new_client_messages = self.client.get_conversation_history()
                         combined = list(saved_client_history) + list(new_client_messages)
@@ -359,6 +388,8 @@ class FFAI:
                 cost_usd=cost_usd,
                 model=used_model,
                 duration_ms=round(call_duration_ms, 1),
+                parsed=so_result.parsed if so_result else None,
+                parsing_errors=so_result.parsing_errors if so_result and so_result.parsing_errors else None,
             )
 
         except Exception as e:
@@ -375,6 +406,74 @@ class FFAI:
     def clear_conversation(self) -> None:
         """Clear conversation in client but retain history."""
         self.client.clear_conversation()
+
+    # ===========================================================================
+    # Structured output helpers
+    # ===========================================================================
+
+    def _execute_structured(
+        self,
+        handler: Any,
+        response_model: type,
+        prompt: str,
+        model: str,
+        kwargs: dict[str, Any],
+        should_suspend: bool,
+        saved_history: list[dict[str, Any]] | None,
+    ) -> tuple[str, Any]:
+        """Execute LLM call with structured output validation retry loop.
+
+        Args:
+            handler: StructuredOutputHandler instance.
+            response_model: Pydantic BaseModel subclass.
+            prompt: The resolved prompt to send.
+            model: Model identifier.
+            kwargs: Additional kwargs for the client.
+            should_suspend: Whether client history suspension is active.
+            saved_history: Saved client history to restore.
+
+        Returns:
+            Tuple of (raw_response, StructuredResult).
+
+        """
+        max_attempts = handler.max_retries + 1
+        all_errors, current_prompt, best_result = handler.prepare_retry_state(
+            prompt, response_model
+        )
+
+        for attempt in range(max_attempts):
+            response = self.client.generate_response(
+                prompt=current_prompt, model=model, **kwargs
+            )
+
+            best_result, current_prompt, all_errors, should_stop = (
+                handler.process_attempt(
+                    response, response_model, prompt, attempt, all_errors, best_result
+                )
+            )
+
+            if should_stop:
+                if should_suspend and saved_history is not None:
+                    with self._client_history_lock:
+                        new_msgs = self.client.get_conversation_history()
+                        combined = list(saved_history) + list(new_msgs)
+                        self.client.set_conversation_history(combined)
+                        logger.debug(
+                            f"Restored client conversation history (+{len(new_msgs)} new messages)"
+                        )
+                return response, best_result
+
+        if should_suspend and saved_history is not None:
+            with self._client_history_lock:
+                new_msgs = self.client.get_conversation_history()
+                combined = list(saved_history) + list(new_msgs)
+                self.client.set_conversation_history(combined)
+                logger.debug(
+                    f"Restored client conversation history (+{len(new_msgs)} new messages)"
+                )
+
+        final_result = handler.finalize_retry(best_result, all_errors, max_attempts)
+        return final_result.raw_response, final_result
 
     # ===========================================================================
     # Condition & DAG helpers
@@ -445,6 +544,205 @@ class FFAI:
                 )
 
         return graph, warnings
+
+    # ===========================================================================
+    # Async DAG execution
+    # ===========================================================================
+
+    async def execute_graph(
+        self,
+        prompts: list[dict[str, Any]],
+        max_concurrency: int = 10,
+    ) -> Any:
+        """Execute a prompt dependency graph with topological-parallel async calls.
+
+        Prompts on the same DAG level run concurrently via ``asyncio.gather``.
+        Levels execute sequentially.  Requires an ``AsyncFFAIClientBase`` client.
+
+        Supports the same declarative features as ``generate_response()``:
+        ``{{name.response}}`` interpolation, ``history=`` context injection,
+        ``condition`` / ``abort_condition`` gating, ``response_model`` for
+        structured output, and per-prompt ``model`` / ``system_instructions``
+        overrides.
+
+        Args:
+            prompts: List of dicts with keys: prompt_name, prompt, history,
+                condition, abort_condition, response_model, system_instructions,
+                model.
+            max_concurrency: Maximum concurrent API calls.
+
+        Returns:
+            ``GraphResult`` with per-prompt ``ResponseResult`` instances and
+            aggregate counts.
+
+        Raises:
+            TypeError: If the client is not an ``AsyncFFAIClientBase``.
+            ValueError: If a dependency cycle is detected.
+
+        """
+        from .core.async_client_base import AsyncFFAIClientBase
+        from .core.async_executor import AsyncGraphExecutor
+
+        if not isinstance(self.client, AsyncFFAIClientBase):
+            raise TypeError(
+                f"execute_graph requires an async client. "
+                f"Got {type(self.client).__name__}. "
+                f"Use AsyncFFLiteLLMClient instead."
+            )
+
+        async_client: AsyncFFAIClientBase = self.client
+        ffai_ref = self
+
+        async def run_prompt(**spec: Any) -> ResponseResult:
+            prompt_text = spec.get("prompt", "")
+            spec_model = spec.get("model")
+            spec_system = spec.get("system_instructions")
+            response_model = spec.get("response_model")
+
+            used_model = spec_model if spec_model else async_client.model
+
+            cloned = await async_client.clone()
+
+            saved_history = cloned.get_conversation_history()
+            cloned.set_conversation_history([])
+
+            kwargs: dict[str, Any] = {}
+            if spec_system is not None:
+                kwargs["system_instructions"] = spec_system
+
+            so_result = None
+            call_start = time.monotonic()
+
+            try:
+                if response_model is not None:
+                    from pydantic import BaseModel as _BaseModel
+
+                    if not (
+                        isinstance(response_model, type)
+                        and issubclass(response_model, _BaseModel)
+                    ):
+                        raise TypeError(
+                            f"response_model must be a Pydantic BaseModel subclass, "
+                            f"got {type(response_model)}"
+                        )
+
+                    from .core.structured_output import StructuredOutputHandler
+
+                    so_handler = StructuredOutputHandler(max_retries=2)
+                    kwargs["response_format"] = so_handler.build_response_format(
+                        response_model
+                    )
+                    schema_suffix = so_handler.build_system_suffix(response_model)
+                    current_system = kwargs.get("system_instructions") or ""
+                    kwargs["system_instructions"] = current_system + schema_suffix
+
+                    max_attempts = so_handler.max_retries + 1
+                    all_errors, current_prompt, _best = so_handler.prepare_retry_state(
+                        prompt_text, response_model
+                    )
+                    so_result = None
+
+                    for attempt in range(max_attempts):
+                        response = await cloned.generate_response(
+                            prompt=current_prompt, model=used_model, **kwargs
+                        )
+
+                        _best, current_prompt, all_errors, should_stop = (
+                            so_handler.process_attempt(
+                                response, response_model, prompt_text,
+                                attempt, all_errors, _best,
+                            )
+                        )
+
+                        if should_stop:
+                            so_result = _best
+                            break
+
+                    if so_result is None:
+                        so_result = so_handler.finalize_retry(
+                            _best, all_errors, max_attempts
+                        )
+
+                    response = so_result.raw_response
+                else:
+                    response = await cloned.generate_response(
+                        prompt=prompt_text, model=used_model, **kwargs
+                    )
+            finally:
+                cloned.set_conversation_history(saved_history)
+
+            call_duration_ms = (time.monotonic() - call_start) * 1000
+            cleaned = ffai_ref._clean_response(response)
+            usage = getattr(cloned, "last_usage", None)
+            cost_usd = getattr(cloned, "last_cost_usd", 0.0)
+
+            return ResponseResult(
+                response=cleaned,
+                resolved_prompt=prompt_text,
+                model=used_model,
+                status="success",
+                usage=usage,
+                cost_usd=cost_usd,
+                duration_ms=round(call_duration_ms, 1),
+                parsed=so_result.parsed if so_result else None,
+                parsing_errors=(
+                    so_result.parsing_errors
+                    if so_result and so_result.parsing_errors
+                    else None
+                ),
+            )
+
+        executor = AsyncGraphExecutor(
+            executor_fn=run_prompt,
+            max_concurrency=max_concurrency,
+            prompt_resolver=resolve_graph_prompt,
+        )
+
+        graph_result = await executor.execute(prompts)
+
+        for name, result in graph_result.results.items():
+            if result.status == "success" and result.response is not None:
+                self.history.append(
+                    {
+                        "prompt": result.resolved_prompt,
+                        "response": result.response,
+                        "prompt_name": name,
+                        "timestamp": time.time(),
+                        "model": result.model,
+                        "history": None,
+                        "status": "success",
+                    }
+                )
+                self.clean_history.append(
+                    {
+                        "prompt": result.resolved_prompt,
+                        "response": result.response,
+                        "prompt_name": name,
+                        "timestamp": time.time(),
+                        "model": result.model,
+                        "history": None,
+                        "status": "success",
+                    }
+                )
+
+                self.permanent_history.add_turn_user(result.resolved_prompt)
+                self.permanent_history.add_turn_assistant(result.response)
+
+                self._context.record(
+                    prompt=result.resolved_prompt,
+                    response=result.response,
+                    model=result.model,
+                    prompt_name=name,
+                )
+
+                self.ordered_history.add_interaction(
+                    model=result.model,
+                    prompt=result.resolved_prompt,
+                    response=result.response,
+                    prompt_name=name,
+                )
+
+        return graph_result
 
     # ===========================================================================
     # History accessors

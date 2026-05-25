@@ -5,6 +5,8 @@
 from .agent.agent_loop import AgentLoop
 from .agent.agent_result import AgentResult, ToolCallRecord
 from .agent.response_validator import ResponseValidator, ValidationResult
+from .core.async_client_base import AsyncFFAIClientBase
+from .core.async_executor import AsyncGraphExecutor, GraphResult
 from .core.client_base import FFAIClientBase
 from .core.condition_evaluator import ConditionEvaluator
 from .core.graph import ExecutionGraph
@@ -18,10 +20,13 @@ __all__ = [
     "FFAI",
     "AgentLoop",
     "AgentResult",
+    "AsyncFFAIClientBase",
+    "AsyncGraphExecutor",
     "ConditionEvaluator",
     "ConversationHistory",
     "ExecutionGraph",
     "FFAIClientBase",
+    "GraphResult",
     "OrderedPromptHistory",
     "PermanentHistory",
     "ResponseValidator",

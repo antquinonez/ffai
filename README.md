@@ -16,6 +16,7 @@ FFAI wraps AI provider clients (LiteLLM for 100+ providers, Mistral native SDK) 
 - **Structured output** -- Pydantic model validation with automatic retry on schema failures
 - **Response validation** -- LLM-as-judge PASS/FAIL validation with automatic re-execution
 - **Async support** -- async client base and DAG executor for concurrent I/O-bound workloads
+- **Model fallbacks** -- automatic fallback to alternate models on failure
 - **OpenTelemetry tracing** -- optional span emission with model, token, and cost attributes
 - **Retry with exponential backoff** -- tenacity-based retry with configurable status codes and jitter
 
@@ -26,8 +27,8 @@ from src.Clients import FFLiteLLMClient
 from src.FFAI import FFAI
 
 client = FFLiteLLMClient(
+    model_string="mistral/mistral-small-latest",
     api_key="your-key",
-    model="mistral/mistral-small-latest"
 )
 
 ffai = FFAI(client)
@@ -138,10 +139,11 @@ src/
       permanent.py           # Chronological turn history
       conversation.py        # Raw conversation history
   Clients/
-    FFLiteLLMClient.py       # Universal client (100+ providers via LiteLLM)
-    AsyncFFLiteLLMClient.py  # Async LiteLLM client (litellm.acompletion)
-    FFMistralSmall.py        # Native Mistral SDK client (reference implementation)
-    model_defaults.py        # Per-model default parameters
+    BaseLiteLLMClient.py      # Shared mixin for sync/async LiteLLM clients
+    FFLiteLLMClient.py        # Sync universal client (100+ providers via LiteLLM)
+    AsyncFFLiteLLMClient.py   # Async LiteLLM client (litellm.acompletion)
+    FFMistralSmall.py         # Native Mistral SDK client (reference implementation)
+    model_defaults.py         # Per-model default parameters
   agent/
     agent_loop.py            # Multi-round tool-call execution loop
     agent_result.py          # AgentResult and ToolCallRecord dataclasses

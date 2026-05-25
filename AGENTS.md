@@ -6,9 +6,12 @@ Instructions for AI agents working on this codebase.
 
 - **Lint:** `ruff check src/ tests/ examples/`
 - **Type check:** `pyright src/ tests/`
-- **Tests:** `pytest tests/ -x -q`
+- **Unit tests:** `pytest tests/ -x -q`
+- **Integration tests:** `pytest tests/integration/ -m integration -v`
 
-Run all three after making changes. Do not skip any.
+Run all three checks (lint, typecheck, unit tests) after making changes. Do not skip any.
+
+Integration tests make real API calls and require API keys in `.env`. They are excluded from the default `pytest` run via `-m 'not integration'` in `pyproject.toml`. Configure which clients to test in `tests/integration/test_config.yaml`.
 
 ## Error Policy
 
@@ -34,4 +37,5 @@ Design documents live in `designs/` (untracked). They follow a layered approach:
 
 - New features require new tests
 - All tests must pass with zero regressions before any change is considered complete
-- The test suite should remain at or above its current count (589+ tests)
+- The test suite should remain at or above its current count (999+ unit tests, 30+ integration tests)
+- Integration tests are YAML-driven: edit `tests/integration/test_config.yaml` to enable/disable clients

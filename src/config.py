@@ -58,6 +58,7 @@ def _load_all_configs() -> dict[str, Any]:
         "clients": _load_yaml_file("clients.yaml"),
         "model_defaults": _load_yaml_file("model_defaults.yaml").get("model_defaults", {}),
         "observability": main_yaml.get("observability", {}),
+        "rag": main_yaml.get("rag", {}),
     }
 
 
@@ -171,6 +172,18 @@ class ObservabilityConfig(BaseSettings):
     cost_tracking: bool = True
 
 
+class RAGConfig(BaseSettings):
+    enabled: bool = False
+    persist_dir: str = "./chroma_db"
+    collection_name: str = "ffai_kb"
+    embedding_model: str = "mistral/mistral-embed"
+    chunker: str = "recursive"
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
+    bm25_alpha: float | None = None
+    reranker: str | None = None
+
+
 class Config(BaseSettings):
     """Main configuration class."""
 
@@ -186,6 +199,7 @@ class Config(BaseSettings):
     clients: ClientsConfig = Field(default_factory=ClientsConfig)
     model_defaults: ModelDefaultsConfig = Field(default_factory=ModelDefaultsConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
+    rag: RAGConfig = Field(default_factory=RAGConfig)
 
     @classmethod
     def settings_customise_sources(

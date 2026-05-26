@@ -14,18 +14,18 @@ from __future__ import annotations
 import logging
 import os
 import threading
-import time
 from typing import Any
 
 import polars as pl
 
 from .config import get_config
 from .core.client_base import FFAIClientBase
-from .core.execution_result import ExecutionResult
+from .core.conversation_manager import ConversationManager
 from .core.graph import ExecutionGraph, build_execution_graph_with_edges
 from .core.graph_execution_helpers import resolve_graph_prompt
 from .core.history.ordered import OrderedPromptHistory
 from .core.history.permanent import PermanentHistory
+from .core.history.recorder import HistoryRecorder
 from .core.history_exporter import HistoryExporter
 from .core.prompt_builder import PromptBuilder
 from .core.prompt_utils import extract_json_field, interpolate_prompt
@@ -81,18 +81,21 @@ class FFAI:
         os.makedirs(self.persist_dir, exist_ok=True)
 
         self.client = client
-        self._client_history_lock = threading.Lock()
-
-        self.history: list[dict[str, Any]] = []
-        self.clean_history: list[dict[str, Any]] = []
+        self._conversation = ConversationManager(client=client)
 
         self._context = ResponseContext(
             shared_prompt_attr_history=shared_prompt_attr_history,
             history_lock=history_lock,
         )
 
-        self.permanent_history = PermanentHistory()
-        self.ordered_history = OrderedPromptHistory()
+        self._permanent = PermanentHistory()
+        self._ordered = OrderedPromptHistory()
+
+        self._recorder = HistoryRecorder(
+            context=self._context,
+            permanent_history=self._permanent,
+            ordered_history=self._ordered,
+        )
 
         self._prompt_builder = PromptBuilder(self._context.prompt_attr_history)
         self._executor = ResponseExecutor(
@@ -101,10 +104,10 @@ class FFAI:
             results_by_name_fn=self._build_results_by_name,
         )
         self._exporter = HistoryExporter(
-            history=self.history,
-            clean_history=self.clean_history,
+            history=self._recorder.history,
+            clean_history=self._recorder.clean_history,
             prompt_attr_history=self._context.prompt_attr_history,
-            ordered_history=self.ordered_history,
+            ordered_history=self._ordered,
             persist_dir=self.persist_dir,
             persist_name=self.persist_name,
             auto_persist=self.auto_persist,
@@ -123,10 +126,31 @@ class FFAI:
     def _history_lock(self) -> threading.Lock | None:
         return self._context.history_lock
 
+    @property
+    def history(self) -> list[dict[str, Any]]:
+        return self._recorder.history
+
+    @history.setter
+    def history(self, value: list[dict[str, Any]]) -> None:
+        self._recorder.history = value
+
+    @property
+    def clean_history(self) -> list[dict[str, Any]]:
+        return self._recorder.clean_history
+
+    @property
+    def permanent_history(self) -> PermanentHistory:
+        return self._permanent
+
+    @property
+    def ordered_history(self) -> OrderedPromptHistory:
+        return self._ordered
+
     def set_client(self, client: FFAIClientBase) -> None:
         """Switch to a different AI client."""
         logger.info(f"Switching client to {client.__class__.__name__}")
         self.client = client
+        self._conversation.client = client
 
     def _extract_json(self, text: str) -> Any | None:
         return extract_json(text)
@@ -203,7 +227,10 @@ class FFAI:
         logger.debug(f"Full prompt: '{prompt}'")
         logger.debug(f"Using model: {used_model}")
 
-        should_suspend, saved_client_history = self._maybe_suspend_history(opts, prompt)
+        saved = None
+        if self._conversation.should_suspend(prompt, opts.history):
+            reason = "history injection" if opts.history else "interpolation"
+            saved = self._conversation.suspend(reason=reason)
 
         base_fn = self.client.generate_response
         provider_kwargs = kwargs
@@ -227,14 +254,22 @@ class FFAI:
             logger.error(f"Prompt name: {prompt_name}")
             raise
         finally:
-            self._maybe_restore_history(should_suspend, saved_client_history)
+            self._conversation.restore(saved)
 
         usage = getattr(self.client, "last_usage", None)
         cost_usd = getattr(self.client, "last_cost_usd", 0.0)
         exec_result.usage = usage
         exec_result.cost_usd = cost_usd
 
-        self._record_interaction(prompt, exec_result, prompt_name, opts, used_model)
+        cleaned = self._clean_response(exec_result.response)
+        self._recorder.record(
+            prompt=prompt,
+            response=cleaned,
+            model=used_model,
+            prompt_name=prompt_name,
+            history=opts.history,
+            status=exec_result.status,
+        )
 
         return ResponseResult(
             response=self._clean_response(exec_result.response),
@@ -251,79 +286,12 @@ class FFAI:
         )
 
     # ===========================================================================
-    # History suspension helpers
-    # ===========================================================================
-
-    def _maybe_suspend_history(
-        self, options: ResponseOptions, prompt: str
-    ) -> tuple[bool, list[dict[str, Any]] | None]:
-        has_interpolation = "{{" in prompt and "}}" in prompt
-        should_suspend = options.history is not None or has_interpolation
-        if not should_suspend:
-            return False, None
-        with self._client_history_lock:
-            saved = self.client.get_conversation_history().copy()
-            self.client.set_conversation_history([])
-        reason = "history injection" if options.history else "interpolation"
-        logger.debug(f"Suspended client conversation history: {reason}")
-        return True, saved
-
-    def _maybe_restore_history(
-        self, should_suspend: bool, saved: list[dict[str, Any]] | None
-    ) -> None:
-        if not should_suspend or saved is None:
-            return
-        with self._client_history_lock:
-            new_msgs = self.client.get_conversation_history()
-            combined = list(saved) + list(new_msgs)
-            self.client.set_conversation_history(combined)
-            logger.debug(
-                f"Restored client conversation history (+{len(new_msgs)} new messages)"
-            )
-
-    def _record_interaction(
-        self,
-        prompt: str,
-        result: ExecutionResult,
-        prompt_name: str | None,
-        options: ResponseOptions,
-        used_model: str,
-    ) -> None:
-        cleaned = self._clean_response(result.response)
-
-        self.permanent_history.add_turn_user(prompt)
-        self.permanent_history.add_turn_assistant(cleaned)
-
-        interaction: dict[str, Any] = {
-            "prompt": prompt,
-            "response": cleaned,
-            "prompt_name": prompt_name,
-            "timestamp": time.time(),
-            "model": used_model,
-            "history": options.history,
-            "status": result.status,
-        }
-
-        self.history.append(interaction)
-        self.clean_history.append(interaction)
-
-        self._context.record(prompt, cleaned, used_model, prompt_name, options.history)
-
-        self.ordered_history.add_interaction(
-            model=used_model,
-            prompt=prompt,
-            response=cleaned,
-            prompt_name=prompt_name,
-            history=options.history,
-        )
-
-    # ===========================================================================
     # Condition & DAG helpers
     # ===========================================================================
 
     def _build_results_by_name(self) -> dict[str, dict[str, Any]]:
         results: dict[str, dict[str, Any]] = {}
-        for entry in self.history:
+        for entry in self._recorder.history:
             name = entry.get("prompt_name")
             if name:
                 response = entry.get("response")
@@ -459,44 +427,12 @@ class FFAI:
 
         for name, result in graph_result.results.items():
             if result.status == "success" and result.response is not None:
-                self.history.append(
-                    {
-                        "prompt": result.resolved_prompt,
-                        "response": result.response,
-                        "prompt_name": name,
-                        "timestamp": time.time(),
-                        "model": result.model,
-                        "history": None,
-                        "status": "success",
-                    }
-                )
-                self.clean_history.append(
-                    {
-                        "prompt": result.resolved_prompt,
-                        "response": result.response,
-                        "prompt_name": name,
-                        "timestamp": time.time(),
-                        "model": result.model,
-                        "history": None,
-                        "status": "success",
-                    }
-                )
-
-                self.permanent_history.add_turn_user(result.resolved_prompt)
-                self.permanent_history.add_turn_assistant(result.response)
-
-                self._context.record(
+                self._recorder.record(
                     prompt=result.resolved_prompt,
                     response=result.response,
                     model=result.model,
                     prompt_name=name,
-                )
-
-                self.ordered_history.add_interaction(
-                    model=result.model,
-                    prompt=result.resolved_prompt,
-                    response=result.response,
-                    prompt_name=name,
+                    status="success",
                 )
 
         return graph_result
@@ -507,7 +443,7 @@ class FFAI:
 
     def clear_conversation(self) -> None:
         """Clear conversation in client but retain history."""
-        self.client.clear_conversation()
+        self._conversation.clear()
 
     def get_interaction_history(self) -> list[dict[str, Any]]:
         """Get complete history."""
@@ -523,21 +459,21 @@ class FFAI:
 
     def get_all_interactions(self) -> list[Any]:
         """Get all interactions as dictionaries."""
-        return self.ordered_history.get_all_interactions()
+        return self._ordered.get_all_interactions()
 
     def get_latest_interaction_by_prompt_name(self, prompt_name: str) -> dict[str, Any] | None:
         """Get most recent interaction for a prompt name."""
-        matching = [e for e in self.history if e.get("prompt_name") == prompt_name]
+        matching = [e for e in self._recorder.history if e.get("prompt_name") == prompt_name]
         return matching[-1] if matching else None
 
     def get_last_n_interactions(self, n: int) -> list[dict[str, Any]]:
         """Get the last n interactions as dictionaries."""
-        all_interactions = self.ordered_history.get_all_interactions()
+        all_interactions = self._ordered.get_all_interactions()
         return [i.to_dict() for i in all_interactions[-n:]]
 
     def get_interaction(self, sequence_number: int) -> dict[str, Any] | None:
         """Get a specific interaction by sequence number."""
-        all_interactions = self.ordered_history.get_all_interactions()
+        all_interactions = self._ordered.get_all_interactions()
         interaction = next(
             (i for i in all_interactions if i.sequence_number == sequence_number), None
         )
@@ -545,52 +481,52 @@ class FFAI:
 
     def get_model_interactions(self, model: str) -> list[dict[str, Any]]:
         """Get all interactions for a specific model."""
-        all_interactions = self.ordered_history.get_all_interactions()
+        all_interactions = self._ordered.get_all_interactions()
         return [i.to_dict() for i in all_interactions if i.model == model]
 
     def get_interactions_by_prompt_name(self, prompt_name: str) -> list[dict[str, Any]]:
         """Get all interactions for a specific prompt name."""
         return [
-            i.to_dict() for i in self.ordered_history.get_interactions_by_prompt_name(prompt_name)
+            i.to_dict() for i in self._ordered.get_interactions_by_prompt_name(prompt_name)
         ]
 
     def get_latest_interaction(self) -> dict[str, Any] | None:
         """Get the most recent interaction."""
-        all_interactions = self.ordered_history.get_all_interactions()
+        all_interactions = self._ordered.get_all_interactions()
         return all_interactions[-1].to_dict() if all_interactions else None
 
     def get_prompt_history(self) -> list[str]:
         """Get all prompts in order."""
-        return [i.prompt for i in self.ordered_history.get_all_interactions()]
+        return [i.prompt for i in self._ordered.get_all_interactions()]
 
     def get_response_history(self) -> list[str]:
         """Get all responses in order."""
-        return [i.response for i in self.ordered_history.get_all_interactions()]
+        return [i.response for i in self._ordered.get_all_interactions()]
 
     def get_model_usage_stats(self) -> dict[str, int]:
         """Get statistics on model usage."""
         usage_stats: dict[str, int] = {}
-        for interaction in self.ordered_history.get_all_interactions():
+        for interaction in self._ordered.get_all_interactions():
             usage_stats[interaction.model] = usage_stats.get(interaction.model, 0) + 1
         return usage_stats
 
     def get_prompt_name_usage_stats(self) -> dict[str, int]:
         """Get statistics on prompt name usage."""
-        return self.ordered_history.get_prompt_name_usage_stats()
+        return self._ordered.get_prompt_name_usage_stats()
 
     def get_prompt_dict(self) -> dict[str, list[dict[str, Any]]]:
         """Get the complete history as an ordered dictionary keyed by prompts."""
-        return self.ordered_history.to_dict()
+        return self._ordered.to_dict()
 
     def get_latest_responses_by_prompt_names(
         self, prompt_names: list[str]
     ) -> dict[str, dict[str, str]]:
         """Get the latest prompt and response for each specified prompt name."""
-        return self.ordered_history.get_latest_responses_by_prompt_names(prompt_names)
+        return self._ordered.get_latest_responses_by_prompt_names(prompt_names)
 
     def get_formatted_responses(self, prompt_names: list[str]) -> str:
         """Get formatted string output of latest prompts and responses."""
-        return self.ordered_history.get_formatted_responses(prompt_names)
+        return self._ordered.get_formatted_responses(prompt_names)
 
     # ===========================================================================
     # Client conversation history access
@@ -598,44 +534,19 @@ class FFAI:
 
     def get_client_conversation_history(self) -> list[dict[str, str]]:
         """Get the raw conversation history from the underlying client."""
-        logger.info("Retrieving raw conversation history from client")
-        try:
-            if hasattr(self.client, "get_conversation_history"):
-                history = self.client.get_conversation_history()
-                logger.debug(f"Retrieved conversation history: {history}")
-                return history
-            else:
-                logger.warning("Client does not support retrieving conversation history")
-                return []
-        except Exception as e:
-            logger.error(f"Error retrieving conversation history: {e!s}")
-            return []
+        return self._conversation.get_history()
 
     def set_client_conversation_history(self, history: list[dict[str, str]]) -> bool:
         """Set the raw conversation history in the underlying client."""
-        logger.info(f"Setting raw conversation history in client: {history}")
-        try:
-            if hasattr(self.client, "set_conversation_history"):
-                self.client.set_conversation_history(history)
-                logger.debug("Successfully set conversation history")
-                return True
-            else:
-                logger.warning("Client does not support setting conversation history")
-                return False
-        except Exception as e:
-            logger.error(f"Error setting conversation history: {e!s}")
-            return False
+        return self._conversation.set_history(history)
 
     def add_client_message(self, role: str, content: str, **kwargs: Any) -> bool:
         """Add a single message to the client's conversation history."""
-        logger.info(
-            f"Adding message to client conversation history: role={role}, content={content}"
-        )
         try:
             history = self.get_client_conversation_history()
             message = {"role": role, "content": content, **kwargs}
             history.append(message)
-            return self.set_client_conversation_history(history)
+            return self._conversation.set_history(history)
         except Exception as e:
             logger.error(f"Error adding message to conversation history: {e!s}")
             return False

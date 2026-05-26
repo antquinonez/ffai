@@ -7,9 +7,11 @@
 from .conversation import ConversationHistory
 from .ordered import OrderedPromptHistory
 from .permanent import PermanentHistory
+from .recorder import HistoryRecorder
 
 __all__ = [
     "ConversationHistory",
+    "HistoryRecorder",
     "OrderedPromptHistory",
     "PermanentHistory",
 ]

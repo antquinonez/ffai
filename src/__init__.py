@@ -41,3 +41,8 @@ __all__ = [
     "ToolRegistry",
     "ValidationResult",
 ]
+
+import contextlib
+
+with contextlib.suppress(ImportError):
+    from .rag import Embeddings, RAG, SearchHit, TextChunk  # noqa: F401, I001

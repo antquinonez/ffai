@@ -7,6 +7,7 @@ from typing import Any
 from .embed import Embeddings
 from .indexing import BM25Index
 from .search import HybridSearch, get_reranker
+from .search.hybrid import reciprocal_rank_fusion
 from .search.rerankers import RerankerBase
 from .splitters import TextChunk, get_chunker
 from .store import VectorStore
@@ -42,7 +43,7 @@ class RAG:
             self._bm25 = BM25Index()
             if self._store is not None:
                 self._hybrid = HybridSearch(
-                    vector_search_fn=self._store_search,
+                    vector_search_fn=self._sync_store_search,
                     bm25_search_fn=self._bm25.search,
                     alpha=bm25_alpha,
                 )
@@ -76,9 +77,8 @@ class RAG:
             return 0
 
         texts = [c.content for c in chunks]
-        embeddings = await self._embed.aembed(texts)
-
         if self._store is not None:
+            embeddings = await self._embed.aembed(texts)
             ids = [f"{source or 'doc'}_{i}" for i in range(len(chunks))]
             metas = [c.metadata or {} for c in chunks]
             await self._store.aadd(ids, texts, embeddings, metas)
@@ -110,14 +110,13 @@ class RAG:
             return []
 
         if self._hybrid is not None:
-            raw = self._hybrid.search(query, n_results=top_k, mode="hybrid")
+            raw = await self._ahybrid_search(query, top_k)
             hits = self._raw_to_hits(raw)
         else:
             query_emb = await self._embed.aembed_single(query)
             hits = await self._store.asearch(
                 query_emb, top_k=top_k, where=filters or None,
             )
-            assert isinstance(hits, list)
 
         if self._reranker is not None and hits:
             dict_hits = [
@@ -141,20 +140,39 @@ class RAG:
             return 0
         return self._store.count()
 
-    def _store_search(self, query: str, n_results: int) -> list[dict[str, Any]]:
+    def _sync_store_search(self, query: str, n_results: int) -> list[dict[str, Any]]:
+        return asyncio.run(self._astore_search(query, n_results))
+
+    async def _astore_search(
+        self, query: str, n_results: int,
+    ) -> list[dict[str, Any]]:
         if self._store is None:
             return []
+        emb = await self._embed.aembed_single(query)
+        hits = await self._store.asearch(emb, top_k=n_results)
+        return [
+            {"id": h.id, "content": h.content, "score": h.score,
+             "metadata": h.metadata, "source": h.source}
+            for h in hits
+        ]
 
-        async def _search() -> list[dict[str, Any]]:
-            emb = await self._embed.aembed_single(query)
-            hits = await self._store.asearch(emb, top_k=n_results)  # type: ignore[union-attr]
-            return [
-                {"id": h.id, "content": h.content, "score": h.score,
-                 "metadata": h.metadata, "source": h.source}
-                for h in hits
-            ]
-
-        return asyncio.run(_search())
+    async def _ahybrid_search(
+        self, query: str, n_results: int,
+    ) -> list[dict[str, Any]]:
+        fetch_count = min(n_results * 3, 50)
+        vector_results = await self._astore_search(query, fetch_count)
+        for r in vector_results:
+            r["search_type"] = "vector"
+        bm25_results = self._bm25.search(query, fetch_count)  # type: ignore[union-attr]
+        for r in bm25_results:
+            r["search_type"] = "bm25"
+        alpha = self._hybrid.alpha if self._hybrid else 0.6
+        rrf_k = self._hybrid.rrf_k if self._hybrid else 60
+        return reciprocal_rank_fusion(
+            [vector_results, bm25_results],
+            k=rrf_k,
+            weights=[alpha, 1 - alpha],
+        )[:n_results]
 
     def _raw_to_hits(self, raw: list[dict[str, Any]]) -> list[SearchHit]:
         hits = []

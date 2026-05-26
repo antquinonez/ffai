@@ -52,9 +52,9 @@ class VectorStore:
     ) -> int:
         self._collection.add(
             ids=ids,
-            embeddings=embeddings,
+            embeddings=embeddings,  # type: ignore[reportArgumentType]
             documents=texts,
-            metadatas=metadatas,
+            metadatas=metadatas,  # type: ignore[reportArgumentType]
         )
         logger.info(f"Added {len(ids)} chunks to {self.collection_name}")
         return len(ids)
@@ -77,12 +77,13 @@ class VectorStore:
             for i, doc_id in enumerate(results["ids"][0]):
                 distance = results["distances"][0][i] if results["distances"] else None
                 score = 1.0 - distance if distance is not None else 0.0
+                meta = results["metadatas"][0][i] if results["metadatas"] else {}
                 hits.append(SearchHit(
                     id=doc_id,
                     content=results["documents"][0][i] if results["documents"] else "",
                     score=score,
-                    source=results["metadatas"][0][i].get("source", "") if results["metadatas"] else "",
-                    metadata=results["metadatas"][0][i] if results["metadatas"] else {},
+                    source=str(meta.get("source", "")),
+                    metadata=dict(meta),
                 ))
 
         return hits

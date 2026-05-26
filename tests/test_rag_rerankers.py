@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 
 from src.rag.search.rerankers import (
@@ -94,7 +95,7 @@ class TestCrossEncoderReranker:
     def test_rerank_with_mock_model(self):
         reranker = CrossEncoderReranker()
         mock_model = MagicMock()
-        mock_model.predict.return_value = [0.9, 0.1, 0.5]
+        mock_model.predict.return_value = np.array([0.9, 0.1, 0.5])
         reranker._model = mock_model
 
         results = [
@@ -115,7 +116,7 @@ class TestCrossEncoderReranker:
     def test_n_results_truncates(self):
         reranker = CrossEncoderReranker()
         mock_model = MagicMock()
-        mock_model.predict.return_value = [0.8, 0.2]
+        mock_model.predict.return_value = np.array([0.8, 0.2])
         reranker._model = mock_model
 
         results = [{"id": "1", "content": "a", "score": 0.5}, {"id": "2", "content": "b", "score": 0.5}]

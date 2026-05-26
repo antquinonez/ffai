@@ -50,7 +50,21 @@ class TestBM25AddDocument:
         idx = BM25Index()
         idx.add_document("d1", "first version")
         idx.add_document("d1", "second version longer text")
-        assert idx.count() == 2
+        assert idx.count() == 1
+        results = idx.search("second version")
+        assert len(results) == 1
+        assert results[0]["content"] == "second version longer text"
+
+    def test_duplicate_id_updates_term_freqs(self):
+        idx = BM25Index()
+        idx.add_document("d1", "apple apple apple")
+        idx.add_document("d2", "banana banana")
+        idx.add_document("d1", "orange orange")
+        results = idx.search("apple")
+        assert len(results) == 0
+        results = idx.search("orange")
+        assert len(results) == 1
+        assert results[0]["id"] == "d1"
 
     def test_add_documents_batch(self):
         idx = BM25Index()

@@ -74,6 +74,15 @@ class BM25Index:
         term_freqs = Counter(tokens)
         doc_length = len(tokens)
 
+        if doc_id in self._documents:
+            old_term_freqs = self._doc_term_freqs.get(doc_id, Counter())
+            for term in set(old_term_freqs.keys()):
+                if term in self._term_doc_freqs:
+                    self._term_doc_freqs[term] -= 1
+                    if self._term_doc_freqs[term] <= 0:
+                        del self._term_doc_freqs[term]
+            self._total_docs -= 1
+
         self._documents[doc_id] = {
             "content": content,
             "metadata": metadata or {},

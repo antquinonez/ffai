@@ -70,7 +70,7 @@ class Embeddings:
             return []
 
         if self._is_local:
-            return self._embed_local(texts)
+            return await asyncio.to_thread(self._embed_local, texts)
 
         return await self._aembed_api(texts)
 

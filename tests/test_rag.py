@@ -19,6 +19,7 @@ def _make_mock_embed():
 def _make_mock_store():
     mock = MagicMock()
     mock.count.return_value = 0
+    mock.needs_reindex.return_value = True
     mock.asearch = AsyncMock(return_value=[])
     mock.aadd = AsyncMock(return_value=2)
     mock.get_all.return_value = []
@@ -186,3 +187,120 @@ class TestRAGNoGetConfigImport:
         import src.rag.rag as rag_module
         source = inspect.getsource(rag_module)
         assert "get_config" not in source
+
+
+class TestRAGBatchIndexing:
+    def test_index_many_returns_total_chunks(self):
+        rag, _, store, _ = _build_rag()
+        docs = [
+            {"text": "doc one", "source": "s1"},
+            {"text": "doc two", "source": "s2"},
+        ]
+        total = rag.index_many(docs)
+        assert total == 4
+        assert store.aadd.call_count == 2
+
+    def test_index_many_empty_list(self):
+        rag, _, store, _ = _build_rag()
+        assert rag.index_many([]) == 0
+        store.aadd.assert_not_called()
+
+    def test_index_many_skips_empty_text(self):
+        rag, _, store, _ = _build_rag()
+        docs = [
+            {"text": "valid text", "source": "s1"},
+            {"text": "", "source": "s2"},
+        ]
+        total = rag.index_many(docs)
+        assert total == 2
+        assert store.aadd.call_count == 1
+
+
+class TestRAGDedup:
+    def test_skips_index_when_checksum_matches(self):
+        rag, _, store, _ = _build_rag()
+        store.needs_reindex.return_value = False
+        result = rag.index("text", source="doc1", checksum="abc")
+        assert result == 0
+        store.aadd.assert_not_called()
+
+    def test_indexes_when_checksum_differs(self):
+        rag, _, store, _ = _build_rag()
+        store.needs_reindex.return_value = True
+        result = rag.index("text", source="doc1", checksum="abc")
+        assert result == 2
+        store.aadd.assert_called_once()
+
+    def test_indexes_when_no_checksum(self):
+        rag, _, store, _ = _build_rag()
+        result = rag.index("text", source="doc1")
+        assert result == 2
+        store.needs_reindex.assert_not_called()
+
+    def test_indexes_when_no_source(self):
+        rag, _, store, _ = _build_rag()
+        result = rag.index("text", checksum="abc")
+        assert result == 2
+        store.needs_reindex.assert_not_called()
+
+    def test_indexes_when_no_store(self):
+        embed = _make_mock_embed()
+        chunker = MagicMock()
+        chunker.chunk.return_value = [MagicMock(content="c1", metadata={"source": "s"})]
+        with patch("src.rag.rag.get_chunker", return_value=chunker):
+            rag = RAG(embed=embed, bm25_alpha=0.6)
+        result = rag.index("text", source="s1", checksum="abc")
+        assert result == 1
+
+    def test_stores_checksum_in_metadata(self):
+        rag, _, store, _ = _build_rag()
+        rag.index("text", source="doc1", checksum="abc")
+        call_args = store.aadd.call_args[0]
+        metas = call_args[3]
+        assert metas[0]["document_checksum"] == "abc"
+        assert metas[0]["chunking_strategy"] == "recursive"
+
+
+class TestRAGQueryExpansion:
+    def test_expansion_issues_multiple_searches(self):
+        call_count = 0
+
+        def expanding_fn(q):
+            return [q, q + " explained", q + " for beginners"]
+
+        rag, _, store, _ = _build_rag(query_expander=expanding_fn)
+        original_asearch = store.asearch
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(id="1", content="result", score=0.9, source="a"),
+        ])
+        hits = rag.search("query")
+        assert store.asearch.call_count == 3
+
+    def test_expansion_disabled_by_default(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[])
+        rag.search("query")
+        assert store.asearch.call_count == 1
+
+    def test_expansion_fallback_on_exception(self):
+        def failing_fn(q):
+            raise RuntimeError("LLM unavailable")
+
+        rag, _, store, _ = _build_rag(query_expander=failing_fn)
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(id="1", content="result", score=0.9, source="a"),
+        ])
+        hits = rag.search("query")
+        assert len(hits) == 1
+        assert store.asearch.call_count == 1
+
+    def test_expansion_deduplicates_results(self):
+        def expanding_fn(q):
+            return [q, q + " variant"]
+
+        rag, _, store, _ = _build_rag(query_expander=expanding_fn)
+        hit = SearchHit(id="1", content="shared", score=0.9, source="a")
+        store.asearch = AsyncMock(return_value=[hit])
+        hits = rag.search("query")
+        ids = [h.id for h in hits]
+        assert len(ids) == len(set(ids))

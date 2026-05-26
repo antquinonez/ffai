@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from .embed import Embeddings
 from .indexing import BM25Index
 from .search import get_reranker
 from .search.hybrid import reciprocal_rank_fusion
+from .search.query_expansion import fuse_search_results
 from .search.rerankers import RerankerBase
 from .splitters import TextChunk, get_chunker
 from .store import VectorStore
@@ -26,12 +28,14 @@ class RAG:
         chunk_overlap: int = 200,
         bm25_alpha: float | None = None,
         reranker: str | None = None,
+        query_expander: Callable[[str], list[str]] | None = None,
     ) -> None:
         if isinstance(embed, str):
             embed = Embeddings(model=embed)
 
         self._embed = embed
         self._store = store
+        self._chunker_name = chunker
         self._chunker = get_chunker(
             strategy=chunker, chunk_size=chunk_size, chunk_overlap=chunk_overlap,
         )
@@ -39,6 +43,7 @@ class RAG:
         self._bm25_alpha: float = 0.6
         self._bm25_rrf_k: int = 60
         self._reranker: RerankerBase | None = None
+        self._query_expander = query_expander
 
         if bm25_alpha is not None:
             self._bm25 = BM25Index()
@@ -51,17 +56,22 @@ class RAG:
         self,
         text: str,
         source: str | None = None,
+        checksum: str | None = None,
         **metadata: str,
     ) -> int:
-        return asyncio.run(self.aindex(text, source=source, **metadata))
+        return asyncio.run(self.aindex(text, source=source, checksum=checksum, **metadata))
 
     async def aindex(
         self,
         text: str,
         source: str | None = None,
+        checksum: str | None = None,
         **metadata: str,
     ) -> int:
         if not text or not text.strip():
+            return 0
+
+        if checksum and source and self._store is not None and not self._store.needs_reindex(source, checksum, strategy=self._chunker_name):
             return 0
 
         meta = dict(metadata)
@@ -77,6 +87,10 @@ class RAG:
             embeddings = await self._embed.aembed(texts)
             ids = [f"{source or 'doc'}_{i}" for i in range(len(chunks))]
             metas = [c.metadata or {} for c in chunks]
+            if checksum:
+                for m in metas:
+                    m["document_checksum"] = checksum
+                    m["chunking_strategy"] = self._chunker_name
             await self._store.aadd(ids, texts, embeddings, metas)
 
         if self._bm25 is not None:
@@ -89,6 +103,15 @@ class RAG:
                 )
 
         return len(chunks)
+
+    def index_many(self, documents: list[dict[str, Any]]) -> int:
+        return asyncio.run(self.aindex_many(documents))
+
+    async def aindex_many(self, documents: list[dict[str, Any]]) -> int:
+        total = 0
+        for doc in documents:
+            total += await self.aindex(**doc)
+        return total
 
     def chunk(self, text: str, **metadata: str) -> list[TextChunk]:
         return self._chunker.chunk(text, metadata=metadata)
@@ -118,6 +141,24 @@ class RAG:
                 for h in store_hits
             ]
 
+        if self._query_expander is not None:
+            try:
+                queries = self._query_expander(query)
+            except Exception:
+                logger.warning("Query expansion failed, using original query only")
+                queries = [query]
+            if len(queries) > 1:
+                all_raws = [raw]
+                for extra_query in queries[1:]:
+                    if self._bm25 is not None and self._store is not None:
+                        extra_raw = await self._ahybrid_search(extra_query, top_k)
+                    else:
+                        extra_raw = await self._astore_search(
+                            extra_query, top_k, where=filters or None,
+                        )
+                    all_raws.append(extra_raw)
+                raw = fuse_search_results(all_raws, n_results=top_k)
+
         if self._reranker is not None and raw:
             raw = self._reranker.rerank(query, raw, n_results=top_k)
 
@@ -137,12 +178,12 @@ class RAG:
         return self._store.count()
 
     async def _astore_search(
-        self, query: str, n_results: int,
+        self, query: str, n_results: int, where: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         if self._store is None:
             return []
         emb = await self._embed.aembed_single(query)
-        hits = await self._store.asearch(emb, top_k=n_results)
+        hits = await self._store.asearch(emb, top_k=n_results, where=where)
         return [
             {"id": h.id, "content": h.content, "score": h.score,
              "metadata": h.metadata, "source": h.source}

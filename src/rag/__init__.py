@@ -9,6 +9,7 @@ from .search import (
     NoopReranker,
     QueryExpander,
     RerankerBase,
+    fuse_search_results,
     get_reranker,
     reciprocal_rank_fusion,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "VectorStore",
     "chunk_text",
     "format_hits",
+    "fuse_search_results",
     "get_chunker",
     "get_reranker",
     "list_chunkers",

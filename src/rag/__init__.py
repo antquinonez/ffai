@@ -1,8 +1,7 @@
-from __future__ import annotations
-
-from .embeddings import FFEmbeddings
+from .embed import Embeddings
+from .format import format_hits
 from .indexing import BM25Index, ChunkDeduplicator, ContextualEmbeddings, HierarchicalIndex
-from .pipeline import RAGPipeline, format_results_for_prompt, normalize_scores
+from .rag import RAG
 from .search import (
     CrossEncoderReranker,
     DiversityReranker,
@@ -26,23 +25,17 @@ from .splitters import (
     get_chunker,
     list_chunkers,
 )
+from .types import SearchHit
 
 try:
-    from .client import FFRAGClient, RAGClient
-    from .vector_store import CHROMADB_AVAILABLE, FFVectorStore
+    from .store import CHROMADB_AVAILABLE, VectorStore
 except ImportError:
-    RAGClient = None
-    FFRAGClient = None
-    FFVectorStore = None
+    VectorStore = None  # type: ignore[assignment,misc]
     CHROMADB_AVAILABLE = False
-
-if not CHROMADB_AVAILABLE:
-    RAGClient = None
-    FFRAGClient = None
-    FFVectorStore = None
 
 __all__ = [
     "CHROMADB_AVAILABLE",
+    "RAG",
     "BM25Index",
     "CharacterChunker",
     "ChunkDeduplicator",
@@ -51,9 +44,7 @@ __all__ = [
     "ContextualEmbeddings",
     "CrossEncoderReranker",
     "DiversityReranker",
-    "FFEmbeddings",
-    "FFRAGClient",
-    "FFVectorStore",
+    "Embeddings",
     "HierarchicalChunker",
     "HierarchicalIndex",
     "HierarchicalTextChunk",
@@ -61,16 +52,15 @@ __all__ = [
     "MarkdownChunker",
     "NoopReranker",
     "QueryExpander",
-    "RAGClient",
-    "RAGPipeline",
     "RecursiveChunker",
     "RerankerBase",
+    "SearchHit",
     "TextChunk",
+    "VectorStore",
     "chunk_text",
-    "format_results_for_prompt",
+    "format_hits",
     "get_chunker",
     "get_reranker",
     "list_chunkers",
-    "normalize_scores",
     "reciprocal_rank_fusion",
 ]

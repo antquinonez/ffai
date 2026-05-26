@@ -172,29 +172,16 @@ class ObservabilityConfig(BaseSettings):
     cost_tracking: bool = True
 
 
-class RAGChunkingConfig(BaseSettings):
-    strategy: str = "recursive"
-    chunk_size: int = 1000
-    chunk_overlap: int = 200
-    contextual_headers: bool = True
-
-
-class RAGSearchConfig(BaseSettings):
-    mode: str = "vector"
-    n_results_default: int = 5
-    hybrid_alpha: float = 0.6
-    rerank: bool = False
-    rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-
-
 class RAGConfig(BaseSettings):
     enabled: bool = False
     persist_dir: str = "./chroma_db"
     collection_name: str = "ffai_kb"
     embedding_model: str = "mistral/mistral-embed"
-    embedding_cache_size: int = 256
-    chunking: RAGChunkingConfig = Field(default_factory=RAGChunkingConfig)
-    search: RAGSearchConfig = Field(default_factory=RAGSearchConfig)
+    chunker: str = "recursive"
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
+    bm25_alpha: float | None = None
+    reranker: str | None = None
 
 
 class Config(BaseSettings):

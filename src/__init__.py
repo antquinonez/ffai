@@ -41,3 +41,8 @@ __all__ = [
     "ToolRegistry",
     "ValidationResult",
 ]
+
+import contextlib
+
+with contextlib.suppress(ImportError):
+    from .rag import FFRAGClient, FFEmbeddings, RAGClient, RAGPipeline, TextChunk  # noqa: F401, I001

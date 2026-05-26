@@ -38,6 +38,9 @@ otel = [
     "opentelemetry-sdk>=1.40.0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.40.0",
 ]
+rag = [
+    "chromadb>=0.4.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

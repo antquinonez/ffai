@@ -58,6 +58,7 @@ def _load_all_configs() -> dict[str, Any]:
         "clients": _load_yaml_file("clients.yaml"),
         "model_defaults": _load_yaml_file("model_defaults.yaml").get("model_defaults", {}),
         "observability": main_yaml.get("observability", {}),
+        "rag": main_yaml.get("rag", {}),
     }
 
 
@@ -171,6 +172,31 @@ class ObservabilityConfig(BaseSettings):
     cost_tracking: bool = True
 
 
+class RAGChunkingConfig(BaseSettings):
+    strategy: str = "recursive"
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
+    contextual_headers: bool = True
+
+
+class RAGSearchConfig(BaseSettings):
+    mode: str = "vector"
+    n_results_default: int = 5
+    hybrid_alpha: float = 0.6
+    rerank: bool = False
+    rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+
+class RAGConfig(BaseSettings):
+    enabled: bool = False
+    persist_dir: str = "./chroma_db"
+    collection_name: str = "ffai_kb"
+    embedding_model: str = "mistral/mistral-embed"
+    embedding_cache_size: int = 256
+    chunking: RAGChunkingConfig = Field(default_factory=RAGChunkingConfig)
+    search: RAGSearchConfig = Field(default_factory=RAGSearchConfig)
+
+
 class Config(BaseSettings):
     """Main configuration class."""
 
@@ -186,6 +212,7 @@ class Config(BaseSettings):
     clients: ClientsConfig = Field(default_factory=ClientsConfig)
     model_defaults: ModelDefaultsConfig = Field(default_factory=ModelDefaultsConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
+    rag: RAGConfig = Field(default_factory=RAGConfig)
 
     @classmethod
     def settings_customise_sources(

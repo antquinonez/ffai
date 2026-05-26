@@ -170,3 +170,113 @@ class TestRAGHybridLive:
         hits = self.rag.search("borrow checker")
         assert len(hits) >= 1
         assert any(h.source == "rust" for h in hits)
+
+
+class TestRAGRerankerLive:
+    @pytest.fixture(autouse=True)
+    def setup_rag(self, tmp_path):
+        _skip_no_chromadb()
+        from src.rag.embed import Embeddings
+        from src.rag.rag import RAG
+        from src.rag.store import VectorStore
+
+        api_key = _get_mistral_api_key()
+        embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
+        store = VectorStore(
+            collection_name=f"test_rerank_{os.getpid()}",
+            dir=str(tmp_path / "chroma_db"),
+        )
+        self.rag = RAG(
+            embed=embed, store=store,
+            chunk_size=200, chunk_overlap=50,
+            reranker="diversity",
+        )
+        self._tmp_path = tmp_path
+
+    def test_reranker_search_returns_results(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+        hits = self.rag.search("programming")
+        assert len(hits) >= 1
+
+    def test_reranker_produces_results(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+        self.rag.index(DOCUMENTS["cooking"], source="cooking")
+        hits = self.rag.search("programming", top_k=3)
+        assert len(hits) >= 2
+        sources = {h.source for h in hits}
+        assert len(sources) >= 2
+
+    def test_reranker_with_hybrid_search(self):
+        from src.rag.embed import Embeddings
+        from src.rag.rag import RAG
+        from src.rag.store import VectorStore
+
+        api_key = _get_mistral_api_key()
+        embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
+        store = VectorStore(
+            collection_name=f"test_rerank_hybrid_{os.getpid()}",
+            dir=str(self._tmp_path / "chroma_hybrid"),
+        )
+        rag = RAG(
+            embed=embed, store=store,
+            chunk_size=200, chunk_overlap=50,
+            bm25_alpha=0.6, reranker="diversity",
+        )
+        rag.index(DOCUMENTS["python"], source="python")
+        rag.index(DOCUMENTS["rust"], source="rust")
+        hits = rag.search("memory safety programming")
+        assert len(hits) >= 1
+
+
+class TestRAGMultiSourceLive:
+    @pytest.fixture(autouse=True)
+    def setup_rag(self, tmp_path):
+        _skip_no_chromadb()
+        from src.rag.embed import Embeddings
+        from src.rag.rag import RAG
+        from src.rag.store import VectorStore
+
+        api_key = _get_mistral_api_key()
+        embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
+        store = VectorStore(
+            collection_name=f"test_multi_{os.getpid()}",
+            dir=str(tmp_path / "chroma_db"),
+        )
+        self.rag = RAG(embed=embed, store=store, chunk_size=200, chunk_overlap=50)
+
+    def test_delete_all_leaves_empty(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+        assert self.rag.count() > 0
+
+        self.rag.delete("python")
+        self.rag.delete("rust")
+        assert self.rag.count() == 0
+
+    def test_search_after_delete_returns_nothing(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.delete("python")
+        hits = self.rag.search("python programming")
+        assert hits == []
+
+    def test_index_same_source_twice(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        count_first = self.rag.count()
+        self.rag.index(DOCUMENTS["python"][:60], source="python")
+        count_second = self.rag.count()
+        assert count_second > 0
+
+    def test_chunk_without_indexing(self):
+        chunks = self.rag.chunk(DOCUMENTS["python"], source="python")
+        assert len(chunks) >= 1
+        assert all(len(c.content) > 0 for c in chunks)
+        assert self.rag.count() == 0
+
+    def test_search_returns_unique_ids(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+        hits = self.rag.search("programming", top_k=10)
+        ids = [h.id for h in hits]
+        assert len(ids) == len(set(ids))

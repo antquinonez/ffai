@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from src.rag.rag import RAG
 from src.rag.types import SearchHit
 
@@ -147,6 +149,34 @@ class TestRAGReranker:
         hits = rag.search("query")
         mock_reranker.rerank.assert_called_once()
         assert len(hits) == 1
+
+    def test_reranker_receives_raw_dicts(self):
+        mock_reranker = MagicMock()
+        mock_reranker.rerank.return_value = [
+            {"id": "1", "content": "reranked", "score": 0.95, "metadata": {"source": "a"}},
+        ]
+        rag, _, store, _ = _build_rag(reranker="diversity")
+        rag._reranker = mock_reranker
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(id="1", content="result", score=0.7, source="a"),
+        ])
+        rag.search("query")
+        call_args = mock_reranker.rerank.call_args[0][1]
+        assert isinstance(call_args[0], dict)
+        assert call_args[0]["id"] == "1"
+
+    def test_reranker_preserves_rrf_score(self):
+        mock_reranker = MagicMock()
+        mock_reranker.rerank.return_value = [
+            {"id": "1", "content": "reranked", "score": 0.95, "rrf_score": 0.012, "metadata": {"source": "a"}},
+        ]
+        rag, _, store, _ = _build_rag(bm25_alpha=0.6, reranker="diversity")
+        rag._reranker = mock_reranker
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(id="v1", content="vector hit", score=0.8, source="a"),
+        ])
+        hits = rag.search("query")
+        assert hits[0].score == pytest.approx(0.012)
 
 
 class TestRAGNoGetConfigImport:

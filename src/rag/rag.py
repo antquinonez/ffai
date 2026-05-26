@@ -6,7 +6,7 @@ from typing import Any
 
 from .embed import Embeddings
 from .indexing import BM25Index
-from .search import HybridSearch, get_reranker
+from .search import get_reranker
 from .search.hybrid import reciprocal_rank_fusion
 from .search.rerankers import RerankerBase
 from .splitters import TextChunk, get_chunker
@@ -36,17 +36,13 @@ class RAG:
             strategy=chunker, chunk_size=chunk_size, chunk_overlap=chunk_overlap,
         )
         self._bm25: BM25Index | None = None
-        self._hybrid: HybridSearch | None = None
+        self._bm25_alpha: float = 0.6
+        self._bm25_rrf_k: int = 60
         self._reranker: RerankerBase | None = None
 
         if bm25_alpha is not None:
             self._bm25 = BM25Index()
-            if self._store is not None:
-                self._hybrid = HybridSearch(
-                    vector_search_fn=self._sync_store_search,
-                    bm25_search_fn=self._bm25.search,
-                    alpha=bm25_alpha,
-                )
+            self._bm25_alpha = bm25_alpha
 
         if reranker is not None:
             self._reranker = get_reranker(reranker)
@@ -109,23 +105,23 @@ class RAG:
         if self._store is None:
             return []
 
-        if self._hybrid is not None:
+        if self._bm25 is not None and self._store is not None:
             raw = await self._ahybrid_search(query, top_k)
-            hits = self._raw_to_hits(raw)
         else:
             query_emb = await self._embed.aembed_single(query)
-            hits = await self._store.asearch(
+            store_hits = await self._store.asearch(
                 query_emb, top_k=top_k, where=filters or None,
             )
-
-        if self._reranker is not None and hits:
-            dict_hits = [
+            raw = [
                 {"id": h.id, "content": h.content, "score": h.score,
                  "metadata": h.metadata, "source": h.source}
-                for h in hits
+                for h in store_hits
             ]
-            reranked = self._reranker.rerank(query, dict_hits, n_results=top_k)
-            hits = self._raw_to_hits(reranked)
+
+        if self._reranker is not None and raw:
+            raw = self._reranker.rerank(query, raw, n_results=top_k)
+
+        hits = self._raw_to_hits(raw)
 
         return hits[:top_k]
 
@@ -139,9 +135,6 @@ class RAG:
         if self._store is None:
             return 0
         return self._store.count()
-
-    def _sync_store_search(self, query: str, n_results: int) -> list[dict[str, Any]]:
-        return asyncio.run(self._astore_search(query, n_results))
 
     async def _astore_search(
         self, query: str, n_results: int,
@@ -166,12 +159,10 @@ class RAG:
         bm25_results = self._bm25.search(query, fetch_count)  # type: ignore[union-attr]
         for r in bm25_results:
             r["search_type"] = "bm25"
-        alpha = self._hybrid.alpha if self._hybrid else 0.6
-        rrf_k = self._hybrid.rrf_k if self._hybrid else 60
         return reciprocal_rank_fusion(
             [vector_results, bm25_results],
-            k=rrf_k,
-            weights=[alpha, 1 - alpha],
+            k=self._bm25_rrf_k,
+            weights=[self._bm25_alpha, 1 - self._bm25_alpha],
         )[:n_results]
 
     def _raw_to_hits(self, raw: list[dict[str, Any]]) -> list[SearchHit]:

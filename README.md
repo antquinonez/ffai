@@ -88,8 +88,9 @@ hits = rag.search("programming language")
 for hit in hits:
     print(f"[{hit.score:.2f}] {hit.content[:80]}...")
 
-# One-shot retrieval-augmented answer
-result = ffai.query("What is Python?")
+# One-shot retrieval-augmented answer via FFAI
+ffai_with_rag = FFAI(client, rag=rag)
+result = ffai_with_rag.query("What is Python?")
 print(result.answer)
 print(f"Sources: {result.sources}")
 ```

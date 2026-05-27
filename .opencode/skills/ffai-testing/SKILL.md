@@ -102,6 +102,7 @@ Before writing an exact assertion, run the code in isolation to confirm the expe
 - **Consistency**: Two APIs computing the same thing must agree. If `ordered_history` and `prompt_attr_history` both record a response, they must agree on the content.
 - **Independent verification**: Verify against independent calculation — not by running the code under test and copying its output.
 - **Property tests over single-value tests**: Prefer testing structural properties (ordering, containment, idempotency) when the output has natural invariants.
+- **Runtime type guards**: When a runtime assert or guard is added (e.g., `assert isinstance(result, T)`), write two tests: one that passes a valid value through the guard, and one that triggers it. A guard without a test proving it fires is an untested branch.
 
 ### TP-12: Mock at the boundary, not the internals
 
@@ -173,6 +174,10 @@ Use helper functions or shared fixtures for repeated test setup patterns. The fo
 ### TP-16: Verify the behavior you claim to test
 
 If a test is named `test_generate_response_with_system_instructions`, it must verify that system instructions actually reached the client — not just that `len(history) == 1`. If a test is named `test_generate_response_with_thread_lock`, it must verify thread safety behavior — not just that a response was recorded.
+
+### TP-17: Every fix needs a regression test
+
+Every bug fix or review fix must include at least one test that reproduces the original failure. If the fix is a defensive change (e.g., `defaultdict` instead of `dict` for template formatting, or a runtime type assert), the test must exercise the edge case that motivated it. A fix without a regression test is incomplete — a future refactor could silently revert the fix and the suite would not catch it.
 
 ## Test Commands
 

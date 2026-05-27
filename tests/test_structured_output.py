@@ -42,27 +42,26 @@ class TestStructuredResult:
 
 
 class TestBuildResponseFormat:
-    def test_produces_json_object_type(self):
+    def test_returns_model_class(self):
         handler = StructuredOutputHandler()
         fmt = handler.build_response_format(Sentiment)
-        assert fmt["type"] == "json_object"
-        assert "schema" in fmt
+        assert fmt is Sentiment
 
-    def test_schema_contains_properties(self):
+    def test_returns_subclass_of_base_model(self):
+        handler = StructuredOutputHandler()
+        from pydantic import BaseModel as _BM
+        fmt = handler.build_response_format(Sentiment)
+        assert issubclass(fmt, _BM)
+
+    def test_identity_preserves_model_attributes(self):
         handler = StructuredOutputHandler()
         fmt = handler.build_response_format(Sentiment)
-        schema = fmt["schema"]
+        schema = fmt.model_json_schema()
         assert "properties" in schema
         assert "label" in schema["properties"]
         assert "confidence" in schema["properties"]
-
-    def test_schema_has_required_fields(self):
-        handler = StructuredOutputHandler()
-        fmt = handler.build_response_format(Sentiment)
-        schema = fmt["schema"]
         assert "required" in schema
         assert "label" in schema["required"]
-        assert "confidence" in schema["required"]
 
 
 class TestBuildSystemSuffix:

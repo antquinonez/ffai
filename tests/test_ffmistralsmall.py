@@ -137,6 +137,16 @@ class TestFFMistralSmallGenerateResponse:
         call_kwargs = mock_mistral_client.chat.complete.call_args
         assert call_kwargs.kwargs["response_format"] == fmt
 
+    def test_pydantic_model_response_format(self, client, mock_mistral_client):
+        from pydantic import BaseModel
+
+        class Sentiment(BaseModel):
+            label: str
+
+        client.generate_response("Analyze", response_format=Sentiment)
+        call_kwargs = mock_mistral_client.chat.complete.call_args
+        assert call_kwargs.kwargs["response_format"] == {"type": "json_object"}
+
     def test_stop_as_list(self, client, mock_mistral_client):
         client.generate_response("Hello", stop=["END", "STOP"])
         call_kwargs = mock_mistral_client.chat.complete.call_args

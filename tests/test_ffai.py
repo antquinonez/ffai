@@ -1741,8 +1741,7 @@ class TestFFAIStructuredOutput:
         call_kwargs = mock_ffmistralsmall.generate_response.call_args
         rf = call_kwargs.kwargs.get("response_format")
         assert rf is not None
-        assert rf["type"] == "json_object"
-        assert "schema" in rf
+        assert rf is Simple
 
     def test_structured_output_custom_response_format_preserved(self, mock_ffmistralsmall):
         import json

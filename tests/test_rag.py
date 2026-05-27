@@ -304,3 +304,93 @@ class TestRAGQueryExpansion:
         hits = rag.search("query")
         ids = [h.id for h in hits]
         assert len(ids) == len(set(ids))
+
+
+class TestRAGQuery:
+    def test_query_returns_query_result(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="Paris is the capital of France.", score=0.9, source="geo.txt", metadata={"source": "geo.txt"}),
+        ])
+        result = rag.query("What is the capital of France?", generate_fn=lambda p: "Paris")
+        assert result.answer == "Paris"
+        assert len(result.hits) == 1
+        assert result.hits[0].content == "Paris is the capital of France."
+        assert result.sources == ["geo.txt"]
+        assert "Paris is the capital of France." in result.prompt
+        assert "What is the capital of France?" in result.prompt
+
+    def test_query_custom_template(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="ctx text", score=0.8, source="s1", metadata={"source": "s1"}),
+        ])
+        template = "Context: {context}\nAsk: {question}\nReply:"
+        result = rag.query("q?", generate_fn=lambda p: "a", prompt_template=template)
+        assert "ctx text" in result.prompt
+        assert "Ask: q?" in result.prompt
+        assert "Reply:" in result.prompt
+
+    def test_query_max_context_chars_truncates(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="x" * 500, score=0.9, source="s1", metadata={"source": "s1"}),
+            SearchHit(content="y" * 500, score=0.8, source="s1", metadata={"source": "s1"}),
+        ])
+        result_full = rag.query("q?", generate_fn=lambda p: "a")
+        result_trunc = rag.query("q?", generate_fn=lambda p: "a", max_context_chars=100)
+        assert len(result_trunc.prompt) < len(result_full.prompt)
+
+    def test_query_max_context_chars_zero_excludes_all(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="content here", score=0.9, source="s1", metadata={"source": "s1"}),
+        ])
+        result = rag.query("q?", generate_fn=lambda p: "a", max_context_chars=1)
+        assert "content here" not in result.prompt
+
+    def test_query_empty_results(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[])
+        result = rag.query("q?", generate_fn=lambda p: "no info")
+        assert result.answer == "no info"
+        assert result.hits == []
+        assert result.sources == []
+
+    def test_query_deduplicates_sources(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="a", score=0.9, source="s1", metadata={"source": "s1"}),
+            SearchHit(content="b", score=0.8, source="s1", metadata={"source": "s1"}),
+            SearchHit(content="c", score=0.7, source="s2", metadata={"source": "s2"}),
+        ])
+        result = rag.query("q?", generate_fn=lambda p: "a")
+        assert result.sources == ["s1", "s2"]
+
+    def test_query_passes_top_k(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[])
+        rag.query("q?", generate_fn=lambda p: "a", top_k=3)
+        store.asearch.assert_called_once()
+
+    def test_generate_fn_receives_formatted_prompt(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="the sky is blue", score=0.9, source="s1", metadata={"source": "s1"}),
+        ])
+        captured_prompt = []
+        rag.query("why sky?", generate_fn=lambda p: (captured_prompt.append(p), "blue")[1])
+        assert "the sky is blue" in captured_prompt[0]
+        assert "why sky?" in captured_prompt[0]
+
+    def test_query_template_with_unknown_placeholders(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="data", score=0.9, source="s1", metadata={"source": "s1"}),
+        ])
+        template = "Context: {context}\nQuestion: {question}\nRole: {role}\nAnswer:"
+        result = rag.query("q?", generate_fn=lambda p: "a", prompt_template=template)
+        assert "data" in result.prompt
+        assert "Question: q?" in result.prompt
+        assert "Role: " in result.prompt
+        assert "Answer:" in result.prompt

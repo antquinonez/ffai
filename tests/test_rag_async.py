@@ -202,3 +202,36 @@ class TestRAGEmbedSync:
         result = rag._embed.embed(["hello"])
         embed.embed.assert_called_once_with(["hello"])
         assert result == [[0.1, 0.2, 0.3]]
+
+
+class TestRAGAQuery:
+    def test_aquery_returns_query_result(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="Paris is capital.", score=0.9, source="geo.txt", metadata={"source": "geo.txt"}),
+        ])
+        result = asyncio.run(rag.aquery("capital?", generate_fn=lambda p: "Paris"))
+        assert result.answer == "Paris"
+        assert len(result.hits) == 1
+        assert result.sources == ["geo.txt"]
+        assert "Paris is capital." in result.prompt
+        assert "capital?" in result.prompt
+
+    def test_aquery_custom_template(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="ctx", score=0.8, source="s1", metadata={"source": "s1"}),
+        ])
+        template = "Info: {context}\nQ: {question}\nA:"
+        result = asyncio.run(rag.aquery("q?", generate_fn=lambda p: "a", prompt_template=template))
+        assert "ctx" in result.prompt
+        assert "Q: q?" in result.prompt
+        assert "A:" in result.prompt
+
+    def test_aquery_empty_results(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[])
+        result = asyncio.run(rag.aquery("q?", generate_fn=lambda p: "no info"))
+        assert result.answer == "no info"
+        assert result.hits == []
+        assert result.sources == []

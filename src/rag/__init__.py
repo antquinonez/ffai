@@ -1,6 +1,8 @@
+from .client_adapter import ClientAdapter
 from .embed import Embeddings
 from .format import format_hits
 from .indexing import BM25Index, ChunkDeduplicator, ContextualEmbeddings, HierarchicalIndex
+from .prompts import DEFAULT_RAG_PROMPT
 from .rag import RAG
 from .search import (
     CrossEncoderReranker,
@@ -26,7 +28,7 @@ from .splitters import (
     get_chunker,
     list_chunkers,
 )
-from .types import SearchHit
+from .types import QueryResult, SearchHit
 
 try:
     from .store import CHROMADB_AVAILABLE, VectorStore
@@ -36,11 +38,13 @@ except ImportError:
 
 __all__ = [
     "CHROMADB_AVAILABLE",
+    "DEFAULT_RAG_PROMPT",
     "RAG",
     "BM25Index",
     "CharacterChunker",
     "ChunkDeduplicator",
     "ChunkerBase",
+    "ClientAdapter",
     "CodeChunker",
     "ContextualEmbeddings",
     "CrossEncoderReranker",
@@ -53,6 +57,7 @@ __all__ = [
     "MarkdownChunker",
     "NoopReranker",
     "QueryExpander",
+    "QueryResult",
     "RecursiveChunker",
     "RerankerBase",
     "SearchHit",

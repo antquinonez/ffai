@@ -71,6 +71,7 @@ class FFAI:
         auto_persist: bool = False,
         shared_prompt_attr_history: list[dict[str, Any]] | None = None,
         history_lock: threading.Lock | None = None,
+        rag: Any | None = None,
     ) -> None:
         logger.info("Initializing FFAI wrapper")
 
@@ -81,6 +82,7 @@ class FFAI:
         os.makedirs(self.persist_dir, exist_ok=True)
 
         self.client = client
+        self.rag = rag
         self._conversation = ConversationManager(client=client)
 
         self._context = ResponseContext(
@@ -284,6 +286,35 @@ class FFAI:
             parsed=exec_result.parsed,
             parsing_errors=exec_result.parsing_errors,
         )
+
+    # ===========================================================================
+    # RAG query
+    # ===========================================================================
+
+    def query(
+        self,
+        question: str,
+        top_k: int = 5,
+        prompt_template: str | None = None,
+        max_context_chars: int | None = None,
+        **filters: str,
+    ) -> Any:
+        if self.rag is None:
+            raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
+        from .rag import ClientAdapter
+        from .rag.types import QueryResult
+
+        adapter = ClientAdapter(self.client)
+        result = self.rag.query(
+            question,
+            generate_fn=adapter,
+            top_k=top_k,
+            prompt_template=prompt_template,
+            max_context_chars=max_context_chars,
+            **filters,
+        )
+        assert isinstance(result, QueryResult)
+        return result
 
     # ===========================================================================
     # Condition & DAG helpers

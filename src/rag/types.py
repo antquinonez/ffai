@@ -10,3 +10,11 @@ class SearchHit:
     metadata: dict[str, Any] = field(default_factory=dict)
     parent_content: str | None = None
     id: str = ""
+
+
+@dataclass
+class QueryResult:
+    answer: str
+    hits: list[SearchHit]
+    sources: list[str]
+    prompt: str

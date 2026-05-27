@@ -2,18 +2,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
 from .embed import Embeddings
+from .format import format_hits
 from .indexing import BM25Index
+from .prompts import DEFAULT_RAG_PROMPT
 from .search import get_reranker
 from .search.hybrid import reciprocal_rank_fusion
 from .search.query_expansion import fuse_search_results
 from .search.rerankers import RerankerBase
 from .splitters import TextChunk, get_chunker
 from .store import VectorStore
-from .types import SearchHit
+from .types import QueryResult, SearchHit
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +168,38 @@ class RAG:
         hits = self._raw_to_hits(raw)
 
         return hits[:top_k]
+
+    def query(
+        self,
+        question: str,
+        generate_fn: Callable[[str], str],
+        top_k: int = 5,
+        prompt_template: str | None = None,
+        max_context_chars: int | None = None,
+        **filters: str,
+    ) -> QueryResult:
+        return asyncio.run(self.aquery(
+            question, generate_fn=generate_fn, top_k=top_k,
+            prompt_template=prompt_template,
+            max_context_chars=max_context_chars, **filters,
+        ))
+
+    async def aquery(
+        self,
+        question: str,
+        generate_fn: Callable[[str], str],
+        top_k: int = 5,
+        prompt_template: str | None = None,
+        max_context_chars: int | None = None,
+        **filters: str,
+    ) -> QueryResult:
+        hits = await self.asearch(question, top_k=top_k, **filters)
+        context = format_hits(hits, max_chars=max_context_chars)
+        template = prompt_template or DEFAULT_RAG_PROMPT
+        prompt = template.format_map(defaultdict(str, {"context": context, "question": question}))
+        answer = await asyncio.to_thread(generate_fn, prompt)
+        sources = list(dict.fromkeys(h.source for h in hits if h.source))
+        return QueryResult(answer=answer, hits=hits, sources=sources, prompt=prompt)
 
     def delete(self, source: str) -> None:
         if self._store is not None:

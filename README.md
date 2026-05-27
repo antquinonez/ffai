@@ -129,7 +129,28 @@ print(result.response)
 # The translation of "Hello" to French is: **"Bonjour"** (formal)
 ```
 
-For structured output (Pydantic-validated JSON), conditions, and response validation, see the notebooks in `examples/`.
+### Structured Output
+
+Pass a Pydantic model to get validated, typed responses with automatic retry:
+
+```python
+from pydantic import BaseModel, Field
+from src import ResponseOptions
+
+class Sentiment(BaseModel):
+    label: str = Field(description="positive, negative, or neutral")
+    confidence: float = Field(ge=0.0, le=1.0)
+
+result = ffai.generate_response(
+    "The food was amazing but service was slow.",
+    options=ResponseOptions(response_model=Sentiment),
+)
+
+print(result.parsed.label)       # "neutral"
+print(result.parsed.confidence)  # 0.7
+```
+
+Works with any LiteLLM-backed provider (Mistral, OpenAI, Anthropic, etc.) and the native `FFMistralSmall` client. See `examples/structured_output/` for full notebooks.
 
 ## Architecture
 

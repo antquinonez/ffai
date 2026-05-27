@@ -34,9 +34,9 @@ result = ffai.generate_response(
     prompt_name="math_question"
 )
 
-print(result.response)
-print(f"Tokens: {result.usage}")
-print(f"Cost: ${result.cost_usd:.6f}")
+print(result.response)      # 4
+print(result.usage)         # TokenUsage(input_tokens=30, output_tokens=9, total_tokens=39)
+print(f"${result.cost_usd:.6f}")  # $0.000003
 ```
 
 ### Named prompt references
@@ -51,6 +51,12 @@ result = ffai.generate_response(
     prompt="Write a poem about {{geography.response}}",
     prompt_name="poem"
 )
+
+print(result.response)
+# Ode to Paris
+#
+# Oh, Paris, jewel of the Seine's embrace,
+# A city of light, of love, of grace...
 ```
 
 ### Multi-step with dependencies
@@ -68,6 +74,10 @@ result = ffai.generate_response(
     prompt_name="recommendation",
     options=ResponseOptions(dependencies=["languages"]),
 )
+
+print(result.response)
+# Based on the three languages listed—Python, JavaScript, and Rust—
+# Python is the best suited for beginners...
 ```
 
 ### RAG: Retrieval-Augmented Generation
@@ -87,43 +97,39 @@ rag.index("Python is a high-level programming language...", source="python_intro
 hits = rag.search("programming language")
 for hit in hits:
     print(f"[{hit.score:.2f}] {hit.content[:80]}...")
+# [0.78] Python is a high-level programming language...
 
 # One-shot retrieval-augmented answer via FFAI
 ffai_with_rag = FFAI(client, rag=rag)
 result = ffai_with_rag.query("What is Python?")
 print(result.answer)
-print(f"Sources: {result.sources}")
+# Python is a high-level programming language known for its readability
+# and versatility. It supports multiple paradigms...
+print(result.sources)
+# ['python_intro']
 ```
 
 RAG also supports BM25 hybrid search (`bm25_alpha`), result reranking (`reranker="diversity"`), query expansion via LLM (`query_expander`), and custom prompt templates. See the examples below.
 
 ### Configuration with ResponseOptions
 
-Use ``ResponseOptions`` for model overrides, structured output, conditions, and history injection:
+Use ``ResponseOptions`` for model overrides, conditions, and history injection:
 
 ```python
-from pydantic import BaseModel
 from src import ResponseOptions
 
-class Sentiment(BaseModel):
-    label: str
-    confidence: float
-
+# Model override per call
 result = ffai.generate_response(
-    "Analyze the tone",
-    prompt_name="sentiment",
-    options=ResponseOptions(
-        model="gpt-4",
-        response_model=Sentiment,
-        condition='{{fetch.status}} == "success"',
-        history=["fetch"],
-    ),
+    "Translate to French: Hello",
+    prompt_name="translate",
     temperature=0.3,
 )
 
-print(result.parsed.label)       # "positive"
-print(result.parsed.confidence)  # 0.95
+print(result.response)
+# The translation of "Hello" to French is: **"Bonjour"** (formal)
 ```
+
+For structured output (Pydantic-validated JSON), conditions, and response validation, see the notebooks in `examples/`.
 
 ## Architecture
 

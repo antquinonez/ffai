@@ -178,6 +178,11 @@ class RAG:
         max_context_chars: int | None = None,
         **filters: str,
     ) -> QueryResult:
+        """Retrieve context and generate an answer (sync wrapper).
+
+        Uses ``asyncio.run()`` internally — do not call from inside an
+        event loop; use ``aquery`` instead.
+        """
         return asyncio.run(self.aquery(
             question, generate_fn=generate_fn, top_k=top_k,
             prompt_template=prompt_template,
@@ -193,6 +198,32 @@ class RAG:
         max_context_chars: int | None = None,
         **filters: str,
     ) -> QueryResult:
+        """Retrieve context and generate an answer.
+
+        1. Searches for relevant chunks via ``asearch``.
+        2. Formats hits into a context string (``format_hits``).
+        3. Fills the prompt template with ``{context}`` and ``{question}``.
+        4. Calls ``generate_fn`` in a thread (``asyncio.to_thread``).
+
+        Args:
+            question: The user question.
+            generate_fn: A sync callable that takes the formatted prompt
+                and returns an answer string.
+            top_k: Number of search results to retrieve.
+            prompt_template: Must contain ``{context}`` and ``{question}``
+                placeholders. Unknown placeholders resolve to empty string.
+                Defaults to :data:`DEFAULT_RAG_PROMPT`.
+            max_context_chars: Truncates the formatted context to this
+                many characters. Note that each hit includes a header
+                line (source, relevance) that counts toward the budget,
+                so small values may exclude all content. ``None`` means
+                no limit.
+            **filters: Passed through to the vector store ``where`` clause.
+
+        Returns:
+            A ``QueryResult`` with the answer, search hits, deduplicated
+            sources, and the full prompt sent to ``generate_fn``.
+        """
         hits = await self.asearch(question, top_k=top_k, **filters)
         context = format_hits(hits, max_chars=max_context_chars)
         template = prompt_template or DEFAULT_RAG_PROMPT
@@ -256,7 +287,7 @@ class RAG:
                 id=r.get("id", ""),
                 content=r.get("content", ""),
                 score=score,
-                source=meta.get("source", ""),
+                source=meta.get("source", "") or r.get("source", ""),
                 metadata=meta,
                 parent_content=r.get("parent_content"),
             ))

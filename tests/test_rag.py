@@ -310,7 +310,7 @@ class TestRAGQuery:
     def test_query_returns_query_result(self):
         rag, _, store, _ = _build_rag()
         store.asearch = AsyncMock(return_value=[
-            SearchHit(content="Paris is the capital of France.", score=0.9, source="geo.txt", metadata={"source": "geo.txt"}),
+            SearchHit(content="Paris is the capital of France.", score=0.9, source="geo.txt"),
         ])
         result = rag.query("What is the capital of France?", generate_fn=lambda p: "Paris")
         assert result.answer == "Paris"

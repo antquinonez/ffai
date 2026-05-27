@@ -191,6 +191,24 @@ class TestRAGRawToHits:
         hits = rag._raw_to_hits(raw)
         assert hits[0].parent_content == "full doc"
 
+    def test_source_from_top_level_when_not_in_metadata(self):
+        rag, _, _, _ = _build_rag()
+        raw = [{"id": "1", "content": "chunk", "score": 0.5, "source": "my_doc.txt", "metadata": {}}]
+        hits = rag._raw_to_hits(raw)
+        assert hits[0].source == "my_doc.txt"
+
+    def test_metadata_source_takes_precedence_over_top_level(self):
+        rag, _, _, _ = _build_rag()
+        raw = [{"id": "1", "content": "chunk", "score": 0.5, "source": "fallback.txt", "metadata": {"source": "primary.txt"}}]
+        hits = rag._raw_to_hits(raw)
+        assert hits[0].source == "primary.txt"
+
+    def test_source_empty_when_neither_present(self):
+        rag, _, _, _ = _build_rag()
+        raw = [{"id": "1", "content": "chunk", "score": 0.5, "metadata": {}}]
+        hits = rag._raw_to_hits(raw)
+        assert hits[0].source == ""
+
 
 class TestRAGEmbedSync:
     def test_embed_via_embed_class(self):

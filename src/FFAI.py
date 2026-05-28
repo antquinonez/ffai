@@ -533,13 +533,18 @@ class FFAI:
                 parsing_errors=exec_result.parsing_errors,
             )
 
+        specs = [
+            {**p, "sequence": p.get("sequence", i)}
+            for i, p in enumerate(prompts)
+        ]
+
         executor = AsyncGraphExecutor(
             executor_fn=run_prompt,
             max_concurrency=max_concurrency,
             prompt_resolver=resolve_graph_prompt,
         )
 
-        graph_result = await executor.execute(prompts)
+        graph_result = await executor.execute(specs)
 
         for name, result in graph_result.results.items():
             if result.status == "success" and result.response is not None:

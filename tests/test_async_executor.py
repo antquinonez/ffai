@@ -715,6 +715,148 @@ class TestFFAIExecuteGraphEnhanced:
         assert result.results["c"].status == "skipped"
 
 
+class TestFFAIExecuteGraphAutoSequence:
+    def test_auto_sequence_single_prompt(self):
+        from src.FFAI import FFAI
+
+        client = _MockAsyncClient(["hello"])
+        ffai = FFAI(client)
+
+        prompts = [
+            {"prompt_name": "a", "prompt": "say hello"},
+        ]
+
+        result = asyncio.run(ffai.execute_graph(prompts))
+        assert result.results["a"].status == "success"
+        assert result.success_count == 1
+
+    def test_auto_sequence_linear_chain(self):
+        from src.FFAI import FFAI
+
+        client = _MockAsyncClient(["A", "B", "C"])
+        ffai = FFAI(client)
+
+        prompts = [
+            {"prompt_name": "topic", "prompt": "Suggest a topic"},
+            {"prompt_name": "outline", "prompt": "Outline about {{topic.response}}", "history": ["topic"]},
+            {"prompt_name": "article", "prompt": "Article based on {{outline.response}}", "history": ["outline"]},
+        ]
+
+        result = asyncio.run(ffai.execute_graph(prompts))
+        assert result.success_count == 3
+        assert result.results["topic"].status == "success"
+        assert result.results["outline"].status == "success"
+        assert result.results["article"].status == "success"
+
+    def test_auto_sequence_diamond_dag(self):
+        from src.FFAI import FFAI
+
+        client = _MockAsyncClient(["root", "left", "right", "merged"])
+        ffai = FFAI(client)
+
+        prompts = [
+            {"prompt_name": "root", "prompt": "start"},
+            {"prompt_name": "left", "prompt": "left branch", "history": ["root"]},
+            {"prompt_name": "right", "prompt": "right branch", "history": ["root"]},
+            {"prompt_name": "merge", "prompt": "merge branches", "history": ["left", "right"]},
+        ]
+
+        result = asyncio.run(ffai.execute_graph(prompts))
+        assert result.success_count == 4
+        assert all(r.status == "success" for r in result.results.values())
+
+    def test_auto_sequence_preserves_explicit_sequence(self):
+        from src.FFAI import FFAI
+
+        client = _MockAsyncClient(["X", "Y"])
+        ffai = FFAI(client)
+
+        prompts = [
+            {"sequence": 5, "prompt_name": "a", "prompt": "first"},
+            {"sequence": 10, "prompt_name": "b", "prompt": "second", "history": ["a"]},
+        ]
+
+        result = asyncio.run(ffai.execute_graph(prompts))
+        assert result.success_count == 2
+        assert result.results["b"].status == "success"
+
+    def test_auto_sequence_mixed_with_and_without(self):
+        from src.FFAI import FFAI
+
+        client = _MockAsyncClient(["A", "B", "C"])
+        ffai = FFAI(client)
+
+        prompts = [
+            {"sequence": 0, "prompt_name": "a", "prompt": "explicit seq"},
+            {"prompt_name": "b", "prompt": "auto seq", "history": ["a"]},
+            {"prompt_name": "c", "prompt": "also auto", "history": ["b"]},
+        ]
+
+        result = asyncio.run(ffai.execute_graph(prompts))
+        assert result.success_count == 3
+        assert result.results["c"].status == "success"
+
+    def test_auto_sequence_empty_list(self):
+        from src.FFAI import FFAI
+
+        client = _MockAsyncClient()
+        ffai = FFAI(client)
+
+        result = asyncio.run(ffai.execute_graph([]))
+        assert result.results == {}
+        assert result.success_count == 0
+
+    def test_auto_sequence_resolves_interpolation(self):
+        from src.FFAI import FFAI
+
+        client = _MockAsyncClient(["Paris", "Paris is beautiful"])
+        ffai = FFAI(client)
+
+        prompts = [
+            {"prompt_name": "capital", "prompt": "Capital of France?"},
+            {"prompt_name": "describe", "prompt": "Describe {{capital.response}}", "history": ["capital"]},
+        ]
+
+        result = asyncio.run(ffai.execute_graph(prompts))
+        assert result.success_count == 2
+        assert "Paris" in result.results["describe"].resolved_prompt
+
+
+class TestValidateGraphAutoSequence:
+    def test_validate_graph_without_sequence_numbers(self):
+        from src.FFAI import FFAI
+
+        client = _MockAsyncClient()
+        ffai = FFAI(client)
+
+        prompts = [
+            {"prompt_name": "topic", "prompt": "Suggest a topic"},
+            {"prompt_name": "outline", "prompt": "Outline about {{topic.response}}", "history": ["topic"]},
+            {"prompt_name": "article", "prompt": "Article based on {{outline.response}}", "history": ["outline"]},
+        ]
+
+        graph, warnings = ffai.validate_graph(prompts)
+        assert len(graph.nodes) == 3
+        assert len(graph.edges) == 2
+
+    def test_validate_graph_diamond_without_sequence(self):
+        from src.FFAI import FFAI
+
+        client = _MockAsyncClient()
+        ffai = FFAI(client)
+
+        prompts = [
+            {"prompt_name": "root", "prompt": "start"},
+            {"prompt_name": "left", "prompt": "left branch", "history": ["root"]},
+            {"prompt_name": "right", "prompt": "right branch", "history": ["root"]},
+            {"prompt_name": "merge", "prompt": "merge", "history": ["left", "right"]},
+        ]
+
+        graph, warnings = ffai.validate_graph(prompts)
+        assert len(graph.nodes) == 4
+        assert len(graph.edges) == 4
+
+
 class TestAsyncClientBasePassthrough:
     def test_super_generate_response_returns_none(self):
         class DelegatingAsyncClient(AsyncFFAIClientBase):

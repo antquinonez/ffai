@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from .types import GenerationResult
@@ -12,6 +13,8 @@ class ClientAdapter:
 
     def __call__(self, prompt: str) -> GenerationResult:
         text = self._client.generate_response(prompt=prompt, **self._kwargs)
+        if asyncio.iscoroutine(text):
+            text = asyncio.run(text)
         usage = getattr(self._client, "last_usage", None)
         cost_usd = getattr(self._client, "last_cost_usd", 0.0)
         duration = getattr(self._client, "last_duration_ms", None)

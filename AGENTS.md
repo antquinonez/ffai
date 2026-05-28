@@ -2,6 +2,19 @@
 
 Instructions for AI agents working on this codebase.
 
+## Environment
+
+A Python virtual environment exists at `.venv/`. Always use it — **do not** install packages globally.
+
+```
+.venv/bin/python          # Python interpreter
+.venv/bin/ruff            # Linter
+.venv/bin/pyright         # Type checker
+.venv/bin/pytest          # Test runner
+```
+
+Run commands via `.venv/bin/<tool>` or activate the venv first. Never use `pip install --break-system-packages`.
+
 ## Commands
 
 - **Lint:** `ruff check src/ tests/ examples/`

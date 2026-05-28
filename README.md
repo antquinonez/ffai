@@ -36,7 +36,7 @@ result = ffai.generate_response(
     prompt_name="math_question"
 )
 
-print(result.response)       # "4"
+print(result.response)       # "2 + 2 equals 4."
 print(result.usage)          # TokenUsage(input_tokens=30, output_tokens=9, total_tokens=39)
 print(result.cost_usd)       # 3e-06
 print(result.duration_ms)    # 842.3
@@ -117,10 +117,12 @@ RAG supports BM25 hybrid search (`bm25_alpha`), result reranking (`reranker="div
 You can also manage the RAG lifecycle directly through FFAI:
 
 ```python
-ffai.index(text, source="doc1")               # index a document
-ffai.index(text, source="doc2", checksum="a") # skip if checksum unchanged
+ffai.index(text, source="doc1")               # index a document -> int
+ffai.index(text, source="doc2", checksum="a") # skip if checksum unchanged -> int
 count = ffai.count()                           # get chunk count
+print(f"Indexed {count} chunks")               # "Indexed 3 chunks"
 hits = ffai.search("query", top_k=5)           # raw search without generation
+print(f"Found {len(hits)} hits")               # "Found 2 hits"
 ffai.delete("doc1")                            # remove by source
 result = ffai.query("question",                # retrieval-augmented answer
     top_k=5,
@@ -128,6 +130,9 @@ result = ffai.query("question",                # retrieval-augmented answer
     allow_llm_on_empty=False,
     generate_timeout=30.0,
 )
+print(result.answer)       # "Based on the indexed documents..."
+print(result.sources)      # ["doc2"]
+print(f"${result.cost_usd:.6f}")
 ```
 
 ### Configuration with ResponseOptions
@@ -140,11 +145,14 @@ from src import ResponseOptions
 result = ffai.generate_response(
     "Translate to French: Hello",
     prompt_name="translate",
+    options=ResponseOptions(model="mistral/mistral-large-latest"),
     temperature=0.3,
 )
 
 print(result.response)
 # The translation of "Hello" to French is: **"Bonjour"** (formal)
+print(result.model)
+# "mistral/mistral-large-latest"
 ```
 
 ### Structured Output
@@ -183,13 +191,18 @@ result = ffai.generate_response(
     "Which is easiest?",
     prompt_name="recommendation",
     options=ResponseOptions(
-        condition="len(languages.response) > 0",
+        condition="len({{languages.response}}) > 0",
         dependencies=["languages"],
     ),
 )
 
 print(result.status)           # "success"
-print(result.condition_trace)  # "len('Python, JavaScript, Rust') > 0"
+print(result.condition_trace)  # None (only populated when condition evaluates to False)
+
+# When a condition evaluates to False, the prompt is skipped and
+# condition_trace contains the resolved expression:
+# result.status           -> "skipped"
+# result.condition_trace  -> 'len("Python, JavaScript, Rust") > 99999'
 ```
 
 The condition DSL supports comparisons, boolean logic, and built-in functions (see [Condition DSL](#condition-dsl) below).
@@ -206,6 +219,7 @@ client = FFLiteLLMClient(
     api_key="your-key",
     fallbacks=["mistral/mistral-medium-latest", "openai/gpt-4o-mini"],
 )
+# If mistral-small-latest fails, tries mistral-medium-latest, then openai/gpt-4o-mini
 ```
 
 ### Runtime Client Switching
@@ -217,6 +231,7 @@ from src.Clients import FFLiteLLMClient
 
 new_client = FFLiteLLMClient(model_string="openai/gpt-4o", api_key="key")
 ffai.set_client(new_client)
+# Subsequent calls use the new client; history is preserved
 ```
 
 ### Async API
@@ -235,14 +250,32 @@ ffai = FFAI(async_client, rag=rag)
 
 # Async RAG
 result = await ffai.aquery("What is Python?")
+print(result.answer)
+# Python is a high-level programming language known for its readability
 hits = await ffai.asearch("query", top_k=5)
+print(f"Found {len(hits)} hits")
+# Found 2 hits
 count = await ffai.aindex(text, source="doc1")
+print(f"Indexed {count} chunks")
+# Indexed 1 chunks
 
 # Async DAG execution
+prompts = [
+    {"prompt_name": "topic", "prompt": "Suggest a topic"},
+    {"prompt_name": "outline", "prompt": "Create an outline about {{topic.response}}",
+     "history": ["topic"]},
+    {"prompt_name": "article", "prompt": "Write an article based on:\n{{outline.response}}",
+     "history": ["outline"]},
+]
 graph_result = await ffai.execute_graph(prompts, max_concurrency=10)
+for name, r in graph_result.results.items():
+    print(f"{name}: {r.status} ({r.duration_ms:.0f}ms)")
+# topic: success (842ms)
+# outline: success (1203ms)
+# article: success (2156ms)
 ```
 
-`execute_graph()` requires an `AsyncFFAIClientBase` client and executes prompts in topological-parallel order using `asyncio.gather`.
+`execute_graph()` requires an `AsyncFFAIClient` client and executes prompts in topological-parallel order using `asyncio.gather`. Sequence numbers are auto-assigned from list position.
 
 ## ResponseResult
 
@@ -257,7 +290,7 @@ Every `generate_response()` call returns a `ResponseResult` dataclass:
 | `model` | `str` | Model identifier used |
 | `duration_ms` | `float` | Wall-clock duration in milliseconds |
 | `status` | `str` | `"success"`, `"skipped"`, or `"failed"` |
-| `condition_trace` | `str \| None` | Resolved condition expression |
+| `condition_trace` | `str \| None` | Resolved condition expression (set when condition evaluates to `False`) |
 | `condition_error` | `str \| None` | Error if condition evaluation failed |
 | `parsed` | `Any` | Validated Pydantic model (when `response_model` is used) |
 | `parsing_errors` | `list[str] \| None` | Validation errors from structured output |
@@ -268,34 +301,34 @@ The condition evaluator uses AST-based safe evaluation (no `eval()`). It support
 
 **Comparisons and logic:**
 ```
-len(languages.response) > 0
-languages.status == "success" and not is_empty(languages.response)
+len({{languages.response}}) > 0
+{{languages.status}} == "success" and not is_empty({{languages.response}})
 ```
 
 **JSON navigation:**
 ```
-json_get(analysis.response, "sentiment.label") == "positive"
-json_has(data.response, "items")
-json_keys(data.response)
+json_get({{analysis.response}}, "sentiment.label") == "positive"
+json_has({{data.response}}, "items")
+json_keys({{data.response}})
 ```
 
 **String operations:**
 ```
-lower(result.response) contains "error"
-trim(raw.response) != ""
+"error" in lower({{result.response}})
+trim({{raw.response}}) != ""
 ```
 
-**Regex matching:**
+**Regex matching (via `%` operator):**
 ```
-result.response % r"\d{4}"
+{{result.response}} % r"\d{4}"
 ```
 
 **Arithmetic and ternary:**
 ```
-len(items.response) > 5 if len(items.response) > 0 else False
+len({{items.response}}) > 5 if len({{items.response}}) > 0 else False
 ```
 
-**Built-in functions:** `len`, `int`, `float`, `str`, `bool`, `abs`, `min`, `max`, `round`, `lower`, `upper`, `trim`, `strip`, `split`, `replace`, `count`, `find`, `slice`, `is_null`, `is_empty`, `json_parse`, `json_get`, `json_get_default`, `json_has`, `json_keys`, `json_values`, `json_type`.
+**Built-in functions:** `len`, `int`, `float`, `str`, `bool`, `abs`, `min`, `max`, `round`, `lower`, `upper`, `trim`, `strip`, `lstrip`, `rstrip`, `split`, `rsplit`, `replace`, `count`, `find`, `rfind`, `slice`, `is_null`, `is_empty`, `json_parse`, `json_get`, `json_get_default`, `json_has`, `json_keys`, `json_values`, `json_type`.
 
 ## History & Query API
 
@@ -321,9 +354,12 @@ ffai.get_interactions_by_prompt_name("summary")           # list[dict]
 ffai.get_prompt_history()                                 # list[str]
 ffai.get_response_history()                               # list[str]
 ffai.get_model_usage_stats()                              # dict[str, int]
+# {"mistral-small-latest": 3}
 ffai.get_prompt_name_usage_stats()                        # dict[str, int]
+# {"math_question": 1, "geography": 1, "languages": 1}
 ffai.get_prompt_dict()                                    # dict[str, list[dict]]
 ffai.get_latest_responses_by_prompt_names(["a", "b"])     # dict
+# {"a": {"prompt": "...", "response": "..."}, "b": {...}}
 ffai.get_formatted_responses(["analysis", "summary"])     # str
 ```
 
@@ -338,6 +374,17 @@ df = ffai.get_model_stats_df()
 df = ffai.get_prompt_name_stats_df()
 df = ffai.get_response_length_stats()
 df = ffai.interaction_counts_by_date()
+print(df.head())
+# shape: (3, 8)
+# ┌──────────┬──────────┬──────────┬──────────┬──────────┬─────────┬─────────┬──────────┐
+# │ prompt   ┆ response ┆ prompt_n ┆ timestam ┆ model    ┆ history ┆ status  ┆ datetime │
+# │ ---      ┆ ---      ┆ ame      ┆ p        ┆ ---      ┆ ---     ┆ ---     ┆ ---      │
+# │ str      ┆ str      ┆ ---      ┆ ---      ┆ str      ┆ null    ┆ str     ┆ datetime │
+# │          ┆          ┆ str      ┆ f64      ┆          ┆         ┆         ┆ [μs]     │
+# ╞══════════╪══════════╪══════════╪══════════╪══════════╪═════════╪═════════╪══════════╡
+# │ What is… ┆ 2 + 2    ┆ math_qu… ┆ 1.78e9   ┆ mistral… ┆ null    ┆ success ┆ 2026-05… │
+# │ …        ┆ …        ┆ …        ┆ …        ┆ …        ┆ …       ┆ …       ┆ …        │
+# └──────────┴──────────┴──────────┴──────────┴──────────┴─────────┴─────────┴──────────┘
 ffai.persist_all_histories()  # write Parquet to configured directory
 ```
 
@@ -345,6 +392,7 @@ ffai.persist_all_histories()  # write Parquet to configured directory
 
 ```python
 ffai.get_client_conversation_history()
+# [{'role': 'user', 'content': 'Hello'}, {'role': 'assistant', 'content': 'Hi there!'}]
 ffai.set_client_conversation_history(history)
 ffai.add_client_message("user", "Hello")
 ffai.clear_conversation()
@@ -358,12 +406,17 @@ Define prompt graphs with dependencies and conditions, then execute them in para
 prompts = [
     {"prompt_name": "topic", "prompt": "Suggest a topic"},
     {"prompt_name": "outline", "prompt": "Create an outline about {{topic.response}}",
-     "dependencies": ["topic"]},
+     "history": ["topic"]},
     {"prompt_name": "article", "prompt": "Write an article based on:\n{{outline.response}}",
-     "dependencies": ["outline"]},
+     "history": ["outline"]},
 ]
 
 graph, warnings = ffai.validate_graph(prompts)  # validate without executing
+print(f"Graph has {len(graph.nodes)} nodes, {len(graph.edges)} edges")
+# Graph has 3 nodes, 2 edges
+if warnings:
+    for w in warnings:
+        print(f"Warning: {w}")
 ```
 
 For async DAG execution with an `AsyncFFLiteLLMClient`, see [Async API](#async-api).
@@ -371,15 +424,15 @@ For async DAG execution with an `AsyncFFLiteLLMClient`, see [Async API](#async-a
 ## Agent Tools & Validation
 
 ```python
-from src import AgentLoop, ToolRegistry, ToolDefinition, ResponseValidator
+from src import AgentLoop, AgentResult, ToolRegistry, ToolDefinition, ResponseValidator
 
 registry = ToolRegistry()
 registry.register(ToolDefinition(
     name="search",
     description="Search the web",
     parameters={"type": "object", "properties": {"query": {"type": "string"}}},
-    implementation=lambda args: f"Results for: {args['query']}",
 ))
+registry.register_executor("search", lambda args: f"Results for: {args['query']}")
 
 loop = AgentLoop(
     client,
@@ -389,9 +442,10 @@ loop = AgentLoop(
     continue_on_tool_error=True,
 )
 result = loop.execute(prompt="Search for info about X", tools=["search"])
-print(result.tool_calls)          # [ToolCallRecord(...), ...]
-print(result.tool_calls_count)    # 1
-print(result.final_response)      # LLM's synthesized answer
+print(result.response)             # LLM's synthesized answer (may be empty if max_rounds exceeded)
+print(result.tool_calls_count)     # number of tool calls made
+print(result.tool_calls[0].result) # "Results for: X"
+print(result.status)               # "success", "failed", or "max_rounds_exceeded"
 
 # Serialization
 data = result.to_dict()
@@ -403,15 +457,17 @@ restored = AgentResult.from_dict(data)
 ```python
 validator = ResponseValidator(client)
 result = validator.validate(
-    prompt="Write a summary",
     response=some_response,
     criteria="Response must mention at least 3 key points",
 )
 
+print(result.passed)    # True or False
+print(result.critique)  # None if passed, reason if failed
+
 if not result.passed:
     # Re-execute with rejection feedback
     new_result = ffai.generate_response(
-        f"Previous attempt was rejected: {result.feedback}\n\nOriginal prompt: Write a summary",
+        f"Previous attempt was rejected: {result.critique}\n\nOriginal prompt: Write a summary",
     )
 ```
 
@@ -542,7 +598,11 @@ rag:
 
 ```python
 from src.rag import RAG
-rag = RAG.from_config(api_key="your-key")
+from src.rag.embed import Embeddings
+
+embed = Embeddings("mistral/mistral-embed", api_key="your-key")
+rag = RAG.from_config(embed=embed)
+# Uses chunk_size, chunk_overlap, reranker, bm25_alpha from config/main.yaml
 ```
 
 ### Programmatic model defaults
@@ -593,6 +653,8 @@ The top-level `src` package exports:
 | `ResponseExecutor` | `src.core.response_executor` |
 | `ConditionEvaluator` | `src.core.condition_evaluator` |
 | `ExecutionGraph` | `src.core.graph` |
+| `ExecutionResult` | `src.core.execution_result` |
+| `GraphResult` | `src.core.async_executor` |
 | `AsyncGraphExecutor` | `src.core.async_executor` |
 | `AgentLoop` | `src.agent.agent_loop` |
 | `AgentResult` | `src.agent.agent_result` |

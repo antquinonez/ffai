@@ -490,6 +490,8 @@ src/
     prompt_utils.py                # Regex-based prompt substitution
     graph.py                       # Dependency graph construction and condition eval
     graph_execution_helpers.py     # Prompt resolution and abort checking for DAG
+    prompt_node.py                 # PromptNode dataclass for execution dependency graph
+    types.py                       # Shared TypedDicts (Interaction, PromptSpec)
     condition_evaluator.py         # AST-based safe condition evaluation + JSON DSL
     structured_output.py           # Pydantic-validated structured output
     response_options.py            # ResponseOptions frozen dataclass

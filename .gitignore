@@ -44,3 +44,9 @@ designs/
 
 # Issue tracking (untracked)
 .issues/
+
+# Generated documentation
+docs/api/
+docs/sphinx/build/
+docs/sphinx/source/api/
+docs/sphinx/source/api.rst

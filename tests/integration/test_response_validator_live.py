@@ -1,7 +1,7 @@
 import pytest
 
-from src.agent.response_validator import ResponseValidator, ValidationResult
-from src.core.client_base import FFAIClientBase
+from ffai.agent.response_validator import ResponseValidator, ValidationResult
+from ffai.core.client_base import FFAIClientBase
 
 pytestmark = pytest.mark.integration
 

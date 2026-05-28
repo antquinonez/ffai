@@ -45,7 +45,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-SRC_DIR = os.path.join(os.path.dirname(__file__), "..", "src")
+SRC_DIR = os.path.join(os.path.dirname(__file__), "..", "ffai")
 
 TRIVIAL_METHODS = frozenset({"to_dict", "from_dict", "__repr__", "__len__", "__str__", "__eq__", "__hash__"})
 

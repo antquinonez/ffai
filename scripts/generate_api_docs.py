@@ -25,79 +25,79 @@ args, and returns.
 """
 
 PUBLIC_MODULES = [
-    "src.FFAI",
-    "src.FFAIClientBase",
-    "src.ConversationHistory",
-    "src.OrderedPromptHistory",
-    "src.config",
-    "src.retry_utils",
-    "src.Clients",
-    "src.Clients.FFMistralSmall",
-    "src.Clients.AsyncFFLiteLLMClient",
-    "src.Clients.BaseLiteLLMClient",
-    "src.Clients.FFLiteLLMClient",
-    "src.Clients.model_defaults",
-    "src.core",
-    "src.core.client_base",
-    "src.core.structured_output",
-    "src.core.conversation_manager",
-    "src.core.response_options",
-    "src.core.response_result",
-    "src.core.types",
-    "src.core.async_client_base",
-    "src.core.response_executor",
-    "src.core.async_executor",
-    "src.core.execution_result",
-    "src.core.graph_execution_helpers",
-    "src.core.condition_evaluator",
-    "src.core.graph",
-    "src.core.prompt_node",
-    "src.core.prompt_utils",
-    "src.core.prompt_builder",
-    "src.core.execution_state",
-    "src.core.response_utils",
-    "src.core.response_context",
-    "src.core.usage",
-    "src.core.history",
-    "src.core.history.recorder",
-    "src.core.history.ordered",
-    "src.core.history.conversation",
-    "src.core.history.permanent",
-    "src.core.history_exporter",
-    "src.agent",
-    "src.agent.response_validator",
-    "src.agent.agent_loop",
-    "src.agent.agent_result",
-    "src.tools",
-    "src.tools.tool_registry",
-    "src.observability",
-    "src.observability.log_context",
-    "src.observability.telemetry",
-    "src.rag",
-    "src.rag.rag",
-    "src.rag.client_adapter",
-    "src.rag.types",
-    "src.rag.prompts",
-    "src.rag.embed",
-    "src.rag.store",
-    "src.rag.format",
-    "src.rag.splitters",
-    "src.rag.splitters.base",
-    "src.rag.splitters.character",
-    "src.rag.splitters.markdown",
-    "src.rag.splitters.recursive",
-    "src.rag.splitters.hierarchical",
-    "src.rag.splitters.factory",
-    "src.rag.splitters.code",
-    "src.rag.search",
-    "src.rag.search.hybrid",
-    "src.rag.search.rerankers",
-    "src.rag.search.query_expansion",
-    "src.rag.indexing",
-    "src.rag.indexing.bm25",
-    "src.rag.indexing.contextual",
-    "src.rag.indexing.deduplication",
-    "src.rag.indexing.hierarchical",
+    "ffai.FFAI",
+    "ffai.FFAIClientBase",
+    "ffai.ConversationHistory",
+    "ffai.OrderedPromptHistory",
+    "ffai.config",
+    "ffai.retry_utils",
+    "ffai.Clients",
+    "ffai.Clients.FFMistralSmall",
+    "ffai.Clients.AsyncFFLiteLLMClient",
+    "ffai.Clients.BaseLiteLLMClient",
+    "ffai.Clients.FFLiteLLMClient",
+    "ffai.Clients.model_defaults",
+    "ffai.core",
+    "ffai.core.client_base",
+    "ffai.core.structured_output",
+    "ffai.core.conversation_manager",
+    "ffai.core.response_options",
+    "ffai.core.response_result",
+    "ffai.core.types",
+    "ffai.core.async_client_base",
+    "ffai.core.response_executor",
+    "ffai.core.async_executor",
+    "ffai.core.execution_result",
+    "ffai.core.graph_execution_helpers",
+    "ffai.core.condition_evaluator",
+    "ffai.core.graph",
+    "ffai.core.prompt_node",
+    "ffai.core.prompt_utils",
+    "ffai.core.prompt_builder",
+    "ffai.core.execution_state",
+    "ffai.core.response_utils",
+    "ffai.core.response_context",
+    "ffai.core.usage",
+    "ffai.core.history",
+    "ffai.core.history.recorder",
+    "ffai.core.history.ordered",
+    "ffai.core.history.conversation",
+    "ffai.core.history.permanent",
+    "ffai.core.history_exporter",
+    "ffai.agent",
+    "ffai.agent.response_validator",
+    "ffai.agent.agent_loop",
+    "ffai.agent.agent_result",
+    "ffai.tools",
+    "ffai.tools.tool_registry",
+    "ffai.observability",
+    "ffai.observability.log_context",
+    "ffai.observability.telemetry",
+    "ffai.rag",
+    "ffai.rag.rag",
+    "ffai.rag.client_adapter",
+    "ffai.rag.types",
+    "ffai.rag.prompts",
+    "ffai.rag.embed",
+    "ffai.rag.store",
+    "ffai.rag.format",
+    "ffai.rag.splitters",
+    "ffai.rag.splitters.base",
+    "ffai.rag.splitters.character",
+    "ffai.rag.splitters.markdown",
+    "ffai.rag.splitters.recursive",
+    "ffai.rag.splitters.hierarchical",
+    "ffai.rag.splitters.factory",
+    "ffai.rag.splitters.code",
+    "ffai.rag.search",
+    "ffai.rag.search.hybrid",
+    "ffai.rag.search.rerankers",
+    "ffai.rag.search.query_expansion",
+    "ffai.rag.indexing",
+    "ffai.rag.indexing.bm25",
+    "ffai.rag.indexing.contextual",
+    "ffai.rag.indexing.deduplication",
+    "ffai.rag.indexing.hierarchical",
 ]
 
 
@@ -233,7 +233,7 @@ def generate_module(module_name: str) -> str | None:
         return None
 
     lines: list[str] = []
-    short_name = module_name.removeprefix("src.")
+    short_name = module_name.removeprefix("ffai.")
     lines.append(f"# `{short_name}`\n")
 
     if mod.__doc__:
@@ -256,7 +256,7 @@ def generate_module(module_name: str) -> str | None:
             continue
         defining = getattr(obj, "__module__", None)
         if defining and defining != module_name and not defining.startswith(
-            "src." + module_name.removeprefix("src.") + "."
+            "ffai." + module_name.removeprefix("ffai.") + "."
         ):
             continue
         if inspect.isclass(obj):
@@ -285,7 +285,7 @@ def build_index(entries: list[tuple[str, str]]):
 
     parts.append("## Module Summary\n\n")
     for module_name, summary in entries:
-        short = module_name.removeprefix("src.")
+        short = module_name.removeprefix("ffai.")
         filename = f"{short}.md"
         parts.append(f"- **[{short}]({filename})** — {summary}\n")
 
@@ -308,7 +308,7 @@ def build_index(entries: list[tuple[str, str]]):
                 continue
             defining_mod = getattr(obj, "__module__", module_name)
             if defining_mod == module_name:
-                short = module_name.removeprefix("src.")
+                short = module_name.removeprefix("ffai.")
                 filename = f"{short}.md"
                 summary = _first_sentence(obj.__doc__ or "")
                 if name not in class_entries:
@@ -336,7 +336,7 @@ def generate():
         content = generate_module(module_name)
         if content is None:
             continue
-        short = module_name.removeprefix("src.")
+        short = module_name.removeprefix("ffai.")
         (API_DIR / f"{short}.md").write_text(content)
         summary = _first_sentence(_extract_module_summary(content))
         entries.append((module_name, summary))

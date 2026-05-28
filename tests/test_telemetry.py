@@ -9,19 +9,19 @@ class TestNoOpSpan:
     """Tests for NoOpSpan when telemetry is disabled."""
 
     def test_set_attribute_is_noop(self):
-        from src.observability.telemetry import NoOpSpan
+        from ffai.observability.telemetry import NoOpSpan
 
         span = NoOpSpan()
         assert span.set_attribute("key", "value") is None
 
     def test_record_exception_is_noop(self):
-        from src.observability.telemetry import NoOpSpan
+        from ffai.observability.telemetry import NoOpSpan
 
         span = NoOpSpan()
         assert span.record_exception(ValueError("test")) is None
 
     def test_is_recording_returns_false(self):
-        from src.observability.telemetry import NoOpSpan
+        from ffai.observability.telemetry import NoOpSpan
 
         span = NoOpSpan()
         assert span.is_recording() is False
@@ -31,20 +31,20 @@ class TestTelemetryManager:
     """Tests for TelemetryManager."""
 
     def teardown_method(self):
-        from src.observability.telemetry import reset_telemetry
+        from ffai.observability.telemetry import reset_telemetry
 
         reset_telemetry()
 
     def test_disabled_by_default(self):
-        with patch("src.config.get_config", side_effect=Exception("no config")):
-            from src.observability.telemetry import TelemetryManager
+        with patch("ffai.config.get_config", side_effect=Exception("no config")):
+            from ffai.observability.telemetry import TelemetryManager
 
             manager = TelemetryManager()
         assert manager.enabled is False
 
     def test_span_returns_noop_when_disabled(self):
-        with patch("src.config.get_config", side_effect=Exception("no config")):
-            from src.observability.telemetry import TelemetryManager
+        with patch("ffai.config.get_config", side_effect=Exception("no config")):
+            from ffai.observability.telemetry import TelemetryManager
 
             manager = TelemetryManager()
 
@@ -52,8 +52,8 @@ class TestTelemetryManager:
             assert span.is_recording() is False
 
     def test_span_context_manager_works_when_disabled(self):
-        with patch("src.config.get_config", side_effect=Exception("no config")):
-            from src.observability.telemetry import TelemetryManager
+        with patch("ffai.config.get_config", side_effect=Exception("no config")):
+            from ffai.observability.telemetry import TelemetryManager
 
             manager = TelemetryManager()
 
@@ -64,25 +64,25 @@ class TestTelemetryManager:
         assert executed
 
     def test_get_telemetry_manager_returns_singleton(self):
-        import src.observability.telemetry as mod
+        import ffai.observability.telemetry as mod
 
-        with patch("src.config.get_config", side_effect=Exception("no config")):
+        with patch("ffai.config.get_config", side_effect=Exception("no config")):
             a = mod.get_telemetry_manager()
             b = mod.get_telemetry_manager()
         assert a is b
 
     def test_reload_telemetry_creates_new_instance(self):
-        import src.observability.telemetry as mod
+        import ffai.observability.telemetry as mod
 
-        with patch("src.config.get_config", side_effect=Exception("no config")):
+        with patch("ffai.config.get_config", side_effect=Exception("no config")):
             old = mod.get_telemetry_manager()
             new = mod.reload_telemetry()
         assert old is not new
 
     def test_reset_telemetry_clears_singleton(self):
-        import src.observability.telemetry as mod
+        import ffai.observability.telemetry as mod
 
-        with patch("src.config.get_config", side_effect=Exception("no config")):
+        with patch("ffai.config.get_config", side_effect=Exception("no config")):
             mod.get_telemetry_manager()
         mod.reset_telemetry()
         assert mod._manager is None
@@ -92,7 +92,7 @@ class TestTelemetryManagerEnabled:
     """Tests for TelemetryManager when observability is enabled in config."""
 
     def teardown_method(self):
-        from src.observability.telemetry import reset_telemetry
+        from ffai.observability.telemetry import reset_telemetry
 
         reset_telemetry()
 
@@ -107,8 +107,8 @@ class TestTelemetryManagerEnabled:
         return mock_config
 
     def test_enabled_reads_otel_config(self):
-        with patch("src.config.get_config", return_value=self._make_enabled_config()):
-            from src.observability.telemetry import TelemetryManager
+        with patch("ffai.config.get_config", return_value=self._make_enabled_config()):
+            from ffai.observability.telemetry import TelemetryManager
 
             m = TelemetryManager()
         assert m.enabled is True
@@ -116,8 +116,8 @@ class TestTelemetryManagerEnabled:
         assert m.endpoint == "http://localhost:4317"
 
     def test_enabled_span_is_recording(self):
-        with patch("src.config.get_config", return_value=self._make_enabled_config()):
-            from src.observability.telemetry import TelemetryManager
+        with patch("ffai.config.get_config", return_value=self._make_enabled_config()):
+            from ffai.observability.telemetry import TelemetryManager
 
             m = TelemetryManager()
         with m.span("test.op") as span:
@@ -125,16 +125,16 @@ class TestTelemetryManagerEnabled:
             span.set_attribute("key", "value")
 
     def test_shutdown_with_active_provider(self):
-        with patch("src.config.get_config", return_value=self._make_enabled_config()):
-            from src.observability.telemetry import TelemetryManager
+        with patch("ffai.config.get_config", return_value=self._make_enabled_config()):
+            from ffai.observability.telemetry import TelemetryManager
 
             m = TelemetryManager()
             assert m._provider is not None
         m.shutdown()
 
     def test_shutdown_idempotent(self):
-        with patch("src.config.get_config", return_value=self._make_enabled_config()):
-            from src.observability.telemetry import TelemetryManager
+        with patch("ffai.config.get_config", return_value=self._make_enabled_config()):
+            from ffai.observability.telemetry import TelemetryManager
 
             m = TelemetryManager()
         m.shutdown()
@@ -142,8 +142,8 @@ class TestTelemetryManagerEnabled:
         assert m._provider is not None
 
     def test_reload_shuts_down_old_provider(self):
-        with patch("src.config.get_config", return_value=self._make_enabled_config()):
-            import src.observability.telemetry as mod
+        with patch("ffai.config.get_config", return_value=self._make_enabled_config()):
+            import ffai.observability.telemetry as mod
 
             mod.get_telemetry_manager()
             old_provider = mod._manager._provider  # type: ignore[unionAttr]
@@ -156,7 +156,7 @@ class TestTelemetryManagerSetupTracer:
     """Tests for _setup_tracer error paths."""
 
     def teardown_method(self):
-        from src.observability.telemetry import reset_telemetry
+        from ffai.observability.telemetry import reset_telemetry
 
         reset_telemetry()
 
@@ -170,10 +170,10 @@ class TestTelemetryManagerSetupTracer:
         mock_config.observability = mock_obs
 
         with (
-            patch("src.config.get_config", return_value=mock_config),
+            patch("ffai.config.get_config", return_value=mock_config),
             patch("opentelemetry.trace.set_tracer_provider", side_effect=ImportError("no OTel")),
         ):
-            from src.observability.telemetry import TelemetryManager, reset_telemetry
+            from ffai.observability.telemetry import TelemetryManager, reset_telemetry
 
             reset_telemetry()
             m = TelemetryManager()
@@ -189,10 +189,10 @@ class TestTelemetryManagerSetupTracer:
         mock_config.observability = mock_obs
 
         with (
-            patch("src.config.get_config", return_value=mock_config),
+            patch("ffai.config.get_config", return_value=mock_config),
             patch("opentelemetry.trace.set_tracer_provider", side_effect=RuntimeError("boom")),
         ):
-            from src.observability.telemetry import TelemetryManager, reset_telemetry
+            from ffai.observability.telemetry import TelemetryManager, reset_telemetry
 
             reset_telemetry()
             m = TelemetryManager()
@@ -203,15 +203,15 @@ class TestTraceLLMCall:
     """Tests for _trace_llm_call context manager on FFAIClientBase."""
 
     def teardown_method(self):
-        from src.observability.telemetry import reset_telemetry
+        from ffai.observability.telemetry import reset_telemetry
 
         reset_telemetry()
 
     def test_trace_llm_call_noop_when_disabled(self):
         from conftest import ConcreteClient
 
-        with patch("src.config.get_config", side_effect=Exception("no config")):
-            from src.observability.telemetry import reset_telemetry
+        with patch("ffai.config.get_config", side_effect=Exception("no config")):
+            from ffai.observability.telemetry import reset_telemetry
 
             reset_telemetry()
             client = ConcreteClient()
@@ -222,15 +222,15 @@ class TestTraceLLMCall:
     def test_trace_llm_call_sets_span_attributes(self):
         from conftest import ConcreteClient
 
-        from src.core.usage import TokenUsage
+        from ffai.core.usage import TokenUsage
         mock_obs_config = MagicMock()
         mock_obs_config.enabled = False
 
         mock_config = MagicMock()
         mock_config.observability = mock_obs_config
 
-        with patch("src.config.get_config", return_value=mock_config):
-            from src.observability.telemetry import reset_telemetry
+        with patch("ffai.config.get_config", return_value=mock_config):
+            from ffai.observability.telemetry import reset_telemetry
 
             reset_telemetry()
             client = ConcreteClient()

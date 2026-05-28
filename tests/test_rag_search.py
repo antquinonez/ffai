@@ -4,9 +4,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.rag.search.hybrid import HybridSearch, reciprocal_rank_fusion
-from src.rag.search.query_expansion import QueryExpander, fuse_search_results
-from src.rag.search.rerankers import (
+from ffai.rag.search.hybrid import HybridSearch, reciprocal_rank_fusion
+from ffai.rag.search.query_expansion import QueryExpander, fuse_search_results
+from ffai.rag.search.rerankers import (
     CrossEncoderReranker,
     DiversityReranker,
     NoopReranker,

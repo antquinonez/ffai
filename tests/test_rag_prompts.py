@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.rag.prompts import DEFAULT_RAG_PROMPT
+from ffai.rag.prompts import DEFAULT_RAG_PROMPT
 
 
 class TestDefaultRAGPrompt:

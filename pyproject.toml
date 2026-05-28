@@ -12,6 +12,17 @@ license = {text = "MIT"}
 authors = [
     {name = "Antonio Quinonez", email = "antquinonez@farfiner.com"}
 ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["ai", "llm", "multi-provider", "rag", "agent", "orchestration"]
 
 dependencies = [
     "mistralai>=1.12.4,<2.0.0",
@@ -53,7 +64,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src"]
+source = ["ffai"]
 omit = [
     "*/__init__.py",
 ]
@@ -69,7 +80,7 @@ exclude_lines = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = ["ffai*"]
 
 [tool.setuptools.package-data]
 "*" = ["py.typed"]
@@ -77,7 +88,7 @@ include = ["src*"]
 [tool.ruff]
 target-version = "py310"
 line-length = 100
-src = ["src"]
+src = ["ffai"]
 
 [tool.ruff.lint]
 select = [
@@ -121,11 +132,11 @@ ignore = [
 "src/Clients/*" = ["B904", "F841", "UP038", "PLW"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["src"]
+known-first-party = ["ffai"]
 
 [tool.pyright]
 pythonVersion = "3.10"
-include = ["src"]
+include = ["ffai"]
 typeCheckingMode = "basic"
 reportMissingImports = true
 reportMissingTypeStubs = false

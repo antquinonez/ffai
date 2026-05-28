@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from src.tools.tool_registry import ToolDefinition, ToolRegistry
+from ffai.tools.tool_registry import ToolDefinition, ToolRegistry
 
 
 class TestToolDefinition:

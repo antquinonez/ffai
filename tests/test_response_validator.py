@@ -1,13 +1,13 @@
 from unittest.mock import MagicMock
 
-from src.agent.response_validator import (
+from ffai.agent.response_validator import (
     ResponseValidator,
     ValidationResult,
     _build_validation_prompt,
     _parse_validation_response,
 )
-from src.core.client_base import FFAIClientBase
-from src.core.response_result import ResponseResult
+from ffai.core.client_base import FFAIClientBase
+from ffai.core.response_result import ResponseResult
 
 
 def _make_mock_client(responses):

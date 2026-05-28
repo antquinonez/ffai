@@ -6,9 +6,9 @@ import asyncio
 
 import pytest
 
-from src.core.async_client_base import AsyncFFAIClientBase
-from src.core.async_executor import AsyncGraphExecutor, GraphResult
-from src.core.response_result import ResponseResult
+from ffai.core.async_client_base import AsyncFFAIClientBase
+from ffai.core.async_executor import AsyncGraphExecutor, GraphResult
+from ffai.core.response_result import ResponseResult
 
 
 class _MockAsyncClient(AsyncFFAIClientBase):
@@ -289,7 +289,7 @@ class TestFFAIExecuteGraph:
     """Integration tests for FFAI.execute_graph()."""
 
     def test_execute_graph_with_async_client(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["A response", "B response"])
         ffai = FFAI(client)
@@ -306,7 +306,7 @@ class TestFFAIExecuteGraph:
         assert result.results["b"].status == "success"
 
     def test_execute_graph_rejects_sync_client(self, mock_ffmistralsmall):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         prompts = [{"sequence": 0, "prompt_name": "x", "prompt": "test"}]
@@ -315,7 +315,7 @@ class TestFFAIExecuteGraph:
             asyncio.run(ffai.execute_graph(prompts))
 
     def test_execute_graph_records_to_context(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["hello world"])
         ffai = FFAI(client)
@@ -331,7 +331,7 @@ class TestFFAIExecuteGraph:
         assert any(e.get("prompt_name") == "greet" for e in pah)
 
     def test_execute_graph_concurrent_nodes(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["A", "B", "C"])
         ffai = FFAI(client)
@@ -347,7 +347,7 @@ class TestFFAIExecuteGraph:
         assert result.results["z"].status == "success"
 
     def test_execute_graph_failed_not_recorded_to_context(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         async def failing_then_succeeding(**kwargs):
             name = kwargs.get("prompt_name", "")
@@ -370,7 +370,7 @@ class TestFFAIExecuteGraph:
         assert result.results["good"].status == "success"
 
     def test_execute_graph_cleans_response(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(['<think reasoning</think >clean answer'])
         ffai = FFAI(client)
@@ -384,7 +384,7 @@ class TestFFAIExecuteGraph:
         assert "<think" not in result.results["p"].response
 
     def test_execute_graph_empty_prompts(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient()
         ffai = FFAI(client)
@@ -561,7 +561,7 @@ class TestAsyncGraphExecutorFailurePropagation:
 
 class TestAsyncGraphExecutorPromptResolution:
     def test_prompt_resolver_called(self):
-        from src.core.graph_execution_helpers import resolve_graph_prompt
+        from ffai.core.graph_execution_helpers import resolve_graph_prompt
 
         resolved_prompts: dict[str, str] = {}
 
@@ -623,7 +623,7 @@ class TestAsyncGraphExecutorPromptResolution:
 
 class TestFFAIExecuteGraphEnhanced:
     def test_execute_graph_resolves_interpolation(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["AI stands for Artificial Intelligence", "Got it"])
         ffai = FFAI(client)
@@ -643,7 +643,7 @@ class TestFFAIExecuteGraphEnhanced:
         assert "Artificial Intelligence" in result.results["followup"].resolved_prompt
 
     def test_execute_graph_records_to_all_histories(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["hello"])
         ffai = FFAI(client)
@@ -663,7 +663,7 @@ class TestFFAIExecuteGraphEnhanced:
         assert len(ffai.permanent_history.get_turns_since(0)) >= 1
 
     def test_execute_graph_failure_propagation(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class FailingClient(_MockAsyncClient):
             async def generate_response(self, prompt, **kwargs):
@@ -688,7 +688,7 @@ class TestFFAIExecuteGraphEnhanced:
         assert len(ffai.history) == 0
 
     def test_execute_graph_abort_cascades(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["ok", "ok", "ok"])
         ffai = FFAI(client)
@@ -717,7 +717,7 @@ class TestFFAIExecuteGraphEnhanced:
 
 class TestFFAIExecuteGraphAutoSequence:
     def test_auto_sequence_single_prompt(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["hello"])
         ffai = FFAI(client)
@@ -731,7 +731,7 @@ class TestFFAIExecuteGraphAutoSequence:
         assert result.success_count == 1
 
     def test_auto_sequence_linear_chain(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["A", "B", "C"])
         ffai = FFAI(client)
@@ -749,7 +749,7 @@ class TestFFAIExecuteGraphAutoSequence:
         assert result.results["article"].status == "success"
 
     def test_auto_sequence_diamond_dag(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["root", "left", "right", "merged"])
         ffai = FFAI(client)
@@ -766,7 +766,7 @@ class TestFFAIExecuteGraphAutoSequence:
         assert all(r.status == "success" for r in result.results.values())
 
     def test_auto_sequence_preserves_explicit_sequence(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["X", "Y"])
         ffai = FFAI(client)
@@ -781,7 +781,7 @@ class TestFFAIExecuteGraphAutoSequence:
         assert result.results["b"].status == "success"
 
     def test_auto_sequence_mixed_with_and_without(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["A", "B", "C"])
         ffai = FFAI(client)
@@ -797,7 +797,7 @@ class TestFFAIExecuteGraphAutoSequence:
         assert result.results["c"].status == "success"
 
     def test_auto_sequence_empty_list(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient()
         ffai = FFAI(client)
@@ -807,7 +807,7 @@ class TestFFAIExecuteGraphAutoSequence:
         assert result.success_count == 0
 
     def test_auto_sequence_resolves_interpolation(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient(["Paris", "Paris is beautiful"])
         ffai = FFAI(client)
@@ -824,7 +824,7 @@ class TestFFAIExecuteGraphAutoSequence:
 
 class TestValidateGraphAutoSequence:
     def test_validate_graph_without_sequence_numbers(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient()
         ffai = FFAI(client)
@@ -840,7 +840,7 @@ class TestValidateGraphAutoSequence:
         assert len(graph.edges) == 2
 
     def test_validate_graph_diamond_without_sequence(self):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         client = _MockAsyncClient()
         ffai = FFAI(client)

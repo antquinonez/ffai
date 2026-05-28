@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.rag.types import QueryResult, SearchHit
+from ffai.rag.types import QueryResult, SearchHit
 
 
 class TestSearchHit:

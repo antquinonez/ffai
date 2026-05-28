@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from src.rag.search.rerankers import (
+from ffai.rag.search.rerankers import (
     CrossEncoderReranker,
     DiversityReranker,
     NoopReranker,

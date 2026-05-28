@@ -1,4 +1,4 @@
-from src.core.prompt_builder import PromptBuilder
+from ffai.core.prompt_builder import PromptBuilder
 
 
 class TestPromptBuilderNoHistory:

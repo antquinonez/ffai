@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from src.rag.client_adapter import ClientAdapter
-from src.rag.types import GenerationResult
+from ffai.rag.client_adapter import ClientAdapter
+from ffai.rag.types import GenerationResult
 
 
 class _FakeAsyncClient:

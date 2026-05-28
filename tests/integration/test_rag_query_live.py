@@ -2,8 +2,8 @@ import os
 
 import pytest
 
-from src.FFAI import FFAI
-from src.rag.types import QueryResult
+from ffai.FFAI import FFAI
+from ffai.rag.types import QueryResult
 
 pytestmark = pytest.mark.integration
 
@@ -51,9 +51,9 @@ class TestRAGQueryLive:
     @pytest.fixture(autouse=True)
     def setup_rag(self, tmp_path):
         _skip_no_chromadb()
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -126,9 +126,9 @@ class TestRAGQueryLive:
         assert "rust" in result.sources
 
     def test_query_with_hybrid_search(self, tmp_path):
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -155,10 +155,10 @@ class TestFFAIQueryLive:
         from dotenv import load_dotenv
 
         load_dotenv()
-        from src.Clients.FFLiteLLMClient import FFLiteLLMClient
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.Clients.FFLiteLLMClient import FFLiteLLMClient
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = os.getenv("MISTRAL_API_KEY")
         if not api_key:
@@ -207,9 +207,9 @@ class TestFFAIQueryLive:
         assert "prompt" in result.prompt.lower() or "italian" in result.answer.lower()
 
     def test_ffai_query_with_hybrid_and_reranker(self, tmp_path):
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = os.getenv("MISTRAL_API_KEY")
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -278,9 +278,9 @@ class TestRAGQueryMetadataLive:
     @pytest.fixture(autouse=True)
     def setup_rag(self, tmp_path):
         _skip_no_chromadb()
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -291,7 +291,7 @@ class TestRAGQueryMetadataLive:
         self.rag = RAG(embed=embed, store=store, chunk_size=200, chunk_overlap=50)
 
     def test_query_with_generation_result_carries_metadata(self):
-        from src.rag.types import GenerationResult
+        from ffai.rag.types import GenerationResult
 
         self.rag.index(DOCUMENTS["python"], source="python")
 
@@ -322,7 +322,7 @@ class TestRAGQueryMetadataLive:
         assert result.duration_ms is None
 
     def test_query_with_default_generate_fn_carries_metadata(self):
-        from src.rag.types import GenerationResult
+        from ffai.rag.types import GenerationResult
 
         self.rag.index(DOCUMENTS["python"], source="python")
 
@@ -354,7 +354,7 @@ class TestRAGBM25OnlyQueryLive:
         self.rag = None
 
     def test_bm25_query_returns_answer(self):
-        from src.rag.rag import RAG
+        from ffai.rag.rag import RAG
 
         rag = RAG(embed="mistral/mistral-embed", bm25_alpha=0.6)
         rag.index(DOCUMENTS["python"], source="python")
@@ -369,7 +369,7 @@ class TestRAGBM25OnlyQueryLive:
         assert "rust" in result.sources
 
     def test_bm25_query_filters_by_metadata(self):
-        from src.rag.rag import RAG
+        from ffai.rag.rag import RAG
 
         rag = RAG(embed="mistral/mistral-embed", bm25_alpha=0.6)
         rag.index(DOCUMENTS["python"], source="python")
@@ -384,7 +384,7 @@ class TestRAGBM25OnlyQueryLive:
         assert all(h.source == "cooking" for h in result.hits)
 
     def test_bm25_query_empty_index(self):
-        from src.rag.rag import RAG
+        from ffai.rag.rag import RAG
 
         rag = RAG(embed="mistral/mistral-embed", bm25_alpha=0.6)
         result = rag.query(
@@ -396,8 +396,8 @@ class TestRAGBM25OnlyQueryLive:
         assert result.sources == []
 
     def test_bm25_query_with_generation_result_metadata(self):
-        from src.rag.rag import RAG
-        from src.rag.types import GenerationResult
+        from ffai.rag.rag import RAG
+        from ffai.rag.types import GenerationResult
 
         rag = RAG(embed="mistral/mistral-embed", bm25_alpha=0.6)
         rag.index(DOCUMENTS["rust"], source="rust")
@@ -426,10 +426,10 @@ class TestFFAIAutoWireLive:
         from dotenv import load_dotenv
 
         load_dotenv()
-        from src.Clients.FFLiteLLMClient import FFLiteLLMClient
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.Clients.FFLiteLLMClient import FFLiteLLMClient
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = os.getenv("MISTRAL_API_KEY")
         if not api_key:
@@ -472,9 +472,9 @@ class TestFFAIAutoWireLive:
         assert result.duration_ms > 0
 
     def test_auto_wire_with_hybrid_and_reranker(self, tmp_path):
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = os.getenv("MISTRAL_API_KEY")
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -488,7 +488,7 @@ class TestFFAIAutoWireLive:
             bm25_alpha=0.5, reranker="diversity",
         )
         self.ffai.rag = rag
-        from src.rag import ClientAdapter
+        from ffai.rag import ClientAdapter
 
         rag.set_generate_fn(ClientAdapter(self.ffai.client))
         rag.index(DOCUMENTS["python"], source="python")
@@ -511,10 +511,10 @@ class TestFFAIFacadeLive:
         from dotenv import load_dotenv
 
         load_dotenv()
-        from src.Clients.FFLiteLLMClient import FFLiteLLMClient
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.Clients.FFLiteLLMClient import FFLiteLLMClient
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = os.getenv("MISTRAL_API_KEY")
         if not api_key:
@@ -569,7 +569,7 @@ class TestRAGAllowEmptyLive:
         self.rag = None
 
     def test_allow_llm_on_empty_false_no_llm_call(self):
-        from src.rag.rag import RAG
+        from ffai.rag.rag import RAG
 
         rag = RAG(embed="mistral/mistral-embed", bm25_alpha=0.6)
         call_count = 0
@@ -585,7 +585,7 @@ class TestRAGAllowEmptyLive:
         assert call_count == 0
 
     def test_allow_llm_on_empty_true_calls_llm(self):
-        from src.rag.rag import RAG
+        from ffai.rag.rag import RAG
 
         rag = RAG(embed="mistral/mistral-embed", bm25_alpha=0.6)
         result = rag.query(

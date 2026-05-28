@@ -6,7 +6,7 @@ import json
 
 from pydantic import BaseModel, Field
 
-from src.core.structured_output import StructuredOutputHandler, StructuredResult
+from ffai.core.structured_output import StructuredOutputHandler, StructuredResult
 
 
 class Sentiment(BaseModel):

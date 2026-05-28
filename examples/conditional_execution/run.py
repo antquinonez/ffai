@@ -21,9 +21,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.Clients import FFLiteLLMClient
-from src.core.response_options import ResponseOptions
-from src.FFAI import FFAI
+from ffai.Clients import FFLiteLLMClient
+from ffai.core.response_options import ResponseOptions
+from ffai.FFAI import FFAI
 
 
 def print_section(title: str) -> None:

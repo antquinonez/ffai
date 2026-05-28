@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from src.Clients.FFLiteLLMClient import FFLiteLLMClient
-from src.Clients.FFMistralSmall import FFMistralSmall
+from ffai.Clients.FFLiteLLMClient import FFLiteLLMClient
+from ffai.Clients.FFMistralSmall import FFMistralSmall
 
 CLIENT_CLASSES = {
     "FFMistralSmall": FFMistralSmall,

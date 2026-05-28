@@ -14,8 +14,8 @@ receive — without making real API calls.  Three scenarios match the notebooks:
 
 from unittest.mock import MagicMock, patch
 
-from src.Clients.FFLiteLLMClient import FFLiteLLMClient
-from src.FFAI import FFAI
+from ffai.Clients.FFLiteLLMClient import FFLiteLLMClient
+from ffai.FFAI import FFAI
 
 
 def _make_mock_completion():
@@ -39,7 +39,7 @@ def _make_traced_client():
 
     mock_completion = _make_mock_completion()
 
-    with patch("src.Clients.FFLiteLLMClient.completion", side_effect=mock_completion):
+    with patch("ffai.Clients.FFLiteLLMClient.completion", side_effect=mock_completion):
         client = FFLiteLLMClient(
             model_string="openai/gpt-4",
             system_instructions="You are a helpful assistant.",
@@ -68,7 +68,7 @@ class TestMessageStackPlain:
     Formula: 1 system + 2*(turn-1) prior messages + 1 user = 2*turn messages.
     """
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_message_count_grows_linearly(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -99,7 +99,7 @@ class TestMessageStackPlain:
                 f"Turn {turn}: expected {expected_count} messages, got {len(cap['messages'])}"
             )
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_first_turn_is_system_plus_user(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -129,7 +129,7 @@ class TestMessageStackPlain:
         assert msgs[1]["role"] == "user"
         assert msgs[1]["content"] == "Hello"
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_third_turn_has_prior_pairs(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -165,7 +165,7 @@ class TestMessageStackPlain:
         assert msgs[5]["role"] == "user"
         assert msgs[5]["content"] == "Q3"
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_client_history_accumulates(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4")
@@ -184,7 +184,7 @@ class TestMessageStackHistory:
     referenced turn's interaction.
     """
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_always_two_messages_with_history(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -219,7 +219,7 @@ class TestMessageStackHistory:
                 f"Turn {i+1}: expected 2 messages, got {len(cap['messages'])}"
             )
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_xml_context_present_in_history_turn(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -252,7 +252,7 @@ class TestMessageStackHistory:
         assert "<interaction" in user_content
         assert "turn_1" in user_content
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_first_turn_has_no_xml(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -277,7 +277,7 @@ class TestMessageStackHistory:
         user_content = captured[0]["messages"][1]["content"]
         assert "<conversation_history>" not in user_content
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_multiple_history_refs(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -307,7 +307,7 @@ class TestMessageStackHistory:
         assert 'prompt_name="a"' in user_content or "prompt_name='a'" in user_content
         assert 'prompt_name="b"' in user_content or "prompt_name='b'" in user_content
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_client_history_still_grows(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4")
@@ -327,7 +327,7 @@ class TestMessageStackInterpolation:
     No <conversation_history> XML block.
     """
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_always_two_messages_with_interpolation(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -359,7 +359,7 @@ class TestMessageStackInterpolation:
                 f"Turn {i+1}: expected 2 messages, got {len(cap['messages'])}"
             )
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_interpolated_text_present(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -389,7 +389,7 @@ class TestMessageStackInterpolation:
         assert "Response 1" in user_content
         assert "{{turn_1.response}}" not in user_content
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_no_xml_block_in_interpolation(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -415,7 +415,7 @@ class TestMessageStackInterpolation:
         user_content = captured[1]["messages"][1]["content"]
         assert "<conversation_history>" not in user_content
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_client_history_still_grows(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4")
@@ -442,7 +442,7 @@ def _make_tracer(orig_prepare, captured):
 class TestMessageStackMixedScenarios:
     """Cross-scenario tests: mixing plain, history, and interpolation."""
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_plain_then_history_then_plain(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -477,7 +477,7 @@ class TestMessageStackMixedScenarios:
 
         assert len(client.conversation_history) == 8
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_plain_then_interpolation_then_plain(self, mock_completion):
         mock_completion.side_effect = _make_mock_completion()
         client = FFLiteLLMClient(model_string="openai/gpt-4",
@@ -509,7 +509,7 @@ class TestMessageStackMixedScenarios:
 
         assert len(client.conversation_history) == 6
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_ten_turn_comparison(self, mock_completion):
         """Full 10-turn comparison matching the notebook output."""
         mock_completion.side_effect = _make_mock_completion()

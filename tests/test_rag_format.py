@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.rag.format import format_hits
-from src.rag.types import SearchHit
+from ffai.rag.format import format_hits
+from ffai.rag.types import SearchHit
 
 
 class TestFormatHits:

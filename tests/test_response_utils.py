@@ -1,4 +1,4 @@
-from src.core.response_utils import _extract_from_markdown, clean_response, extract_json
+from ffai.core.response_utils import _extract_from_markdown, clean_response, extract_json
 
 
 class TestExtractFromMarkdown:
@@ -156,14 +156,14 @@ class TestExtractJsonErrorPaths:
     def test_markdown_with_non_json_falls_through(self):
         from unittest.mock import patch
 
-        with patch("src.core.response_utils.json_repair_loads", side_effect=ValueError("bad")):
+        with patch("ffai.core.response_utils.json_repair_loads", side_effect=ValueError("bad")):
             result = extract_json("```not valid json!!!```")
         assert result is None
 
     def test_irreparable_json_returns_none(self):
         from unittest.mock import patch
 
-        with patch("src.core.response_utils.json_repair_loads", side_effect=ValueError("bad")):
+        with patch("ffai.core.response_utils.json_repair_loads", side_effect=ValueError("bad")):
             result = extract_json("{broken !!! }")
         assert result is None
 

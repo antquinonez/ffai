@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import time
 
-from src.core.history.permanent import PermanentHistory
+from ffai.core.history.permanent import PermanentHistory
 
 
 class TestPermanentHistoryUserTurnCoalescing:

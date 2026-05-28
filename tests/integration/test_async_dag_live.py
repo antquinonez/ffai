@@ -2,8 +2,8 @@ import os
 
 import pytest
 
-from src.Clients.AsyncFFLiteLLMClient import AsyncFFLiteLLMClient
-from src.FFAI import FFAI
+from ffai.Clients.AsyncFFLiteLLMClient import AsyncFFLiteLLMClient
+from ffai.FFAI import FFAI
 
 pytestmark = pytest.mark.integration
 
@@ -196,7 +196,7 @@ class TestAsyncDAGValidation:
             ])
 
     def test_sync_client_raises_type_error(self):
-        from src.Clients.FFLiteLLMClient import FFLiteLLMClient
+        from ffai.Clients.FFLiteLLMClient import FFLiteLLMClient
 
         sync_client = FFLiteLLMClient(
             model_string="mistral/mistral-small-2503",

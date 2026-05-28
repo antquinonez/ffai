@@ -1,4 +1,4 @@
-from src.Clients.model_defaults import get_model_defaults, register_model_defaults
+from ffai.Clients.model_defaults import get_model_defaults, register_model_defaults
 
 
 class TestGetModelDefaults:

@@ -3,7 +3,7 @@
 
 import pytest
 
-from src.core.response_options import ResponseOptions
+from ffai.core.response_options import ResponseOptions
 
 
 class TestResponseOptionsConstruction:

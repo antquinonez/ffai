@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.observability.log_context import (
+from ffai.observability.log_context import (
     ContextFormatter,
     LogContextFilter,
     _batch_name,
@@ -20,7 +20,7 @@ from src.observability.log_context import (
     log_context,
     set_log_context,
 )
-from src.observability.telemetry import (
+from ffai.observability.telemetry import (
     NoOpSpan,
     TelemetryManager,
     get_telemetry_manager,
@@ -273,7 +273,7 @@ class TestTelemetryManagerSetupTracerGenericException:
         mock_config.observability = mock_obs
 
         with (
-            patch("src.config.get_config", return_value=mock_config),
+            patch("ffai.config.get_config", return_value=mock_config),
             patch("opentelemetry.trace.set_tracer_provider", side_effect=RuntimeError("broken")),
         ):
             m = TelemetryManager()

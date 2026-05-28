@@ -21,8 +21,8 @@ Declarative multi-provider AI client with named-prompt context assembly, async D
 ## Quick Start
 
 ```python
-from src.Clients import FFLiteLLMClient
-from src.FFAI import FFAI
+from ffai.Clients import FFLiteLLMClient
+from ffai.FFAI import FFAI
 
 client = FFLiteLLMClient(
     model_string="mistral/mistral-small-latest",
@@ -65,7 +65,7 @@ print(result.response)
 ### Multi-step with dependencies
 
 ```python
-from src import ResponseOptions
+from ffai import ResponseOptions
 
 ffai.generate_response(
     prompt="List three programming languages",
@@ -86,9 +86,9 @@ print(result.response)
 ### RAG: Retrieval-Augmented Generation
 
 ```python
-from src.rag import RAG
-from src.rag.embed import Embeddings
-from src.rag.store import VectorStore
+from ffai.rag import RAG
+from ffai.rag.embed import Embeddings
+from ffai.rag.store import VectorStore
 
 embed = Embeddings("mistral/mistral-embed", api_key="your-key")
 store = VectorStore(collection_name="my_kb", dir="./chroma_db")
@@ -140,7 +140,7 @@ print(f"${result.cost_usd:.6f}")
 Use `ResponseOptions` for model overrides, conditions, and history injection:
 
 ```python
-from src import ResponseOptions
+from ffai import ResponseOptions
 
 result = ffai.generate_response(
     "Translate to French: Hello",
@@ -161,7 +161,7 @@ Pass a Pydantic model to get validated, typed responses with automatic retry:
 
 ```python
 from pydantic import BaseModel, Field
-from src import ResponseOptions
+from ffai import ResponseOptions
 
 class Sentiment(BaseModel):
     label: str = Field(description="positive, negative, or neutral")
@@ -183,7 +183,7 @@ Works with any LiteLLM-backed provider (Mistral, OpenAI, Anthropic, etc.) and th
 Use `condition` and `abort_condition` in `ResponseOptions` to skip or abort prompts based on earlier results:
 
 ```python
-from src import ResponseOptions
+from ffai import ResponseOptions
 
 ffai.generate_response("List three languages", prompt_name="languages")
 
@@ -212,7 +212,7 @@ The condition DSL supports comparisons, boolean logic, and built-in functions (s
 Configure fallback models on the LiteLLM client so that if the primary model fails, alternatives are tried in order:
 
 ```python
-from src.Clients import FFLiteLLMClient
+from ffai.Clients import FFLiteLLMClient
 
 client = FFLiteLLMClient(
     model_string="mistral/mistral-small-latest",
@@ -227,7 +227,7 @@ client = FFLiteLLMClient(
 Switch the underlying client at runtime without creating a new `FFAI` instance:
 
 ```python
-from src.Clients import FFLiteLLMClient
+from ffai.Clients import FFLiteLLMClient
 
 new_client = FFLiteLLMClient(model_string="openai/gpt-4o", api_key="key")
 ffai.set_client(new_client)
@@ -239,8 +239,8 @@ ffai.set_client(new_client)
 FFAI provides async counterparts for all RAG methods, plus an async DAG executor:
 
 ```python
-from src.Clients import AsyncFFLiteLLMClient
-from src.FFAI import FFAI
+from ffai.Clients import AsyncFFLiteLLMClient
+from ffai.FFAI import FFAI
 
 async_client = AsyncFFLiteLLMClient(
     model_string="mistral/mistral-small-latest",
@@ -424,7 +424,7 @@ For async DAG execution with an `AsyncFFLiteLLMClient`, see [Async API](#async-a
 ## Agent Tools & Validation
 
 ```python
-from src import AgentLoop, AgentResult, ToolRegistry, ToolDefinition, ResponseValidator
+from ffai import AgentLoop, AgentResult, ToolRegistry, ToolDefinition, ResponseValidator
 
 registry = ToolRegistry()
 registry.register(ToolDefinition(
@@ -474,11 +474,11 @@ if not result.passed:
 ## Architecture
 
 ```
-src/
+ffai/
   FFAI.py                          # High-level declarative wrapper + RAG lifecycle
-  FFAIClientBase.py                # Re-export: src.core.client_base.FFAIClientBase
-  ConversationHistory.py           # Re-export: src.core.history.conversation.ConversationHistory
-  OrderedPromptHistory.py          # Re-export: src.core.history.ordered.OrderedPromptHistory
+  FFAIClientBase.py                # Re-export: ffai.core.client_base.FFAIClientBase
+  ConversationHistory.py           # Re-export: ffai.core.history.conversation.ConversationHistory
+  OrderedPromptHistory.py          # Re-export: ffai.core.history.ordered.OrderedPromptHistory
   config.py                        # YAML-based configuration (pydantic-settings)
   retry_utils.py                   # Tenacity-based retry decorators
   core/
@@ -599,8 +599,8 @@ rag:
 ```
 
 ```python
-from src.rag import RAG
-from src.rag.embed import Embeddings
+from ffai.rag import RAG
+from ffai.rag.embed import Embeddings
 
 embed = Embeddings("mistral/mistral-embed", api_key="your-key")
 rag = RAG.from_config(embed=embed)
@@ -610,7 +610,7 @@ rag = RAG.from_config(embed=embed)
 ### Programmatic model defaults
 
 ```python
-from src.Clients.model_defaults import register_model_defaults
+from ffai.Clients.model_defaults import register_model_defaults
 
 register_model_defaults("my-custom-model", {
     "temperature": 0.3,
@@ -623,7 +623,7 @@ register_model_defaults("my-custom-model", {
 Subclass `FFAIClientBase` and implement five abstract methods:
 
 ```python
-from src.core.client_base import FFAIClientBase
+from ffai.core.client_base import FFAIClientBase
 
 class MyProvider(FFAIClientBase):
     def generate_response(self, prompt, **kwargs):
@@ -644,43 +644,43 @@ For async providers, subclass `AsyncFFAIClientBase` with async versions of the s
 
 ## Public API
 
-The top-level `src` package exports:
+The top-level `ffai` package exports:
 
 | Symbol | Module |
 |--------|--------|
-| `FFAI` | `src.FFAI` |
-| `FFAIClientBase` | `src.core.client_base` |
-| `AsyncFFAIClientBase` | `src.core.async_client_base` |
-| `ResponseOptions` | `src.core.response_options` |
-| `ResponseExecutor` | `src.core.response_executor` |
-| `ConditionEvaluator` | `src.core.condition_evaluator` |
-| `ExecutionGraph` | `src.core.graph` |
-| `ExecutionResult` | `src.core.execution_result` |
-| `GraphResult` | `src.core.async_executor` |
-| `AsyncGraphExecutor` | `src.core.async_executor` |
-| `AgentLoop` | `src.agent.agent_loop` |
-| `AgentResult` | `src.agent.agent_result` |
-| `ToolCallRecord` | `src.agent.agent_result` |
-| `ResponseValidator` | `src.agent.response_validator` |
-| `ValidationResult` | `src.agent.response_validator` |
-| `ToolRegistry` | `src.tools.tool_registry` |
-| `ToolDefinition` | `src.tools.tool_registry` |
-| `ConversationHistory` | `src.core.history.conversation` |
-| `OrderedPromptHistory` | `src.core.history.ordered` |
-| `PermanentHistory` | `src.core.history.permanent` |
+| `FFAI` | `ffai.FFAI` |
+| `FFAIClientBase` | `ffai.core.client_base` |
+| `AsyncFFAIClientBase` | `ffai.core.async_client_base` |
+| `ResponseOptions` | `ffai.core.response_options` |
+| `ResponseExecutor` | `ffai.core.response_executor` |
+| `ConditionEvaluator` | `ffai.core.condition_evaluator` |
+| `ExecutionGraph` | `ffai.core.graph` |
+| `ExecutionResult` | `ffai.core.execution_result` |
+| `GraphResult` | `ffai.core.async_executor` |
+| `AsyncGraphExecutor` | `ffai.core.async_executor` |
+| `AgentLoop` | `ffai.agent.agent_loop` |
+| `AgentResult` | `ffai.agent.agent_result` |
+| `ToolCallRecord` | `ffai.agent.agent_result` |
+| `ResponseValidator` | `ffai.agent.response_validator` |
+| `ValidationResult` | `ffai.agent.response_validator` |
+| `ToolRegistry` | `ffai.tools.tool_registry` |
+| `ToolDefinition` | `ffai.tools.tool_registry` |
+| `ConversationHistory` | `ffai.core.history.conversation` |
+| `OrderedPromptHistory` | `ffai.core.history.ordered` |
+| `PermanentHistory` | `ffai.core.history.permanent` |
 
 With `pip install -e ".[rag]"`, additional RAG exports are available:
 
 | Symbol | Module |
 |--------|--------|
-| `RAG` | `src.rag.rag` |
-| `Embeddings` | `src.rag.embed` |
-| `SearchHit` | `src.rag.types` |
-| `QueryResult` | `src.rag.types` |
-| `TextChunk` | `src.rag.splitters.base` |
-| `ClientAdapter` | `src.rag.client_adapter` |
-| `DEFAULT_RAG_PROMPT` | `src.rag.prompts` |
-| `GenerationResult` | `src.rag.types` |
+| `RAG` | `ffai.rag.rag` |
+| `Embeddings` | `ffai.rag.embed` |
+| `SearchHit` | `ffai.rag.types` |
+| `QueryResult` | `ffai.rag.types` |
+| `TextChunk` | `ffai.rag.splitters.base` |
+| `ClientAdapter` | `ffai.rag.client_adapter` |
+| `DEFAULT_RAG_PROMPT` | `ffai.rag.prompts` |
+| `GenerationResult` | `ffai.rag.types` |
 
 ## Requirements
 

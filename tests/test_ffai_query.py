@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.FFAI import FFAI
-from src.rag.types import QueryResult, SearchHit
+from ffai.FFAI import FFAI
+from ffai.rag.types import QueryResult, SearchHit
 
 
 class TestFFAIQuery:
@@ -108,7 +108,7 @@ class TestFFAIQuery:
         assert callable(adapter)
 
     def test_set_client_rewires_rag_generate_fn(self, concrete_client):
-        from src.rag import ClientAdapter
+        from ffai.rag import ClientAdapter
 
         mock_rag = MagicMock()
         ffai = FFAI(client=concrete_client, rag=mock_rag)
@@ -129,7 +129,7 @@ class TestFFAIQuery:
         assert ffai.client is new_client
 
     def test_assigning_rag_auto_wires_generate_fn(self, concrete_client):
-        from src.rag import ClientAdapter
+        from ffai.rag import ClientAdapter
 
         ffai = FFAI(client=concrete_client)
         mock_rag = MagicMock()

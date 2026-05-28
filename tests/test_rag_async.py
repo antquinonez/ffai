@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.rag.rag import RAG
-from src.rag.types import SearchHit
+from ffai.rag.rag import RAG
+from ffai.rag.types import SearchHit
 
 
 def _make_mock_embed():
@@ -38,7 +38,7 @@ def _build_rag(**kwargs):
     embed = _make_mock_embed()
     store = _make_mock_store()
     chunker = _make_chunker()
-    with patch("src.rag.rag.get_chunker", return_value=chunker):
+    with patch("ffai.rag.rag.get_chunker", return_value=chunker):
         rag = RAG(embed=embed, store=store, **kwargs)
     return rag, embed, store, chunker
 
@@ -62,7 +62,7 @@ class TestRAGAsyncIndex:
     def test_aindex_no_embeddings_when_no_store(self):
         embed = _make_mock_embed()
         chunker = _make_chunker()
-        with patch("src.rag.rag.get_chunker", return_value=chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
             rag = RAG(embed=embed)
         result = asyncio.run(rag.aindex("text", source="doc1"))
         assert result == 2
@@ -71,7 +71,7 @@ class TestRAGAsyncIndex:
     def test_aindex_with_bm25_only(self):
         embed = _make_mock_embed()
         chunker = _make_chunker()
-        with patch("src.rag.rag.get_chunker", return_value=chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
             rag = RAG(embed=embed, bm25_alpha=0.6)
         result = asyncio.run(rag.aindex("text to index", source="doc1"))
         assert result == 2
@@ -100,7 +100,7 @@ class TestRAGAsyncSearch:
 
     def test_asearch_no_store_no_bm25_returns_empty(self):
         embed = _make_mock_embed()
-        with patch("src.rag.rag.get_chunker", return_value=_make_chunker()):
+        with patch("ffai.rag.rag.get_chunker", return_value=_make_chunker()):
             rag = RAG(embed=embed)
         assert asyncio.run(rag.asearch("query")) == []
 
@@ -110,7 +110,7 @@ class TestRAGAsyncSearch:
         chunker.chunk.return_value = [
             MagicMock(content="async programming in python", chunk_index=0, metadata={"source": "tutorial"}),
         ]
-        with patch("src.rag.rag.get_chunker", return_value=chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
             rag = RAG(embed=embed, bm25_alpha=0.6)
         asyncio.run(rag.aindex("text", source="tutorial"))
         hits = asyncio.run(rag.asearch("async programming"))
@@ -160,7 +160,7 @@ class TestRAGAsyncHybridSearch:
         new_chunker.chunk.return_value = [
             MagicMock(content="python programming language", chunk_index=0, metadata={"source": "wiki"}),
         ]
-        with patch("src.rag.rag.get_chunker", return_value=new_chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=new_chunker):
             rag2, embed2, store2, _ = _build_rag(bm25_alpha=0.6)
 
         store2.asearch = AsyncMock(return_value=[
@@ -227,7 +227,7 @@ class TestRAGEmbedSync:
         embed = _make_mock_embed()
         embed.embed = MagicMock(return_value=[[0.1, 0.2, 0.3]])
         chunker = _make_chunker()
-        with patch("src.rag.rag.get_chunker", return_value=chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
             rag = RAG(embed=embed, store=_make_mock_store())
         result = rag._embed.embed(["hello"])
         embed.embed.assert_called_once_with(["hello"])

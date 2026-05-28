@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from src.rag.indexing.bm25 import BM25Index
-from src.rag.indexing.contextual import ContextualEmbeddings
-from src.rag.indexing.deduplication import ChunkDeduplicator
-from src.rag.indexing.hierarchical import HierarchicalIndex
+from ffai.rag.indexing.bm25 import BM25Index
+from ffai.rag.indexing.contextual import ContextualEmbeddings
+from ffai.rag.indexing.deduplication import ChunkDeduplicator
+from ffai.rag.indexing.hierarchical import HierarchicalIndex
 
 
 class TestBM25Tokenize:

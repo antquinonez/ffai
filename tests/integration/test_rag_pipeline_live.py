@@ -47,9 +47,9 @@ class TestRAGPipelineLive:
     @pytest.fixture(autouse=True)
     def setup_rag(self, tmp_path):
         _skip_no_chromadb()
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -135,9 +135,9 @@ class TestRAGHybridLive:
     @pytest.fixture(autouse=True)
     def setup_rag(self, tmp_path):
         _skip_no_chromadb()
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -176,9 +176,9 @@ class TestRAGRerankerLive:
     @pytest.fixture(autouse=True)
     def setup_rag(self, tmp_path):
         _skip_no_chromadb()
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -209,9 +209,9 @@ class TestRAGRerankerLive:
         assert len(sources) >= 2
 
     def test_reranker_with_hybrid_search(self):
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -234,9 +234,9 @@ class TestRAGMultiSourceLive:
     @pytest.fixture(autouse=True)
     def setup_rag(self, tmp_path):
         _skip_no_chromadb()
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -286,9 +286,9 @@ class TestRAGBatchIndexingLive:
     @pytest.fixture(autouse=True)
     def setup_rag(self, tmp_path):
         _skip_no_chromadb()
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -331,9 +331,9 @@ class TestRAGDedupLive:
     @pytest.fixture(autouse=True)
     def setup_rag(self, tmp_path):
         _skip_no_chromadb()
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -380,9 +380,9 @@ class TestRAGQueryExpansionLive:
     @pytest.fixture(autouse=True)
     def setup_rag(self, tmp_path):
         _skip_no_chromadb()
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -412,9 +412,9 @@ class TestRAGQueryExpansionLive:
         assert len(hits) >= 1
 
     def test_expansion_finds_more_results(self):
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -439,9 +439,9 @@ class TestRAGQueryExpansionLive:
         assert len(sources_expanded) >= 1
 
     def test_expansion_with_failing_callable(self):
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
@@ -464,9 +464,9 @@ class TestRAGQueryExpansionLive:
         assert hits[0].source == "rust"
 
     def test_expansion_with_hybrid_and_reranker(self):
-        from src.rag.embed import Embeddings
-        from src.rag.rag import RAG
-        from src.rag.store import VectorStore
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
 
         api_key = _get_mistral_api_key()
         embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)

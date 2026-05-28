@@ -17,8 +17,8 @@ Run commands via `.venv/bin/<tool>` or activate the venv first. Never use `pip i
 
 ## Commands
 
-- **Lint:** `ruff check src/ tests/ examples/`
-- **Type check:** `pyright src/ tests/`
+- **Lint:** `ruff check ffai/ tests/ examples/`
+- **Type check:** `pyright ffai/ tests/`
 - **Unit tests:** `pytest tests/ -x -q`
 - **Integration tests:** `pytest tests/integration/ -m integration -v`
 

@@ -11,8 +11,8 @@ only against matching client_class entries.
 
 import pytest
 
-from src.Clients.FFMistralSmall import FFMistralSmall
-from src.core.client_base import FFAIClientBase
+from ffai.Clients.FFMistralSmall import FFMistralSmall
+from ffai.core.client_base import FFAIClientBase
 
 pytestmark = pytest.mark.integration
 

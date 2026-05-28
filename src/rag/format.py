@@ -10,6 +10,21 @@ def format_hits(
     max_chars: int | None = None,
     include_parent: bool = True,
 ) -> str:
+    """Format search hits into a numbered, human-readable text string.
+
+    Each hit is rendered with its index, source, relevance score,
+    content, and optionally a snippet of its parent context.
+
+    Args:
+        hits: List of :class:`SearchHit` objects to format.
+        max_chars: Optional character budget; hits beyond the budget
+            are omitted.
+        include_parent: Whether to include parent-context snippets.
+
+    Returns:
+        A formatted string, or an empty string if *hits* is empty.
+
+    """
     if not hits:
         return ""
 

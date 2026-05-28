@@ -23,15 +23,33 @@ class ConversationHistory:
         self.turns: list[dict[str, Any]] = []
 
     def add_turn_assistant(self, content: str) -> None:
+        """Append an assistant turn to the history.
+
+        Args:
+            content: The assistant's response text.
+
+        """
         self.turns.append({"role": "assistant", "content": [{"type": "text", "text": content}]})
 
     def add_turn_user(self, content: str) -> None:
+        """Append a user turn, coalescing with the previous user turn if adjacent.
+
+        Args:
+            content: The user's input text.
+
+        """
         if self.turns and self.turns[-1]["role"] == "user":
             self.turns[-1]["content"][0]["text"] += "\n" + content
         else:
             self.turns.append({"role": "user", "content": [{"type": "text", "text": content}]})
 
     def get_turns(self) -> list[dict[str, Any]]:
+        """Return all turns formatted for provider message APIs.
+
+        Returns:
+            List of message dictionaries with ``role`` and ``content`` keys.
+
+        """
         result = []
         for turn in self.turns:
             if turn["role"] == "user":

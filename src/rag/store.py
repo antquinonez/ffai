@@ -23,6 +23,23 @@ logger = logging.getLogger(__name__)
 
 
 class VectorStore:
+    """Persistent ChromaDB-backed vector store for document embeddings.
+
+    Stores document chunks and their embeddings in a named ChromaDB
+    collection on disk.  Supports CRUD operations, metadata filtering,
+    and cosine-similarity search.
+
+    Args:
+        collection_name: Name of the ChromaDB collection.
+        dir: Filesystem path where ChromaDB data is persisted.
+        embed: Optional :class:`Embeddings` instance for computing
+            embeddings on the fly.
+
+    Raises:
+        ImportError: If ``chromadb`` is not installed.
+
+    """
+
     def __init__(
         self,
         collection_name: str = "ffai_kb",
@@ -52,6 +69,18 @@ class VectorStore:
         embeddings: list[list[float]],
         metadatas: list[dict[str, Any]],
     ) -> int:
+        """Add document chunks with pre-computed embeddings to the store.
+
+        Args:
+            ids: Unique identifiers for each chunk.
+            texts: Raw text content of each chunk.
+            embeddings: Pre-computed embedding vectors.
+            metadatas: Metadata dictionaries for each chunk.
+
+        Returns:
+            Number of chunks added.
+
+        """
         self._collection.add(
             ids=ids,
             embeddings=embeddings,  # type: ignore[reportArgumentType]
@@ -67,6 +96,17 @@ class VectorStore:
         top_k: int = 5,
         where: dict[str, Any] | None = None,
     ) -> list[SearchHit]:
+        """Search for similar chunks using a query embedding.
+
+        Args:
+            query_embedding: The embedding vector to search against.
+            top_k: Maximum number of results to return.
+            where: Optional ChromaDB metadata filter expression.
+
+        Returns:
+            List of :class:`SearchHit` objects sorted by relevance.
+
+        """
         results = self._collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
@@ -91,18 +131,33 @@ class VectorStore:
         return hits
 
     def delete_by_source(self, source: str) -> None:
+        """Delete all chunks belonging to a given source.
+
+        Args:
+            source: Source identifier to match against.
+
+        """
         self._collection.delete(where={"source": source})
         logger.info(f"Deleted chunks for source: {source}")
 
     def delete_by_source_and_strategy(self, source: str, strategy: str) -> None:
+        """Delete chunks matching both source and chunking strategy.
+
+        Args:
+            source: Source identifier to match against.
+            strategy: Chunking strategy name to match against.
+
+        """
         self._collection.delete(
             where={"$and": [{"source": source}, {"chunking_strategy": strategy}]}
         )
 
     def count(self) -> int:
+        """Return the total number of chunks in the collection."""
         return self._collection.count()
 
     def clear(self) -> None:
+        """Delete the entire collection and recreate it empty."""
         self._client.delete_collection(self.collection_name)
         self._collection = self._client.get_or_create_collection(
             name=self.collection_name,
@@ -110,6 +165,7 @@ class VectorStore:
         )
 
     def list_sources(self) -> list[str]:
+        """Return a sorted list of unique source identifiers in the collection."""
         results = self._collection.get(include=["metadatas"])
         sources = set()
         if results["metadatas"]:
@@ -119,6 +175,12 @@ class VectorStore:
         return sorted(sources)
 
     def get_all(self) -> list[dict[str, Any]]:
+        """Retrieve all chunks in the collection.
+
+        Returns:
+            List of dictionaries with keys ``id``, ``content``, and ``metadata``.
+
+        """
         results = self._collection.get(include=["documents", "metadatas"])
         docs = []
         if results["ids"]:
@@ -131,6 +193,21 @@ class VectorStore:
         return docs
 
     def needs_reindex(self, source: str, checksum: str, strategy: str = "default") -> bool:
+        """Check whether a source document needs to be re-indexed.
+
+        Compares the stored checksum for the given source and strategy
+        against the provided checksum.
+
+        Args:
+            source: Source identifier to check.
+            checksum: Expected checksum of the current document.
+            strategy: Chunking strategy name to scope the check.
+
+        Returns:
+            True if the source has no indexed chunks or the checksum
+            differs, indicating a re-index is needed.
+
+        """
         results = self._collection.get(
             where={"$and": [{"source": source}, {"chunking_strategy": strategy}]},
             include=["metadatas"],

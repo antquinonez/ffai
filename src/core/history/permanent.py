@@ -26,6 +26,12 @@ class PermanentHistory:
         self.timestamp: float = time.time()
 
     def add_turn_assistant(self, content: str) -> None:
+        """Append an assistant turn with the current timestamp.
+
+        Args:
+            content: The assistant's response text.
+
+        """
         self.turns.append(
             {
                 "role": "assistant",
@@ -35,6 +41,12 @@ class PermanentHistory:
         )
 
     def add_turn_user(self, content: str) -> None:
+        """Append a user turn, coalescing with the previous user turn if adjacent.
+
+        Args:
+            content: The user's input text.
+
+        """
         if self.turns and self.turns[-1]["role"] == "user":
             self.turns[-1]["content"][0]["text"] += "\n" + content
             self.turns[-1]["timestamp"] = time.time()
@@ -48,9 +60,22 @@ class PermanentHistory:
             )
 
     def get_all_turns(self) -> list[dict[str, Any]]:
-        """Returns all turns with their timestamps."""
+        """Return a deep copy of all turns with their timestamps.
+
+        Returns:
+            List of turn dictionaries.
+
+        """
         return deepcopy(self.turns)
 
     def get_turns_since(self, timestamp: float) -> list[dict[str, Any]]:
-        """Returns all turns that occurred after the specified timestamp."""
+        """Return turns that occurred after the specified timestamp.
+
+        Args:
+            timestamp: Unix timestamp cutoff (exclusive).
+
+        Returns:
+            List of turn dictionaries whose timestamp is greater than *timestamp*.
+
+        """
         return [turn for turn in self.turns if turn["timestamp"] > timestamp]

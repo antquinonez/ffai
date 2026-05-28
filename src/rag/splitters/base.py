@@ -9,6 +9,17 @@ from typing import Any
 
 @dataclass
 class TextChunk:
+    """A single chunk of text produced by a chunker.
+
+    Attributes:
+        content: The text content of the chunk.
+        chunk_index: Zero-based index of this chunk in the sequence.
+        start_char: Character offset where this chunk begins in the source.
+        end_char: Character offset where this chunk ends in the source.
+        metadata: Optional metadata attached to this chunk.
+
+    """
+
     content: str
     chunk_index: int
     start_char: int
@@ -18,6 +29,19 @@ class TextChunk:
 
 @dataclass
 class HierarchicalTextChunk(TextChunk):
+    """A text chunk that participates in a parent-child hierarchy.
+
+    Used by hierarchical chunking strategies that maintain relationships
+    between larger parent chunks and smaller child chunks.
+
+    Attributes:
+        id: Unique identifier for this chunk.
+        parent_id: Identifier of the parent chunk, or None if this is a root.
+        child_ids: Identifiers of child chunks, or an empty list.
+        hierarchy_level: Depth in the hierarchy (0 = root).
+
+    """
+
     id: str = ""
     parent_id: str | None = None
     child_ids: list[str] | None = None

@@ -306,18 +306,38 @@ class BaseLiteLLMClient:
         return serialized
 
     def add_tool_result(self, tool_call_id: str, content: str) -> None:
+        """Append a tool result message to the conversation history.
+
+        Args:
+            tool_call_id: Provider-specific ID of the tool call being answered.
+            content: The tool's return value as a string.
+
+        """
         self.conversation_history.append(
             {"role": "tool", "tool_call_id": tool_call_id, "content": content}
         )
 
     def clear_conversation(self) -> None:
+        """Remove all messages from the conversation history."""
         logger.debug("Clearing conversation history")
         self.conversation_history = []
 
     def get_conversation_history(self) -> list[dict[str, Any]]:
+        """Return a shallow copy of the conversation history.
+
+        Returns:
+            List of message dictionaries.
+
+        """
         return self.conversation_history.copy()
 
     def set_conversation_history(self, history: list[dict[str, Any]]) -> None:
+        """Replace the conversation history with a new list of messages.
+
+        Args:
+            history: List of message dictionaries to set.
+
+        """
         self.conversation_history = list(history)
         logger.debug(f"Set conversation history with {len(history)} messages")
 

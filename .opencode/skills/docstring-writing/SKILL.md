@@ -1,6 +1,6 @@
 ---
 name: docstring-writing
-description: Use when writing, reviewing, or adding docstrings to Python source files. Load BEFORE writing or modifying any docstrings. Covers Google-style docstring conventions, coverage rules, content quality, insertion workflow, and validation.
+description: Use when writing, reviewing, or adding docstrings to Python source files. Load BEFORE writing or modifying any docstrings. Covers documentation order (outside-in), Google-style conventions, coverage rules, content quality, insertion workflow, and validation.
 license: MIT
 ---
 
@@ -75,6 +75,52 @@ Sections in order (omit empty sections):
 4. `Returns:` — type and meaning (omit if returns `None`)
 5. `Raises:` — exception types and conditions (omit if none raised)
 6. `Example:` — only when usage is non-obvious (follow `doc-writing` skill rules)
+
+## DS-0: Documentation Order (Outside-In)
+
+When adding or reviewing docstrings across a project, follow this order:
+
+### Layer 1: Module docstrings
+
+Every `.py` file gets a module docstring first. These are cheap to write and
+anchor the mental model for everything that follows. A good module docstring
+means method docstrings can reference concepts instead of re-explaining them.
+
+### Layer 2: Core public classes
+
+Document the high-centrality entry points next. These are the classes that
+consumers import and interact with directly. They establish the vocabulary
+that lower-level docstrings will reference. For this project:
+
+- `FFAI` — the main facade
+- `FFAIClientBase` / `AsyncFFAIClientBase` — client abstraction
+- `ExecutionGraph` — DAG definition
+- `RAG` — retrieval-augmented generation
+- `ToolRegistry` — agentic tool management
+- `ResponseOptions` — call configuration
+
+### Layer 3: Methods of core classes
+
+Document the public methods of the classes from Layer 2. These form the
+primary API surface.
+
+### Layer 4: Supporting classes and functions
+
+Leaf modules, utility functions, and internal classes. These reference
+concepts established in Layers 1–3, so they benefit from having those
+docstrings already in place.
+
+### Layer 5: Review pass
+
+After all docstrings are in place, regenerate the documentation with
+`/update-docs` and review for consistency. Check that terminology is
+uniform across modules and that cross-references resolve correctly.
+
+### Exception: feature-branch documentation
+
+When working on a specific feature, document what you touch regardless of
+its layer. Don't leave undocumented code behind because it's "out of order."
+This rule overrides the layering for incremental work.
 
 ## DS-1: Coverage Rules
 

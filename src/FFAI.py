@@ -62,6 +62,10 @@ class FFAI:
         prompt_attr_history: History indexed by prompt attributes (via ``ResponseContext``).
         ordered_history: Ordered prompt-response history.
         permanent_history: Chronological turn history.
+        persist_dir: Directory for history persistence files.
+        persist_name: Filename stem for persisted files.
+        auto_persist: Whether histories auto-persist after each call.
+        rag: RAG instance for retrieval-augmented generation, or ``None``.
 
     """
 
@@ -182,6 +186,7 @@ class FFAI:
         return extract_json(text)
 
     def get_system_instructions(self) -> str | None:
+        """Return the system instructions configured on the client, or ``None``."""
         if hasattr(self.client, "system_instructions"):
             return self.client.system_instructions
         return None
@@ -325,6 +330,28 @@ class FFAI:
         generate_timeout: float | None = None,
         **filters: str,
     ) -> QueryResult:
+        """Retrieve context and generate an answer via RAG (sync).
+
+        Delegates to ``RAG.query()``. Raises ``ValueError`` if RAG is
+        not configured.
+
+        Args:
+            question: The user question.
+            top_k: Number of search results to retrieve.
+            prompt_template: Must contain ``{context}`` and ``{question}``
+                placeholders. Defaults to :data:`DEFAULT_RAG_PROMPT`.
+            max_context_chars: Truncate context to this many characters.
+            allow_llm_on_empty: Skip LLM call when no hits found.
+            generate_timeout: Max seconds for generation.
+            **filters: Metadata filters for the vector store.
+
+        Returns:
+            ``QueryResult`` with answer, hits, sources, and metadata.
+
+        Raises:
+            ValueError: If RAG is not configured.
+
+        """
         if self.rag is None:
             raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
 
@@ -351,6 +378,28 @@ class FFAI:
         generate_timeout: float | None = None,
         **filters: str,
     ) -> QueryResult:
+        """Retrieve context and generate an answer via RAG (async).
+
+        Delegates to ``RAG.aquery()``. Raises ``ValueError`` if RAG is
+        not configured.
+
+        Args:
+            question: The user question.
+            top_k: Number of search results to retrieve.
+            prompt_template: Must contain ``{context}`` and ``{question}``
+                placeholders.
+            max_context_chars: Truncate context to this many characters.
+            allow_llm_on_empty: Skip LLM call when no hits found.
+            generate_timeout: Max seconds for generation.
+            **filters: Metadata filters for the vector store.
+
+        Returns:
+            ``QueryResult`` with answer, hits, sources, and metadata.
+
+        Raises:
+            ValueError: If RAG is not configured.
+
+        """
         if self.rag is None:
             raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
 
@@ -372,31 +421,117 @@ class FFAI:
     # ===========================================================================
 
     def index(self, text: str, source: str | None = None, checksum: str | None = None, **metadata: str) -> int:
+        """Index a document into the RAG pipeline (sync).
+
+        Delegates to ``RAG.index()``. Raises ``ValueError`` if RAG is
+        not configured.
+
+        Args:
+            text: Document text to index.
+            source: Source identifier for deduplication.
+            checksum: Skip indexing if checksum matches stored value.
+            **metadata: Additional metadata key-value pairs.
+
+        Returns:
+            Number of chunks created.
+
+        Raises:
+            ValueError: If RAG is not configured.
+
+        """
         if self.rag is None:
             raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
         return self.rag.index(text, source=source, checksum=checksum, **metadata)
 
     async def aindex(self, text: str, source: str | None = None, checksum: str | None = None, **metadata: str) -> int:
+        """Index a document into the RAG pipeline (async).
+
+        Delegates to ``RAG.aindex()``. Raises ``ValueError`` if RAG is
+        not configured.
+
+        Args:
+            text: Document text to index.
+            source: Source identifier for deduplication.
+            checksum: Skip indexing if checksum matches stored value.
+            **metadata: Additional metadata key-value pairs.
+
+        Returns:
+            Number of chunks created.
+
+        Raises:
+            ValueError: If RAG is not configured.
+
+        """
         if self.rag is None:
             raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
         return await self.rag.aindex(text, source=source, checksum=checksum, **metadata)
 
     def search(self, query: str, top_k: int = 5, **filters: str) -> list[SearchHit]:
+        """Search for relevant chunks via RAG (sync).
+
+        Delegates to ``RAG.search()``. Raises ``ValueError`` if RAG is
+        not configured.
+
+        Args:
+            query: Search query string.
+            top_k: Maximum number of results.
+            **filters: Metadata filters.
+
+        Returns:
+            Ranked list of search hits.
+
+        Raises:
+            ValueError: If RAG is not configured.
+
+        """
         if self.rag is None:
             raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
         return self.rag.search(query, top_k=top_k, **filters)
 
     async def asearch(self, query: str, top_k: int = 5, **filters: str) -> list[SearchHit]:
+        """Search for relevant chunks via RAG (async).
+
+        Delegates to ``RAG.asearch()``. Raises ``ValueError`` if RAG is
+        not configured.
+
+        Args:
+            query: Search query string.
+            top_k: Maximum number of results.
+            **filters: Metadata filters.
+
+        Returns:
+            Ranked list of search hits.
+
+        Raises:
+            ValueError: If RAG is not configured.
+
+        """
         if self.rag is None:
             raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
         return await self.rag.asearch(query, top_k=top_k, **filters)
 
     def delete(self, source: str) -> None:
+        """Delete all chunks for a source from the RAG store.
+
+        Raises ``ValueError`` if RAG is not configured.
+
+        Args:
+            source: Source identifier to delete.
+
+        """
         if self.rag is None:
             raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
         self.rag.delete(source)
 
     def count(self) -> int:
+        """Return the total number of indexed chunks in the RAG store.
+
+        Raises ``ValueError`` if RAG is not configured.
+
+        Returns:
+            Chunk count.
+
+        """
         if self.rag is None:
             raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
         return self.rag.count()

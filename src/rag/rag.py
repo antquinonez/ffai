@@ -25,6 +25,34 @@ logger = logging.getLogger(__name__)
 
 
 class RAG:
+    """End-to-end retrieval-augmented generation pipeline.
+
+    Combines embedding, chunking, vector/BM25 search, reranking,
+    query expansion, and LLM generation into a single interface.
+
+    Args:
+        embed: Embedding model instance or model name string
+            (e.g. ``"mistral/mistral-embed"``).
+        store: Vector store for persistent embeddings. If ``None``,
+            only BM25 search is available (when ``bm25_alpha`` is set).
+        chunker: Name of the chunking strategy (``"recursive"``,
+            ``"character"``, ``"markdown"``, ``"code"``,
+            ``"hierarchical"``).
+        chunk_size: Target chunk size in characters.
+        chunk_overlap: Overlap between consecutive chunks in characters.
+        bm25_alpha: If set, enables BM25 alongside vector search with
+            this weight for the vector component (0–1). ``None``
+            disables BM25.
+        reranker: Reranker strategy name (``"cross_encoder"``,
+            ``"diversity"``, ``"noop"``). ``None`` disables reranking.
+        query_expander: Callable that takes a query string and returns
+            a list of expanded query strings.
+        generate_fn: Default generation function for ``query()`` and
+            ``aquery()``. Takes a prompt string, returns an answer
+            string or ``GenerationResult``.
+
+    """
+
     def __init__(
         self,
         embed: Embeddings | str = "mistral/mistral-embed",
@@ -70,6 +98,17 @@ class RAG:
         bm25_only: bool = False,
         **overrides: Any,
     ) -> RAG:
+        """Create a RAG instance from the project configuration file.
+
+        Args:
+            bm25_only: If True, skip vector store creation and use BM25
+                search only.
+            **overrides: Override any constructor parameter from config.
+
+        Returns:
+            Configured RAG instance.
+
+        """
         from ..config import get_config
 
         cfg = get_config().rag
@@ -96,6 +135,15 @@ class RAG:
         return cls(**kwargs)
 
     def set_generate_fn(self, generate_fn: Callable[[str], str | GenerationResult]) -> None:
+        """Set or replace the default generation function.
+
+        Also re-wires the query expander if one is configured.
+
+        Args:
+            generate_fn: Sync callable that takes a prompt and returns
+                an answer string or ``GenerationResult``.
+
+        """
         self._generate_fn = generate_fn
         if self._query_expander is not None:
             self._wire_query_expander()
@@ -113,6 +161,22 @@ class RAG:
         checksum: str | None = None,
         **metadata: str,
     ) -> int:
+        """Index a document (sync wrapper).
+
+        Safe to call from within a running event loop (e.g. Jupyter).
+
+        Args:
+            text: Document text to index.
+            source: Source identifier for deduplication and filtering.
+            checksum: If provided with ``source``, skip indexing when
+                the checksum matches the previously stored value.
+            **metadata: Additional metadata key-value pairs attached to
+                every chunk.
+
+        Returns:
+            Number of chunks created.
+
+        """
         return run_sync(self.aindex(text, source=source, checksum=checksum, **metadata))
 
     async def aindex(
@@ -122,6 +186,24 @@ class RAG:
         checksum: str | None = None,
         **metadata: str,
     ) -> int:
+        """Index a document into the vector store and/or BM25 index.
+
+        Chunks the text, computes embeddings, and stores them. Skips
+        indexing if ``checksum`` matches the previously stored value.
+
+        Args:
+            text: Document text to index.
+            source: Source identifier for deduplication and filtering.
+            checksum: If provided with ``source``, skip indexing when
+                the checksum matches the previously stored value.
+            **metadata: Additional metadata key-value pairs attached to
+                every chunk.
+
+        Returns:
+            Number of chunks created (0 if text is empty or checksum
+            matches).
+
+        """
         if not text or not text.strip():
             return 0
 
@@ -159,18 +241,61 @@ class RAG:
         return len(chunks)
 
     def index_many(self, documents: list[dict[str, Any]]) -> int:
+        """Index multiple documents sequentially (sync wrapper).
+
+        Args:
+            documents: List of dicts with keys matching ``aindex``
+                parameters (``text``, ``source``, ``checksum``, etc.).
+
+        Returns:
+            Total number of chunks created across all documents.
+
+        """
         return run_sync(self.aindex_many(documents))
 
     async def aindex_many(self, documents: list[dict[str, Any]]) -> int:
+        """Index multiple documents sequentially.
+
+        Args:
+            documents: List of dicts with keys matching ``aindex``
+                parameters (``text``, ``source``, ``checksum``, etc.).
+
+        Returns:
+            Total number of chunks created across all documents.
+
+        """
         total = 0
         for doc in documents:
             total += await self.aindex(**doc)
         return total
 
     def chunk(self, text: str, **metadata: str) -> list[TextChunk]:
+        """Split text into chunks without indexing.
+
+        Args:
+            text: Text to chunk.
+            **metadata: Metadata attached to each chunk.
+
+        Returns:
+            List of TextChunk instances.
+
+        """
         return self._chunker.chunk(text, metadata=metadata)
 
     def search(self, query: str, top_k: int = 5, **filters: str) -> list[SearchHit]:
+        """Search for relevant chunks (sync wrapper).
+
+        Safe to call from within a running event loop (e.g. Jupyter).
+
+        Args:
+            query: Search query string.
+            top_k: Maximum number of results to return.
+            **filters: Metadata key-value filters passed to the store.
+
+        Returns:
+            Ranked list of search hits.
+
+        """
         return run_sync(self.asearch(query, top_k=top_k, **filters))
 
     async def asearch(
@@ -179,6 +304,19 @@ class RAG:
         top_k: int = 5,
         **filters: str,
     ) -> list[SearchHit]:
+        """Search for relevant chunks using vector, BM25, or hybrid search.
+
+        Applies query expansion and reranking if configured.
+
+        Args:
+            query: Search query string.
+            top_k: Maximum number of results to return.
+            **filters: Metadata key-value filters passed to the store.
+
+        Returns:
+            Ranked list of search hits.
+
+        """
         raw = await self._araw_search(query, top_k, filters)
 
         if self._query_expander is not None:
@@ -331,12 +469,26 @@ class RAG:
         )
 
     def delete(self, source: str) -> None:
+        """Delete all chunks associated with a source from the store and BM25 index.
+
+        Args:
+            source: Source identifier to delete.
+
+        """
         if self._store is not None:
             self._store.delete_by_source(source)
         if self._bm25 is not None:
             self._bm25.delete_by_metadata("source", source)
 
     def count(self) -> int:
+        """Return the total number of indexed chunks.
+
+        Checks the vector store first, then falls back to BM25.
+
+        Returns:
+            Chunk count, or 0 if neither store is configured.
+
+        """
         if self._store is not None:
             return self._store.count()
         if self._bm25 is not None:

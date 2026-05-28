@@ -27,6 +27,8 @@ class FFAIClientBase(ABC):
     Attributes:
         model: The model identifier string.
         system_instructions: System prompt/instructions for the AI.
+        retry_config: Override retry configuration. ``None`` uses
+            the global config defaults.
 
     """
 

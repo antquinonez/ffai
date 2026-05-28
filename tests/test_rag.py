@@ -386,6 +386,98 @@ class TestRAGQuery:
         assert "Role: " in result.prompt
         assert "Answer:" in result.prompt
 
+    def test_allow_llm_on_empty_false_skips_generate(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[])
+        call_count = 0
+
+        def counting_fn(p: str) -> str:
+            nonlocal call_count
+            call_count += 1
+            return "should not be called"
+
+        result = rag.query("q?", generate_fn=counting_fn, allow_llm_on_empty=False)
+        assert result.answer == ""
+        assert result.hits == []
+        assert result.sources == []
+        assert result.prompt == ""
+        assert call_count == 0
+
+    def test_allow_llm_on_empty_true_calls_generate(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[])
+        result = rag.query("q?", generate_fn=lambda p: "no info", allow_llm_on_empty=True)
+        assert result.answer == "no info"
+
+    def test_allow_llm_on_empty_default_is_true(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[])
+        result = rag.query("q?", generate_fn=lambda p: "no info")
+        assert result.answer == "no info"
+
+    def test_generate_timeout_raises_on_slow_fn(self):
+        import time
+
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="ctx", score=0.9, source="s1", metadata={"source": "s1"}),
+        ])
+
+        def slow_fn(p: str) -> str:
+            time.sleep(1.0)
+            return "too late"
+
+        with pytest.raises(TimeoutError):
+            rag.query("q?", generate_fn=slow_fn, generate_timeout=0.01)
+
+    def test_generate_timeout_allows_fast_fn(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="ctx", score=0.9, source="s1", metadata={"source": "s1"}),
+        ])
+        result = rag.query("q?", generate_fn=lambda p: "fast", generate_timeout=30.0)
+        assert result.answer == "fast"
+
+    def test_generate_timeout_default_is_none(self):
+        import time
+
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="ctx", score=0.9, source="s1", metadata={"source": "s1"}),
+        ])
+
+        def slow_fn(p: str) -> str:
+            time.sleep(0.1)
+            return "done"
+
+        result = rag.query("q?", generate_fn=slow_fn)
+        assert result.answer == "done"
+
+    def test_allow_llm_on_empty_false_with_nonempty_hits(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="ctx text", score=0.9, source="s1", metadata={"source": "s1"}),
+        ])
+        result = rag.query("q?", generate_fn=lambda p: "answer", allow_llm_on_empty=False)
+        assert result.answer == "answer"
+        assert len(result.hits) == 1
+
+    def test_generate_timeout_aquery_async_path(self):
+        import asyncio
+        import time
+
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="ctx", score=0.9, source="s1", metadata={"source": "s1"}),
+        ])
+
+        def slow_fn(p: str) -> str:
+            time.sleep(1.0)
+            return "too late"
+
+        with pytest.raises(TimeoutError):
+            asyncio.run(rag.aquery("q?", generate_fn=slow_fn, generate_timeout=0.01))
+
 
 class TestRAGBM25OnlySearch:
     def test_bm25_only_search_returns_hits(self):

@@ -1,3 +1,5 @@
+"""Split Markdown documents into chunks by header sections with fallback re-chunking."""
+
 from __future__ import annotations
 
 import logging

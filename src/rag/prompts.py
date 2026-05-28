@@ -1,3 +1,5 @@
+"""Define the default RAG prompt template."""
+
 from __future__ import annotations
 
 DEFAULT_RAG_PROMPT = (

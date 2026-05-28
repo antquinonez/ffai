@@ -70,6 +70,16 @@ class YamlConfigSource(PydanticBaseSettingsSource):
         self._yaml_data = yaml_data
 
     def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
+        """Look up a field value from the merged YAML data.
+
+        Args:
+            field: The pydantic field metadata (unused).
+            field_name: The field name to look up.
+
+        Returns:
+            A tuple of ``(value, field_name, value_is_complex)``.
+
+        """
         field_value = self._yaml_data.get(field_name)
         return field_value, field_name, False
 
@@ -173,6 +183,21 @@ class ObservabilityConfig(BaseSettings):
 
 
 class RAGConfig(BaseSettings):
+    """Retrieval-Augmented Generation configuration.
+
+    Attributes:
+        enabled: Whether RAG is active.
+        persist_dir: Directory for the ChromaDB vector store.
+        collection_name: ChromaDB collection name.
+        embedding_model: LiteLLM-style embedding model identifier.
+        chunker: Chunking strategy (``"recursive"`` or ``"fixed"``).
+        chunk_size: Maximum characters per chunk.
+        chunk_overlap: Overlap characters between adjacent chunks.
+        bm25_alpha: Hybrid search alpha; ``None`` disables BM25.
+        reranker: Reranker model identifier; ``None`` disables reranking.
+
+    """
+
     enabled: bool = False
     persist_dir: str = "./chroma_db"
     collection_name: str = "ffai_kb"
@@ -210,6 +235,22 @@ class Config(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Define the priority order for configuration sources.
+
+        Priority (highest first): init kwargs, environment variables,
+        merged YAML files.
+
+        Args:
+            settings_cls: The settings class being configured.
+            init_settings: Source for constructor kwargs.
+            env_settings: Source for environment variables.
+            dotenv_settings: Source for .env files (unused).
+            file_secret_settings: Source for file secrets (unused).
+
+        Returns:
+            Tuple of settings sources in priority order.
+
+        """
         yaml_data = _load_all_configs()
         yaml_source = YamlConfigSource(settings_cls, yaml_data)
         return (init_settings, env_settings, yaml_source)

@@ -23,12 +23,15 @@ class NoOpSpan:
     """Span that records nothing. Used when observability is disabled."""
 
     def set_attribute(self, key: str, value: Any) -> None:
+        """No-op: discard a span attribute."""
         pass
 
     def record_exception(self, exception: Exception) -> None:
+        """No-op: discard an exception record."""
         pass
 
     def is_recording(self) -> bool:
+        """Return False, indicating the span is not active."""
         return False
 
 

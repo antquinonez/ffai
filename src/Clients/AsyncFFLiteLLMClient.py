@@ -54,6 +54,26 @@ class AsyncFFLiteLLMClient(BaseLiteLLMClient, AsyncFFAIClientBase):
         max_tokens: int | None = None,
         **kwargs: Any,
     ) -> str:
+        """Generate a response from the model asynchronously.
+
+        Falls back to configured fallback models when the primary call fails.
+
+        Args:
+            prompt: User's input text.
+            model: Model identifier override (preserves provider prefix if set).
+            system_instructions: System prompt override.
+            temperature: Sampling temperature override.
+            max_tokens: Maximum tokens to generate override.
+            **kwargs: Additional parameters forwarded to ``litellm.acompletion()``.
+
+        Returns:
+            The model's response text.
+
+        Raises:
+            ValueError: If the prompt is empty.
+            RuntimeError: If all models (primary + fallbacks) fail.
+
+        """
         api_params, model_string = self._prepare_generate_params(
             prompt, model, system_instructions, temperature, max_tokens, **kwargs
         )
@@ -97,6 +117,12 @@ class AsyncFFLiteLLMClient(BaseLiteLLMClient, AsyncFFAIClientBase):
         raise RuntimeError(f"All models failed. Primary error: {original_error}")
 
     async def clone(self) -> AsyncFFLiteLLMClient:
+        """Create a deep copy of this client with reset usage and empty history.
+
+        Returns:
+            A new ``AsyncFFLiteLLMClient`` with identical configuration.
+
+        """
         logger.debug(f"Cloning async client with model_string={self._model_string}")
         cloned = AsyncFFLiteLLMClient(
             model_string=self._model_string,

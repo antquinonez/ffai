@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Contact: antquinonez@farfiner.com
 
+"""Mistral Small client with chat completions, streaming, function calling, and tool use."""
+
 from __future__ import annotations
 
 import json
@@ -25,6 +27,18 @@ logger = logging.getLogger(__name__)
 
 
 class FFMistralSmall(FFAIClientBase):
+    """Mistral Small client with chat completions, function calling, and tool use.
+
+    Wraps the ``mistralai`` SDK to provide a consistent ``FFAIClientBase``
+    interface with built-in retry, conversation tracking, and tool-call
+    handling for the Mistral Small family of models.
+
+    Args:
+        config: Optional configuration dictionary.
+        **kwargs: Keyword overrides for model, temperature, max_tokens, etc.
+
+    """
+
     def __init__(self, config: dict | None = None, **kwargs):
         logger.info("Initializing FFMistralSmall")
 

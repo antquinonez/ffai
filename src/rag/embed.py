@@ -1,3 +1,5 @@
+"""Compute text embeddings via local sentence-transformer models or remote API providers."""
+
 from __future__ import annotations
 
 import asyncio
@@ -13,6 +15,28 @@ logger = logging.getLogger(__name__)
 
 
 class Embeddings:
+    """Compute text embeddings using local or remote models.
+
+    Supports local sentence-transformer models (prefix ``local/``) and
+    remote providers via LiteLLM (e.g. ``mistral/mistral-embed``,
+    ``openai/text-embedding-3-small``).  Results are optionally cached
+    in an LRU-style in-memory cache.
+
+    Args:
+        model: Model identifier.  Use ``local/<name>`` for local
+            sentence-transformer models, or ``<provider>/<model>`` for
+            remote APIs.
+        api_key: API key for the remote provider.  If *None*, the key
+            is read from a provider-specific environment variable.
+        api_base: Optional custom API base URL.
+        cache_enabled: Whether to cache embedding results in memory.
+        cache_size: Maximum number of entries in the embedding cache.
+        device: Torch device for local models (e.g. ``"cpu"``, ``"cuda"``).
+        **kwargs: Extra keyword arguments forwarded to the LiteLLM
+            embedding call.
+
+    """
+
     def __init__(
         self,
         model: str = "mistral/mistral-embed",
@@ -66,6 +90,15 @@ class Embeddings:
         return os.getenv(env_var)
 
     async def aembed(self, texts: str | list[str]) -> list[list[float]]:
+        """Compute embeddings for one or more texts asynchronously.
+
+        Args:
+            texts: A single text string or a list of text strings.
+
+        Returns:
+            List of embedding vectors, one per input text.
+
+        """
         if isinstance(texts, str):
             texts = [texts]
         if not texts:
@@ -149,20 +182,59 @@ class Embeddings:
         return [emb for _, emb in results]
 
     async def aembed_single(self, text: str) -> list[float]:
+        """Compute the embedding for a single text asynchronously.
+
+        Args:
+            text: The text to embed.
+
+        Returns:
+            The embedding vector.
+
+        """
         return (await self.aembed(text))[0]
 
     def embed(self, texts: str | list[str]) -> list[list[float]]:
+        """Compute embeddings for one or more texts synchronously.
+
+        Args:
+            texts: A single text string or a list of text strings.
+
+        Returns:
+            List of embedding vectors, one per input text.
+
+        """
         return run_sync(self.aembed(texts))
 
     def embed_single(self, text: str) -> list[float]:
+        """Compute the embedding for a single text synchronously.
+
+        Args:
+            text: The text to embed.
+
+        Returns:
+            The embedding vector.
+
+        """
         return self.embed(text)[0]
 
     def clear_cache(self) -> int:
+        """Clear the embedding cache.
+
+        Returns:
+            Number of entries that were in the cache before clearing.
+
+        """
         count = len(self._cache)
         self._cache.clear()
         return count
 
     def cache_stats(self) -> dict[str, Any]:
+        """Return statistics about the embedding cache.
+
+        Returns:
+            Dictionary with keys ``enabled``, ``max_size``, and ``entries``.
+
+        """
         return {
             "enabled": self._cache_enabled,
             "max_size": self._cache_size,
@@ -171,6 +243,17 @@ class Embeddings:
 
     @staticmethod
     def cosine_similarity(a: list[float], b: list[float]) -> float:
+        """Compute cosine similarity between two vectors.
+
+        Args:
+            a: First vector.
+            b: Second vector.
+
+        Returns:
+            Cosine similarity score in the range [-1, 1].  Returns 0.0
+            if either vector has zero magnitude.
+
+        """
         dot = sum(x * y for x, y in zip(a, b))
         norm_a = math.sqrt(sum(x * x for x in a))
         norm_b = math.sqrt(sum(x * x for x in b))

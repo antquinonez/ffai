@@ -29,6 +29,8 @@ def ffai(mock_client):
         mock_config = MagicMock(spec=Config)
         mock_config.paths = MagicMock()
         mock_config.paths.ffai_data = "/tmp/ffai_test_data"
+        mock_config.rag = MagicMock()
+        mock_config.rag.enabled = False
 
         with patch("src.FFAI.get_config", return_value=mock_config):
             return FFAI(mock_client)

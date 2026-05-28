@@ -41,3 +41,6 @@ outputs/
 
 # Design documents (untracked)
 designs/
+
+# Issue tracking (untracked)
+.issues/

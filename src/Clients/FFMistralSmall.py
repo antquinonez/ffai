@@ -143,7 +143,7 @@ class FFMistralSmall(FFAIClientBase):
         presence_penalty: float | None = None,
         frequency_penalty: float | None = None,
         stop: list[str] | None = None,
-        response_format: str | dict | None = None,
+        response_format: str | dict | type | None = None,
         tools: list[dict] | None = None,
         tool_choice: str | None = None,
         safe_mode: bool | None = None,
@@ -247,6 +247,11 @@ class FFMistralSmall(FFAIClientBase):
                         api_params["response_format"] = response_format
                     elif isinstance(response_format, str) and "json" in response_format.lower():
                         api_params["response_format"] = {"type": "json_object"}
+                    elif isinstance(response_format, type):
+                        from pydantic import BaseModel as _BM
+
+                        if issubclass(response_format, _BM):
+                            api_params["response_format"] = {"type": "json_object"}
 
                 if tools and isinstance(tools, list):
                     api_params["tools"] = tools

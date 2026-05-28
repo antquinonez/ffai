@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -55,18 +55,22 @@ class StructuredOutputHandler:
     def __init__(self, max_retries: int = 2) -> None:
         self.max_retries = max_retries
 
-    def build_response_format(self, model: type[BaseModel]) -> dict[str, Any]:
-        """Convert a Pydantic model to a JSON Schema response_format dict.
+    def build_response_format(self, model: type[BaseModel]) -> type[BaseModel]:
+        """Return the Pydantic model class for use as ``response_format``.
+
+        LiteLLM's ``completion()`` accepts ``type[BaseModel]`` directly in the
+        ``response_format`` parameter and handles provider-specific schema
+        translation internally.  Returning the model class instead of a
+        hand-built dict avoids incompatible schemas across providers.
 
         Args:
             model: A Pydantic BaseModel subclass.
 
         Returns:
-            Dict compatible with ``litellm.completion(response_format=...)``.
+            The same Pydantic model class, for use as ``response_format``.
 
         """
-        schema = model.model_json_schema()
-        return {"type": "json_object", "schema": schema}
+        return model
 
     def build_system_suffix(self, model: type[BaseModel]) -> str:
         """Generate instruction text describing the expected JSON schema.

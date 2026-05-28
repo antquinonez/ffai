@@ -98,11 +98,23 @@ class TestRAGAsyncSearch:
         assert hits[0].content == "result"
         assert hits[0].id == "1"
 
-    def test_asearch_no_store_returns_empty(self):
+    def test_asearch_no_store_no_bm25_returns_empty(self):
         embed = _make_mock_embed()
         with patch("src.rag.rag.get_chunker", return_value=_make_chunker()):
             rag = RAG(embed=embed)
         assert asyncio.run(rag.asearch("query")) == []
+
+    def test_asearch_bm25_only_returns_hits(self):
+        embed = _make_mock_embed()
+        chunker = MagicMock()
+        chunker.chunk.return_value = [
+            MagicMock(content="async programming in python", chunk_index=0, metadata={"source": "tutorial"}),
+        ]
+        with patch("src.rag.rag.get_chunker", return_value=chunker):
+            rag = RAG(embed=embed, bm25_alpha=0.6)
+        asyncio.run(rag.aindex("text", source="tutorial"))
+        hits = asyncio.run(rag.asearch("async programming"))
+        assert len(hits) >= 1
 
     def test_asearch_respects_top_k(self):
         rag, _, store, _ = _build_rag()
@@ -191,6 +203,24 @@ class TestRAGRawToHits:
         hits = rag._raw_to_hits(raw)
         assert hits[0].parent_content == "full doc"
 
+    def test_source_from_top_level_when_not_in_metadata(self):
+        rag, _, _, _ = _build_rag()
+        raw = [{"id": "1", "content": "chunk", "score": 0.5, "source": "my_doc.txt", "metadata": {}}]
+        hits = rag._raw_to_hits(raw)
+        assert hits[0].source == "my_doc.txt"
+
+    def test_metadata_source_takes_precedence_over_top_level(self):
+        rag, _, _, _ = _build_rag()
+        raw = [{"id": "1", "content": "chunk", "score": 0.5, "source": "fallback.txt", "metadata": {"source": "primary.txt"}}]
+        hits = rag._raw_to_hits(raw)
+        assert hits[0].source == "primary.txt"
+
+    def test_source_empty_when_neither_present(self):
+        rag, _, _, _ = _build_rag()
+        raw = [{"id": "1", "content": "chunk", "score": 0.5, "metadata": {}}]
+        hits = rag._raw_to_hits(raw)
+        assert hits[0].source == ""
+
 
 class TestRAGEmbedSync:
     def test_embed_via_embed_class(self):
@@ -202,3 +232,36 @@ class TestRAGEmbedSync:
         result = rag._embed.embed(["hello"])
         embed.embed.assert_called_once_with(["hello"])
         assert result == [[0.1, 0.2, 0.3]]
+
+
+class TestRAGAQuery:
+    def test_aquery_returns_query_result(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="Paris is capital.", score=0.9, source="geo.txt", metadata={"source": "geo.txt"}),
+        ])
+        result = asyncio.run(rag.aquery("capital?", generate_fn=lambda p: "Paris"))
+        assert result.answer == "Paris"
+        assert len(result.hits) == 1
+        assert result.sources == ["geo.txt"]
+        assert "Paris is capital." in result.prompt
+        assert "capital?" in result.prompt
+
+    def test_aquery_custom_template(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[
+            SearchHit(content="ctx", score=0.8, source="s1", metadata={"source": "s1"}),
+        ])
+        template = "Info: {context}\nQ: {question}\nA:"
+        result = asyncio.run(rag.aquery("q?", generate_fn=lambda p: "a", prompt_template=template))
+        assert "ctx" in result.prompt
+        assert "Q: q?" in result.prompt
+        assert "A:" in result.prompt
+
+    def test_aquery_empty_results(self):
+        rag, _, store, _ = _build_rag()
+        store.asearch = AsyncMock(return_value=[])
+        result = asyncio.run(rag.aquery("q?", generate_fn=lambda p: "no info"))
+        assert result.answer == "no info"
+        assert result.hits == []
+        assert result.sources == []

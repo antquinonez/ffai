@@ -45,4 +45,13 @@ __all__ = [
 import contextlib
 
 with contextlib.suppress(ImportError):
-    from .rag import Embeddings, RAG, SearchHit, TextChunk  # noqa: F401, I001
+    from .rag import (  # noqa: F401, I001
+        ClientAdapter,
+        DEFAULT_RAG_PROMPT,
+        Embeddings,
+        GenerationResult,
+        QueryResult,
+        RAG,
+        SearchHit,
+        TextChunk,
+    )

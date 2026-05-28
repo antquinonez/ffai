@@ -55,3 +55,8 @@ def _first_of_class(class_name: str):
 @pytest.fixture
 def ffmistralsmall_client():
     return _first_of_class("FFMistralSmall")
+
+
+@pytest.fixture
+def fflitellm_client():
+    return _first_of_class("FFLiteLLMClient")

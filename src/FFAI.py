@@ -35,6 +35,8 @@ from .core.response_options import ResponseOptions
 from .core.response_result import ResponseResult
 from .core.response_utils import clean_response as _clean_response_impl
 from .core.response_utils import extract_json
+from .rag.rag import RAG
+from .rag.types import QueryResult, SearchHit
 
 __all__ = ["FFAI", "extract_json_field", "interpolate_prompt"]
 
@@ -71,6 +73,7 @@ class FFAI:
         auto_persist: bool = False,
         shared_prompt_attr_history: list[dict[str, Any]] | None = None,
         history_lock: threading.Lock | None = None,
+        rag: RAG | None = None,
     ) -> None:
         logger.info("Initializing FFAI wrapper")
 
@@ -81,6 +84,8 @@ class FFAI:
         os.makedirs(self.persist_dir, exist_ok=True)
 
         self.client = client
+        self._rag: RAG | None = None
+        self.rag = rag if rag is not None else (RAG.from_config() if config.rag.enabled else None)
         self._conversation = ConversationManager(client=client)
 
         self._context = ResponseContext(
@@ -112,6 +117,23 @@ class FFAI:
             persist_name=self.persist_name,
             auto_persist=self.auto_persist,
         )
+
+    @property
+    def rag(self) -> RAG | None:
+        """RAG instance for retrieval-augmented generation.
+
+        Setting this property automatically wires the current client
+        as the RAG's default ``generate_fn`` via ``ClientAdapter``.
+        """
+        return self._rag
+
+    @rag.setter
+    def rag(self, value: RAG | None) -> None:
+        self._rag = value
+        if value is not None:
+            from .rag import ClientAdapter
+
+            value.set_generate_fn(ClientAdapter(self.client))
 
     @property
     def prompt_attr_history(self) -> list[dict[str, Any]]:
@@ -151,6 +173,10 @@ class FFAI:
         logger.info(f"Switching client to {client.__class__.__name__}")
         self.client = client
         self._conversation.client = client
+        if self._rag is not None:
+            from .rag import ClientAdapter
+
+            self._rag.set_generate_fn(ClientAdapter(client))
 
     def _extract_json(self, text: str) -> Any | None:
         return extract_json(text)
@@ -284,6 +310,96 @@ class FFAI:
             parsed=exec_result.parsed,
             parsing_errors=exec_result.parsing_errors,
         )
+
+    # ===========================================================================
+    # RAG query
+    # ===========================================================================
+
+    def query(
+        self,
+        question: str,
+        top_k: int = 5,
+        prompt_template: str | None = None,
+        max_context_chars: int | None = None,
+        allow_llm_on_empty: bool = True,
+        generate_timeout: float | None = None,
+        **filters: str,
+    ) -> QueryResult:
+        if self.rag is None:
+            raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
+
+        result = self.rag.query(
+            question,
+            top_k=top_k,
+            prompt_template=prompt_template,
+            max_context_chars=max_context_chars,
+            allow_llm_on_empty=allow_llm_on_empty,
+            generate_timeout=generate_timeout,
+            **filters,  # type: ignore[reportArgumentType]
+        )
+        if not isinstance(result, QueryResult):
+            raise TypeError(f"Expected QueryResult, got {type(result).__name__}")
+        return result
+
+    async def aquery(
+        self,
+        question: str,
+        top_k: int = 5,
+        prompt_template: str | None = None,
+        max_context_chars: int | None = None,
+        allow_llm_on_empty: bool = True,
+        generate_timeout: float | None = None,
+        **filters: str,
+    ) -> QueryResult:
+        if self.rag is None:
+            raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
+
+        result = await self.rag.aquery(
+            question,
+            top_k=top_k,
+            prompt_template=prompt_template,
+            max_context_chars=max_context_chars,
+            allow_llm_on_empty=allow_llm_on_empty,
+            generate_timeout=generate_timeout,
+            **filters,  # type: ignore[reportArgumentType]
+        )
+        if not isinstance(result, QueryResult):
+            raise TypeError(f"Expected QueryResult, got {type(result).__name__}")
+        return result
+
+    # ===========================================================================
+    # RAG management
+    # ===========================================================================
+
+    def index(self, text: str, source: str | None = None, checksum: str | None = None, **metadata: str) -> int:
+        if self.rag is None:
+            raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
+        return self.rag.index(text, source=source, checksum=checksum, **metadata)
+
+    async def aindex(self, text: str, source: str | None = None, checksum: str | None = None, **metadata: str) -> int:
+        if self.rag is None:
+            raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
+        return await self.rag.aindex(text, source=source, checksum=checksum, **metadata)
+
+    def search(self, query: str, top_k: int = 5, **filters: str) -> list[SearchHit]:
+        if self.rag is None:
+            raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
+        return self.rag.search(query, top_k=top_k, **filters)
+
+    async def asearch(self, query: str, top_k: int = 5, **filters: str) -> list[SearchHit]:
+        if self.rag is None:
+            raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
+        return await self.rag.asearch(query, top_k=top_k, **filters)
+
+    def delete(self, source: str) -> None:
+        if self.rag is None:
+            raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
+        self.rag.delete(source)
+
+    def count(self) -> int:
+        if self.rag is None:
+            raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
+        return self.rag.count()
 
     # ===========================================================================
     # Condition & DAG helpers

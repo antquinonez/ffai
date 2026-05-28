@@ -53,6 +53,10 @@ otel = [
 rag = [
     "chromadb>=0.4.0",
 ]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=3.0.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -129,7 +133,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ARG", "SIM", "E712", "F841", "F811", "SIM117", "C401", "PLW", "RET", "RUF"]
-"src/Clients/*" = ["B904", "F841", "UP038", "PLW"]
+"ffai/Clients/*" = ["B904", "F841", "UP038", "PLW"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["ffai"]

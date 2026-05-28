@@ -2,7 +2,22 @@ FFAI Documentation
 ==================
 
 FFAI is a declarative multi-provider AI client with named-prompt context
-assembly, thread-safe parallel execution, and built-in cost/usage tracking.
+assembly, async DAG execution, RAG, agentic tool-call loops, and built-in
+cost/usage tracking.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Getting Started
+
+   quickstart
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Guides
+
+   guides/installation
+   guides/configuration
+   guides/history
 
 .. toctree::
    :maxdepth: 2

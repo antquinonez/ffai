@@ -2,6 +2,36 @@
 
 Declarative multi-provider AI client with named-prompt context assembly, async DAG execution, RAG, agentic tool-call loops, and built-in cost/usage tracking.
 
+## Installation
+
+```bash
+pip install ffai
+```
+
+Or with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv add ffai
+```
+
+Install directly from GitHub:
+
+```bash
+pip install git+https://github.com/antquinonez/ffai.git
+```
+
+### Optional extras
+
+| Extra | pip | uv |
+|-------|-----|----|
+| RAG | `pip install "ffai[rag]"` | `uv add "ffai[rag]"` |
+| OpenTelemetry | `pip install "ffai[otel]"` | `uv add "ffai[otel]"` |
+| Both | `pip install "ffai[rag,otel]"` | `uv add "ffai[rag,otel]"` |
+
+RAG installs ChromaDB for persistent vector storage. OpenTelemetry installs OTLP span export for tracing.
+
+> **Note:** Quotes are required around `ffai[rag]` in zsh and some other shells, since brackets are special characters. Bash does not require quotes.
+
 ## Features
 
 - **Declarative context assembly** — reference earlier responses by name using `{{prompt_name.response}}` interpolation
@@ -686,14 +716,6 @@ With `pip install -e ".[rag]"`, additional RAG exports are available:
 
 - Python >= 3.10
 - See `pyproject.toml` for full dependencies
-
-### Optional: RAG with vector storage
-
-```bash
-pip install -e ".[rag]"
-```
-
-This installs ChromaDB for persistent vector storage. Embeddings work without it (API-based models call the provider directly; local models use `sentence-transformers` via the `local/` prefix).
 
 ## License
 

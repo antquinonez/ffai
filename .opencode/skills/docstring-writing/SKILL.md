@@ -26,8 +26,20 @@ decisions, and how it fits into the broader system.
 """
 ```
 
-Module docstrings appear as the first statement after the copyright header
-and any `from __future__` imports.
+Module docstrings must be the **first statement** in the file for `ast.get_docstring()` to detect them. Place them immediately after the copyright header (or as the very first line if there is no header). They must come **before** `from __future__` imports:
+
+```python
+# Copyright header...
+
+"""Short imperative summary of the module.
+
+Extended description.
+"""
+
+from __future__ import annotations
+
+import os
+```
 
 ### Class docstrings
 
@@ -197,10 +209,19 @@ For one-off additions, use the `edit` tool to insert the docstring as the
 first statement of the function/class body. Match the indentation of the
 existing body.
 
-### Batch docstrings — use the script
+### Audit coverage
 
-For adding multiple docstrings across a file or module, use the project's
-AST-based insertion tool:
+Before starting a docstring pass, run the audit to see what's missing:
+
+```bash
+# Full coverage report
+.venv/bin/python scripts/add_docstrings.py --audit
+
+# Only undocumented targets
+.venv/bin/python scripts/add_docstrings.py --audit --audit-missing
+```
+
+### Batch docstrings — single-line via --map
 
 ```bash
 .venv/bin/python scripts/add_docstrings.py \
@@ -217,7 +238,26 @@ Target syntax:
 
 Always run with `--dry-run` first. Verify the output, then re-run without it.
 
-For multi-line docstrings passed via `--map`, use the programmatic API:
+### Batch docstrings — multi-line via --map-file
+
+For docstrings with Args/Returns sections, use a JSON file:
+
+```json
+{
+    "rag/store.py:VectorStore": "Manage a persistent ChromaDB-backed vector store.\n\nArgs:\n    collection_name: ChromaDB collection name.\n    dir: Persistence directory.",
+    "rag/store.py:VectorStore.count": "Return the total number of stored documents.\n\nReturns:\n    Document count."
+}
+```
+
+```bash
+.venv/bin/python scripts/add_docstrings.py --map-file docstrings.json --dry-run
+```
+
+You can combine `--map` and `--map-file` in the same invocation.
+
+### Programmatic API
+
+For complex multi-line docstrings from within another script:
 
 ```python
 from add_docstrings import apply_docstrings

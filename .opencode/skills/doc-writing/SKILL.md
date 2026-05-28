@@ -154,3 +154,60 @@ print(result.cost_usd)       # 3e-06
 ### Skipping the "boring" blocks
 
 Configuration-only blocks (`register_model_defaults`, `set_client`, `clear_conversation`) are often the ones that rot first because nobody tests them. Run them too — a renamed parameter or changed import will break them just as dead as the fancy examples.
+
+## Tutorial Writing
+
+Tutorials are a distinct documentation type from API reference and guides. A tutorial teaches a skill through a hands-on, end-to-end walkthrough. A guide explains how to accomplish a specific task. Both are needed, but tutorials come first in the reader's journey.
+
+### DW-T1: Tutorial structure
+
+Every tutorial follows this structure:
+
+1. **Title and goal** — one sentence saying what the reader will build or learn
+2. **Prerequisites** — what the reader needs installed, configured, or understood before starting
+3. **Setup** — copy-paste-ready code to get to a working starting point
+4. **Steps** — numbered, incremental, each building on the last
+5. **Complete listing** — the full working code assembled from all steps
+6. **Next steps** — links to related tutorials, guides, or API reference
+
+### DW-T2: Every step must be independently runnable
+
+Each numbered step must leave the reader with working code. If step 3 introduces a bug, the reader should not have to complete step 5 to discover it. Run each step in isolation to verify.
+
+### DW-T3: Show the output, not just the code
+
+Every step must show expected output. Readers use output to verify they're on track. For LLM-generated content, show structural output (types, field names, shapes) and mark variable content as illustrative.
+
+### DW-T4: Progressive complexity
+
+Start with the simplest working version. Add complexity one concept at a time. Do not introduce error handling, configuration, or optimization until the basic version works.
+
+Wrong order: setup client → configure retries → handle errors → make first API call
+Right order: make first API call → add configuration → add error handling → add retries
+
+### DW-T5: Use a consistent running example
+
+One dataset, one domain, one scenario throughout the tutorial. Switching contexts mid-tutorial forces the reader to re-orient. Good running examples: a FAQ bot, a document search tool, a code review pipeline.
+
+### DW-T6: Tutorials go in `docs/sphinx/source/tutorials/`
+
+File naming: `docs/sphinx/source/tutorials/<topic>.rst`. Each tutorial is a single RST file. Link from `docs/sphinx/source/index.rst` under a `Tutorials` toctree caption.
+
+### DW-T7: Guide structure
+
+Guides explain how to accomplish a specific task. They assume the reader has completed the quickstart. Structure:
+
+1. **Title** — task-oriented ("Indexing Documents for RAG", not "RAG Indexing API")
+2. **Overview** — 2-3 sentences on what this guide covers
+3. **Steps** — numbered or headed sections, each focused on one sub-task
+4. **Reference** — links to relevant API docs
+
+Guides go in `docs/sphinx/source/guides/<topic>.rst`.
+
+### DW-T8: DRY between tutorials, guides, and README
+
+The README contains a quickstart. Tutorials expand on it. Guides reference tutorials. Do not duplicate full code blocks across all three. Instead:
+- README: minimal working example (3-5 lines)
+- Quickstart: extended example with explanation
+- Tutorial: full end-to-end with setup, steps, and complete listing
+- Guide: task-focused snippets with links to tutorials for full context

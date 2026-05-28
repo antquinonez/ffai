@@ -675,7 +675,7 @@ With `pip install -e ".[rag]"`, additional RAG exports are available:
 | `Embeddings` | `src.rag.embed` |
 | `SearchHit` | `src.rag.types` |
 | `QueryResult` | `src.rag.types` |
-| `TextChunk` | `src.rag.types` |
+| `TextChunk` | `src.rag.splitters.base` |
 | `ClientAdapter` | `src.rag.client_adapter` |
 | `DEFAULT_RAG_PROMPT` | `src.rag.prompts` |
 | `GenerationResult` | `src.rag.types` |

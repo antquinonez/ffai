@@ -1,4 +1,4 @@
-from src.ConversationHistory import ConversationHistory
+from ffai.ConversationHistory import ConversationHistory
 
 
 class TestConversationHistoryInit:
@@ -92,12 +92,12 @@ class TestGetTurns:
 
 class TestShimImport:
     def test_import_from_shim_module(self):
-        from src.core.history.conversation import ConversationHistory as Direct
+        from ffai.core.history.conversation import ConversationHistory as Direct
 
         assert ConversationHistory is Direct
 
 
-from src.core.history.ordered import OrderedPromptHistory  # noqa: E402
+from ffai.core.history.ordered import OrderedPromptHistory  # noqa: E402
 
 
 class TestOrderedPromptHistoryTuplePromptName:

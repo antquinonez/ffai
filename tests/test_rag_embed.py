@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.rag.embed import Embeddings
+from ffai.rag.embed import Embeddings
 
 
 class TestEmbeddingsInit:

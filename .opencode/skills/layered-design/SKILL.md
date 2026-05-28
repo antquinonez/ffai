@@ -91,7 +91,7 @@ Each layer document must include:
 3. **Show actual code.** Every design must include the actual function
    signatures, dataclass definitions, and import paths that will be used.
    Not pseudocode.
-4. **Specify import paths exactly.** Write `from src.core.graph import ...`
+4. **Specify import paths exactly.** Write `from ffai.core.graph import ...`
    not `import the graph module`.
 5. **Address `__init__.py`** in each layer.
 

@@ -4,10 +4,10 @@
 
 import time
 
-from src.core.history.ordered import OrderedPromptHistory
-from src.core.history.permanent import PermanentHistory
-from src.core.history.recorder import HistoryRecorder
-from src.core.response_context import ResponseContext
+from ffai.core.history.ordered import OrderedPromptHistory
+from ffai.core.history.permanent import PermanentHistory
+from ffai.core.history.recorder import HistoryRecorder
+from ffai.core.response_context import ResponseContext
 
 
 class TestHistoryRecorderRecord:

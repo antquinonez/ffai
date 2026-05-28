@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.core.execution_state import ExecutionState
-from src.core.graph import (
+from ffai.core.execution_state import ExecutionState
+from ffai.core.graph import (
     build_execution_graph,
     build_execution_graph_with_edges,
     evaluate_condition,
@@ -14,7 +14,7 @@ from src.core.graph import (
     get_ready_prompts,
     is_abort_trigger,
 )
-from src.core.prompt_node import PromptNode
+from ffai.core.prompt_node import PromptNode
 
 
 def _make_prompts():

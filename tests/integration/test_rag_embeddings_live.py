@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from src.rag.embed import Embeddings
+from ffai.rag.embed import Embeddings
 
 pytestmark = pytest.mark.integration
 

@@ -2,13 +2,13 @@
 # SPDX-License-Identifier: MIT
 # Contact: antquinonez@farfiner.com
 
-from src.core.graph_execution_helpers import (
+from ffai.core.graph_execution_helpers import (
     build_graph_history_dict,
     check_abort_condition,
     resolve_graph_prompt,
     should_skip_for_failed_deps,
 )
-from src.core.prompt_node import PromptNode
+from ffai.core.prompt_node import PromptNode
 
 
 class TestBuildGraphHistoryDict:

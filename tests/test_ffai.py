@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.core.response_options import ResponseOptions
+from ffai.core.response_options import ResponseOptions
 
 
 class TestFFAIInit:
@@ -14,7 +14,7 @@ class TestFFAIInit:
 
     def test_init_basic(self, mock_ffmistralsmall):
         """Test basic FFAI initialization."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -25,7 +25,7 @@ class TestFFAIInit:
 
     def test_init_with_persistence(self, mock_ffmistralsmall, tmp_path):
         """Test FFAI initialization with persistence options."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(
             mock_ffmistralsmall,
@@ -40,7 +40,7 @@ class TestFFAIInit:
 
     def test_init_creates_persist_dir(self, mock_ffmistralsmall, tmp_path):
         """Test that persist_dir is created if it doesn't exist."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         new_dir = str(tmp_path / "new_persist_dir")
 
@@ -59,7 +59,7 @@ class TestFFAIGenerateResponse:
 
     def test_generate_response_basic(self, mock_ffmistralsmall):
         """Test basic response generation."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         result = ffai.generate_response("Hello!")
@@ -69,7 +69,7 @@ class TestFFAIGenerateResponse:
 
     def test_generate_response_with_prompt_name(self, mock_ffmistralsmall):
         """Test response generation with prompt_name."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         response = ffai.generate_response("Hello!", prompt_name="greeting")
@@ -78,7 +78,7 @@ class TestFFAIGenerateResponse:
 
     def test_generate_response_with_history(self, mock_ffmistralsmall):
         """Test response generation with history dependencies."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -95,7 +95,7 @@ class TestFFAIGenerateResponse:
 
     def test_generate_response_adds_to_permanent_history(self, mock_ffmistralsmall):
         """Test that responses are added to permanent history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Hello!")
@@ -106,7 +106,7 @@ class TestFFAIGenerateResponse:
 
     def test_generate_response_with_model_override(self, mock_ffmistralsmall):
         """Test overriding model."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Hello!", options=ResponseOptions(model="custom-model"))
@@ -119,7 +119,7 @@ class TestFFAIHistoryAccess:
 
     def test_get_interaction_history(self, mock_ffmistralsmall):
         """Test getting interaction history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="a")
@@ -132,7 +132,7 @@ class TestFFAIHistoryAccess:
 
     def test_get_clean_interaction_history(self, mock_ffmistralsmall):
         """Test getting clean interaction history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Hello!", prompt_name="test")
@@ -143,7 +143,7 @@ class TestFFAIHistoryAccess:
 
     def test_get_prompt_attr_history(self, mock_ffmistralsmall):
         """Test getting prompt attribute history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Hello!", prompt_name="test")
@@ -154,7 +154,7 @@ class TestFFAIHistoryAccess:
 
     def test_get_latest_interaction(self, mock_ffmistralsmall):
         """Test getting latest interaction."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("First", prompt_name="a")
@@ -167,7 +167,7 @@ class TestFFAIHistoryAccess:
 
     def test_get_latest_interaction_empty(self, mock_ffmistralsmall):
         """Test getting latest interaction when history is empty."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         latest = ffai.get_latest_interaction()
@@ -176,7 +176,7 @@ class TestFFAIHistoryAccess:
 
     def test_get_latest_interaction_by_prompt_name(self, mock_ffmistralsmall):
         """Test getting latest interaction by prompt name."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="qa")
@@ -190,7 +190,7 @@ class TestFFAIHistoryAccess:
 
     def test_get_last_n_interactions(self, mock_ffmistralsmall):
         """Test getting last N interactions."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         for i in range(5):
@@ -207,8 +207,8 @@ class TestFFAIClientManagement:
 
     def test_set_client(self, mock_ffmistralsmall):
         """Test switching clients."""
-        from src.Clients.FFMistralSmall import FFMistralSmall
-        from src.FFAI import FFAI
+        from ffai.Clients.FFMistralSmall import FFMistralSmall
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -220,7 +220,7 @@ class TestFFAIClientManagement:
 
     def test_clear_conversation(self, mock_ffmistralsmall):
         """Test clearing conversation."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Hello!")
@@ -234,7 +234,7 @@ class TestFFAIClientConversationHistory:
 
     def test_get_client_conversation_history(self, mock_ffmistralsmall):
         """Test getting raw client conversation history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         mock_ffmistralsmall.conversation_history = [{"role": "user", "content": "test"}]
@@ -245,7 +245,7 @@ class TestFFAIClientConversationHistory:
 
     def test_set_client_conversation_history(self, mock_ffmistralsmall):
         """Test setting raw client conversation history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         new_history = [{"role": "user", "content": "new"}]
@@ -257,7 +257,7 @@ class TestFFAIClientConversationHistory:
 
     def test_add_client_message(self, mock_ffmistralsmall):
         """Test adding a message to client conversation history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -272,7 +272,7 @@ class TestFFAIDataFrameExport:
 
     def test_history_to_dataframe(self, mock_ffmistralsmall):
         """Test converting history to DataFrame."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Hello!", prompt_name="test")
@@ -287,7 +287,7 @@ class TestFFAIDataFrameExport:
 
     def test_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty history to DataFrame."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         df = ffai.history_to_dataframe()
@@ -296,7 +296,7 @@ class TestFFAIDataFrameExport:
 
     def test_search_history_by_text(self, mock_ffmistralsmall):
         """Test searching history by text."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("What is machine learning?", prompt_name="ml")
@@ -309,7 +309,7 @@ class TestFFAIDataFrameExport:
 
     def test_search_history_by_prompt_name(self, mock_ffmistralsmall):
         """Test searching history by prompt name."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="qa")
@@ -321,7 +321,7 @@ class TestFFAIDataFrameExport:
 
     def test_get_model_usage_stats(self, mock_ffmistralsmall):
         """Test getting model usage statistics."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
@@ -334,7 +334,7 @@ class TestFFAIDataFrameExport:
 
     def test_get_prompt_name_usage_stats(self, mock_ffmistralsmall):
         """Test getting prompt name usage statistics."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="qa")
@@ -352,7 +352,7 @@ class TestFFAICleanResponse:
 
     def test_clean_response_preserves_normal_text(self, mock_ffmistralsmall):
         """Test that normal text is preserved in responses."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         mock_ffmistralsmall.generate_response = lambda prompt, **kwargs: "Normal response text"
 
@@ -367,7 +367,7 @@ class TestFFAISystemInstructions:
 
     def test_get_system_instructions(self, mock_ffmistralsmall):
         """Test getting system instructions from client."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         mock_ffmistralsmall.system_instructions = "Be helpful."
         ffai = FFAI(mock_ffmistralsmall)
@@ -378,7 +378,7 @@ class TestFFAISystemInstructions:
 
     def test_get_system_instructions_none(self, mock_ffmistralsmall):
         """Test getting system instructions when client has none."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         delattr(mock_ffmistralsmall, "system_instructions")
         ffai = FFAI(mock_ffmistralsmall)
@@ -393,7 +393,7 @@ class TestFFAIClientHistorySuspension:
 
     def test_declarative_history_suspends_client_history(self, mock_ffmistralsmall):
         """Verify client history is empty during call when history parameter is provided."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -412,7 +412,7 @@ class TestFFAIClientHistorySuspension:
 
     def test_client_history_restored_after_declarative_call(self, mock_ffmistralsmall):
         """Verify client history is restored after a call with declarative context."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -430,7 +430,7 @@ class TestFFAIClientHistorySuspension:
 
     def test_no_history_param_accumulates_client_history(self, mock_ffmistralsmall):
         """Verify backward compatibility: no history param means client history accumulates."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -445,7 +445,7 @@ class TestFFAIClientHistorySuspension:
 
     def test_empty_history_list_suspends_client_history(self, mock_ffmistralsmall):
         """Verify that history=[] also suspends client history (edge case)."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -458,7 +458,7 @@ class TestFFAIClientHistorySuspension:
 
     def test_ffai_history_still_records_with_declarative_context(self, mock_ffmistralsmall):
         """Verify FFAI's tracking structures still record turns even when client history is suspended."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -475,7 +475,7 @@ class TestFFAIClientHistorySuspension:
 
     def test_mixed_calls_declarative_and_normal(self, mock_ffmistralsmall):
         """Test mixing calls with and without declarative context."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -500,7 +500,7 @@ class TestFFAIClientHistorySuspension:
 
     def test_api_receives_no_client_history_during_suspension(self, mock_ffmistralsmall):
         """Verify the API call receives empty client history when suspended."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -540,7 +540,7 @@ class TestFFAIClientHistorySuspension:
 
     def test_api_receives_full_client_history_when_not_suspended(self, mock_ffmistralsmall):
         """Verify the API call receives full client history when NOT using declarative context."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -570,7 +570,7 @@ class TestFFAIClientHistorySuspension:
 
     def test_interpolation_suspends_client_history(self, mock_ffmistralsmall):
         """Verify that {{name.response}} interpolation also suspends client history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -590,7 +590,7 @@ class TestFFAIClientHistorySuspension:
 
     def test_no_interpolation_no_history_keeps_client_history(self, mock_ffmistralsmall):
         """Verify that a plain prompt without interpolation accumulates client history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -610,7 +610,7 @@ class TestFFAIExtractJson:
 
     def test_extract_json_plain_json(self, mock_ffmistralsmall):
         """Test extracting plain JSON (starts with valid JSON in first 20 chars)."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         result = ffai._extract_json('{"key": "value"}')
@@ -619,7 +619,7 @@ class TestFFAIExtractJson:
 
     def test_extract_json_short_object(self, mock_ffmistralsmall):
         """Test extracting short JSON object."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         result = ffai._extract_json('{"a": 1}')
@@ -628,7 +628,7 @@ class TestFFAIExtractJson:
 
     def test_extract_json_no_json_in_first_20(self, mock_ffmistralsmall):
         """Test extracts JSON from markdown via json_repair."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         result = ffai._extract_json('```json\n{"key": "value"}\n```')
@@ -637,7 +637,7 @@ class TestFFAIExtractJson:
 
     def test_extract_json_no_json(self, mock_ffmistralsmall):
         """Test returns None when no JSON found."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         result = ffai._extract_json("This is just plain text")
@@ -650,7 +650,7 @@ class TestFFAICleanResponseExtended:
 
     def test_clean_response_removes_think_tags(self, mock_ffmistralsmall):
         """Test removing think tags from response."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         # Use proper think tag format with closing >
@@ -661,7 +661,7 @@ class TestFFAICleanResponseExtended:
 
     def test_clean_response_non_string(self, mock_ffmistralsmall):
         """Test non-string response is returned as-is."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         result = ffai._clean_response({"already": "dict"})
@@ -670,7 +670,7 @@ class TestFFAICleanResponseExtended:
 
     def test_clean_response_dict_with_think_tags(self, mock_ffmistralsmall):
         """Test cleaning think tags from dict values."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         # JSON with think tags in value (short enough to be in first 20 chars)
@@ -680,7 +680,7 @@ class TestFFAICleanResponseExtended:
 
     def test_clean_response_json_array(self, mock_ffmistralsmall):
         """Test response with JSON array returns as-is."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         # JSON arrays starting in first 20 chars
@@ -690,7 +690,7 @@ class TestFFAICleanResponseExtended:
 
     def test_clean_response_no_json(self, mock_ffmistralsmall):
         """Test plain text response without JSON."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         result = ffai._clean_response("Just plain text")
@@ -703,7 +703,7 @@ class TestFFAIBuildPrompt:
 
     def test_build_prompt_no_history(self, mock_ffmistralsmall):
         """Test building prompt without history returns original."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         result, interpolated = ffai.build_prompt("Test prompt", history=None)
@@ -713,7 +713,7 @@ class TestFFAIBuildPrompt:
 
     def test_build_prompt_empty_history_list(self, mock_ffmistralsmall):
         """Test building prompt with empty history list."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         result, interpolated = ffai.build_prompt("Test prompt", history=[])
@@ -723,7 +723,7 @@ class TestFFAIBuildPrompt:
 
     def test_build_prompt_with_matching_history(self, mock_ffmistralsmall):
         """Test building prompt with matching history entries."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai._context.prompt_attr_history.extend(
@@ -740,7 +740,7 @@ class TestFFAIBuildPrompt:
 
     def test_build_prompt_missing_history_entry(self, mock_ffmistralsmall):
         """Test building prompt with missing history entry."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -751,7 +751,7 @@ class TestFFAIBuildPrompt:
 
     def test_build_prompt_multiple_history_entries(self, mock_ffmistralsmall):
         """Test building prompt with multiple history entries."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai._context.prompt_attr_history.extend(
@@ -771,7 +771,7 @@ class TestFFAIBuildPrompt:
 
     def test_build_prompt_uses_latest_matching(self, mock_ffmistralsmall):
         """Test uses latest entry when multiple matches exist."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai._context.prompt_attr_history.extend(
@@ -793,7 +793,7 @@ class TestVariableInterpolation:
 
     def test_interpolate_basic(self, mock_ffmistralsmall):
         """Test basic {{prompt.response}} interpolation."""
-        from src.FFAI import interpolate_prompt
+        from ffai.FFAI import interpolate_prompt
 
         history = {"q1": "Answer from Q1"}
         prompt = "Based on: {{q1.response}}"
@@ -805,7 +805,7 @@ class TestVariableInterpolation:
 
     def test_interpolate_multiple(self, mock_ffmistralsmall):
         """Test multiple interpolation patterns."""
-        from src.FFAI import interpolate_prompt
+        from ffai.FFAI import interpolate_prompt
 
         history = {"q1": "A1", "q2": "A2"}
         prompt = "Q1: {{q1.response}}\nQ2: {{q2.response}}"
@@ -818,7 +818,7 @@ class TestVariableInterpolation:
 
     def test_interpolate_json_field(self, mock_ffmistralsmall):
         """Test {{prompt.response.field}} JSON extraction."""
-        from src.FFAI import interpolate_prompt
+        from ffai.FFAI import interpolate_prompt
 
         history = {"q1": '{"name": "test", "value": 42}'}
         prompt = "Name: {{q1.response.name}}, Value: {{q1.response.value}}"
@@ -830,7 +830,7 @@ class TestVariableInterpolation:
 
     def test_interpolate_nested_json(self, mock_ffmistralsmall):
         """Test nested JSON field extraction."""
-        from src.FFAI import interpolate_prompt
+        from ffai.FFAI import interpolate_prompt
 
         history = {"q1": '{"outer": {"inner": "nested_value"}}'}
         prompt = "Result: {{q1.response.outer.inner}}"
@@ -842,7 +842,7 @@ class TestVariableInterpolation:
 
     def test_interpolate_array_index(self, mock_ffmistralsmall):
         """Test array index extraction."""
-        from src.FFAI import interpolate_prompt
+        from ffai.FFAI import interpolate_prompt
 
         history = {"q1": '{"items": ["first", "second", "third"]}'}
         prompt = "First: {{q1.response.items.0}}, Second: {{q1.response.items.1}}"
@@ -854,7 +854,7 @@ class TestVariableInterpolation:
 
     def test_interpolate_missing_prompt(self, mock_ffmistralsmall):
         """Test interpolation with missing prompt reference replaces with empty string."""
-        from src.FFAI import interpolate_prompt
+        from ffai.FFAI import interpolate_prompt
 
         history = {"q1": "A1"}
         prompt = "Missing: {{q2.response}}"
@@ -866,7 +866,7 @@ class TestVariableInterpolation:
 
     def test_interpolate_invalid_json_field(self, mock_ffmistralsmall):
         """Test interpolation with invalid JSON field."""
-        from src.FFAI import interpolate_prompt
+        from ffai.FFAI import interpolate_prompt
 
         history = {"q1": '{"name": "test"}'}
         prompt = "Missing: {{q1.response.nonexistent}}"
@@ -878,7 +878,7 @@ class TestVariableInterpolation:
 
     def test_interpolate_no_patterns(self, mock_ffmistralsmall):
         """Test prompt without interpolation patterns."""
-        from src.FFAI import interpolate_prompt
+        from ffai.FFAI import interpolate_prompt
 
         history = {"q1": "A1"}
         prompt = "Just a regular prompt"
@@ -890,7 +890,7 @@ class TestVariableInterpolation:
 
     def test_extract_json_field(self, mock_ffmistralsmall):
         """Test extract_json_field helper."""
-        from src.FFAI import extract_json_field
+        from ffai.FFAI import extract_json_field
 
         data = {"name": "test", "nested": {"value": 42}}
         assert extract_json_field(data, "name") == "test"
@@ -900,7 +900,7 @@ class TestVariableInterpolation:
 
     def test_extract_json_field_array(self, mock_ffmistralsmall):
         """Test extract_json_field with arrays."""
-        from src.FFAI import extract_json_field
+        from ffai.FFAI import extract_json_field
 
         data = {"items": ["a", "b", "c"], "nested": {"arr": [1, 2, 3]}}
         assert extract_json_field(data, "items.0") == "a"
@@ -914,7 +914,7 @@ class TestFFAIGenerateResponseExtended:
 
     def test_generate_response_with_dependencies_dedup(self, mock_ffmistralsmall):
         """Test dependencies are deduplicated."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="a")
@@ -924,7 +924,7 @@ class TestFFAIGenerateResponseExtended:
 
     def test_generate_response_json_response_stores_attrs(self, mock_ffmistralsmall):
         """Test JSON response stores attributes separately."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         # Return JSON that starts immediately (in first 20 chars)
         mock_ffmistralsmall.generate_response = lambda prompt, **kwargs: '{"a":"1","b":"2"}'
@@ -942,7 +942,7 @@ class TestFFAIGenerateResponseExtended:
         """Test system instructions are passed to client."""
         from unittest.mock import MagicMock
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         mock_ffmistralsmall.generate_response = MagicMock(return_value="response")
         ffai = FFAI(mock_ffmistralsmall)
@@ -957,7 +957,7 @@ class TestFFAIGenerateResponseExtended:
         import threading
         from unittest.mock import MagicMock
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         lock = MagicMock(spec=threading.Lock)
         lock.__enter__ = MagicMock(return_value=None)
@@ -974,7 +974,7 @@ class TestFFAIHistoryAccessExtended:
 
     def test_get_interaction(self, mock_ffmistralsmall):
         """Test getting interaction by sequence number."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="a")
@@ -987,7 +987,7 @@ class TestFFAIHistoryAccessExtended:
 
     def test_get_interaction_not_found(self, mock_ffmistralsmall):
         """Test getting non-existent interaction."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
@@ -998,7 +998,7 @@ class TestFFAIHistoryAccessExtended:
 
     def test_get_model_interactions(self, mock_ffmistralsmall):
         """Test getting interactions by model."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
@@ -1010,7 +1010,7 @@ class TestFFAIHistoryAccessExtended:
 
     def test_get_interactions_by_prompt_name_ordered(self, mock_ffmistralsmall):
         """Test getting interactions by prompt name from ordered history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="qa")
@@ -1023,7 +1023,7 @@ class TestFFAIHistoryAccessExtended:
 
     def test_get_prompt_history(self, mock_ffmistralsmall):
         """Test getting all prompts."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
@@ -1035,7 +1035,7 @@ class TestFFAIHistoryAccessExtended:
 
     def test_get_response_history(self, mock_ffmistralsmall):
         """Test getting all responses."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
@@ -1047,7 +1047,7 @@ class TestFFAIHistoryAccessExtended:
 
     def test_get_all_interactions(self, mock_ffmistralsmall):
         """Test getting all interactions."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
@@ -1059,7 +1059,7 @@ class TestFFAIHistoryAccessExtended:
 
     def test_get_prompt_dict(self, mock_ffmistralsmall):
         """Test getting history as dictionary keyed by prompts."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="a")
@@ -1072,7 +1072,7 @@ class TestFFAIHistoryAccessExtended:
 
     def test_get_latest_responses_by_prompt_names(self, mock_ffmistralsmall):
         """Test getting latest responses by prompt names."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="a")
@@ -1085,7 +1085,7 @@ class TestFFAIHistoryAccessExtended:
 
     def test_get_formatted_responses(self, mock_ffmistralsmall):
         """Test getting formatted responses."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="a")
@@ -1102,7 +1102,7 @@ class TestFFAIClientConversationHistoryErrors:
         """Test getting history when client lacks method."""
         from unittest.mock import MagicMock
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         # Create a client without the method
         client = MagicMock(spec=[])  # Empty spec means no attributes
@@ -1114,7 +1114,7 @@ class TestFFAIClientConversationHistoryErrors:
 
     def test_get_client_conversation_history_exception(self, mock_ffmistralsmall):
         """Test getting history when exception occurs."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         def raise_error():
             raise Exception("Error")
@@ -1130,7 +1130,7 @@ class TestFFAIClientConversationHistoryErrors:
         """Test setting history when client lacks method."""
         from unittest.mock import MagicMock
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         # Create a client without the method
         client = MagicMock(spec=[])
@@ -1142,7 +1142,7 @@ class TestFFAIClientConversationHistoryErrors:
 
     def test_set_client_conversation_history_exception(self, mock_ffmistralsmall):
         """Test setting history when exception occurs."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         def raise_error(history):
             raise Exception("Error")
@@ -1156,7 +1156,7 @@ class TestFFAIClientConversationHistoryErrors:
 
     def test_add_client_message_exception(self, mock_ffmistralsmall):
         """Test adding message when exception occurs."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         def raise_error(history):
             raise Exception("Error")
@@ -1174,7 +1174,7 @@ class TestFFAIDataFrameExtended:
 
     def test_clean_history_to_dataframe(self, mock_ffmistralsmall):
         """Test converting clean history to DataFrame."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Hello!", prompt_name="test")
@@ -1187,7 +1187,7 @@ class TestFFAIDataFrameExtended:
 
     def test_clean_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty clean history to DataFrame."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         df = ffai.clean_history_to_dataframe()
@@ -1196,7 +1196,7 @@ class TestFFAIDataFrameExtended:
 
     def test_prompt_attr_history_to_dataframe(self, mock_ffmistralsmall):
         """Test converting prompt attr history to DataFrame."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Hello!", prompt_name="test")
@@ -1208,7 +1208,7 @@ class TestFFAIDataFrameExtended:
 
     def test_prompt_attr_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty prompt attr history to DataFrame."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         df = ffai.prompt_attr_history_to_dataframe()
@@ -1217,7 +1217,7 @@ class TestFFAIDataFrameExtended:
 
     def test_ordered_history_to_dataframe(self, mock_ffmistralsmall):
         """Test converting ordered history to DataFrame."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Hello!", prompt_name="test")
@@ -1229,7 +1229,7 @@ class TestFFAIDataFrameExtended:
 
     def test_ordered_history_to_dataframe_empty(self, mock_ffmistralsmall):
         """Test converting empty ordered history to DataFrame."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         df = ffai.ordered_history_to_dataframe()
@@ -1238,7 +1238,7 @@ class TestFFAIDataFrameExtended:
 
     def test_search_history_by_model(self, mock_ffmistralsmall):
         """Test searching history by model."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
@@ -1252,7 +1252,7 @@ class TestFFAIDataFrameExtended:
         """Test searching history by time range."""
         import time
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         start = time.time()
@@ -1265,7 +1265,7 @@ class TestFFAIDataFrameExtended:
 
     def test_search_history_empty_result(self, mock_ffmistralsmall):
         """Test searching history with no matches."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
@@ -1276,7 +1276,7 @@ class TestFFAIDataFrameExtended:
 
     def test_get_model_stats_df(self, mock_ffmistralsmall):
         """Test getting model stats as DataFrame."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
@@ -1290,7 +1290,7 @@ class TestFFAIDataFrameExtended:
 
     def test_get_prompt_name_stats_df(self, mock_ffmistralsmall):
         """Test getting prompt name stats as DataFrame."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="a")
@@ -1304,7 +1304,7 @@ class TestFFAIDataFrameExtended:
 
     def test_get_response_length_stats(self, mock_ffmistralsmall):
         """Test getting response length stats."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", prompt_name="a")
@@ -1318,7 +1318,7 @@ class TestFFAIDataFrameExtended:
 
     def test_get_response_length_stats_empty(self, mock_ffmistralsmall):
         """Test getting response length stats with empty history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         df = ffai.get_response_length_stats()
@@ -1327,7 +1327,7 @@ class TestFFAIDataFrameExtended:
 
     def test_interaction_counts_by_date(self, mock_ffmistralsmall):
         """Test getting interaction counts by date."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1")
@@ -1340,7 +1340,7 @@ class TestFFAIDataFrameExtended:
 
     def test_interaction_counts_by_date_empty(self, mock_ffmistralsmall):
         """Test getting interaction counts with empty history."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         df = ffai.interaction_counts_by_date()
@@ -1349,7 +1349,7 @@ class TestFFAIDataFrameExtended:
 
     def test_history_to_dataframe_with_dict_response(self, mock_ffmistralsmall):
         """Test converting history with dict response."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         mock_ffmistralsmall.generate_response = lambda prompt, **kwargs: '{"key": "value"}'
         ffai = FFAI(mock_ffmistralsmall)
@@ -1366,7 +1366,7 @@ class TestFFAIPersistence:
 
     def test_persist_all_histories(self, mock_ffmistralsmall, tmp_path):
         """Test persisting all histories."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(
             mock_ffmistralsmall,
@@ -1383,7 +1383,7 @@ class TestFFAIPersistence:
 
     def test_persist_all_histories_no_name(self, mock_ffmistralsmall, tmp_path):
         """Test persisting without name returns False."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall, persist_dir=str(tmp_path))
         ffai.generate_response("Q1")
@@ -1394,7 +1394,7 @@ class TestFFAIPersistence:
 
     def test_auto_persist_enabled(self, mock_ffmistralsmall, tmp_path):
         """Test auto-persist writes file."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(
             mock_ffmistralsmall,
@@ -1416,7 +1416,7 @@ class TestFFAIInitExtended:
         """Test initialization with shared prompt_attr_history."""
         import threading
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         shared_history = []
         lock = threading.Lock()
@@ -1436,7 +1436,7 @@ class TestFFAIGenerateResponseException:
 
     def test_generate_response_exception(self, mock_ffmistralsmall):
         """Test exception during response generation."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         def raise_error(prompt, **kwargs):
             raise Exception("API error")
@@ -1450,7 +1450,7 @@ class TestFFAIGenerateResponseException:
 
     def test_generate_response_with_dependencies(self, mock_ffmistralsmall):
         """Test generate_response with dependencies parameter."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.generate_response("Q1", options=ResponseOptions(dependencies=["dep1", "dep2"]))
@@ -1465,7 +1465,7 @@ class TestFFAITimestampConversion:
         """Test timestamp conversion."""
         import polars as pl
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         df = pl.DataFrame({"timestamp": [1700000000.0], "other": ["a"]})
@@ -1478,7 +1478,7 @@ class TestFFAITimestampConversion:
         """Test conversion when no timestamp column."""
         import polars as pl
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         df = pl.DataFrame({"other": ["a"]})
@@ -1493,7 +1493,7 @@ class TestFFAIAddClientMessageWithKwargs:
 
     def test_add_client_message_with_kwargs(self, mock_ffmistralsmall):
         """Test adding message with additional kwargs."""
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
 
@@ -1505,7 +1505,7 @@ class TestFFAIAddClientMessageWithKwargs:
 
 class TestFFAIPromptAttrHistorySetter:
     def test_setter_delegates_to_context(self, mock_ffmistralsmall):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.prompt_attr_history = [{"test": True}]
@@ -1514,7 +1514,7 @@ class TestFFAIPromptAttrHistorySetter:
 
 class TestFFAIBuildPromptPublicAPI:
     def test_build_prompt_interpolates_dependencies(self, mock_ffmistralsmall):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai._context.record("original", "hello", "test-model", "name")
@@ -1527,7 +1527,7 @@ class TestFFAIResponseFormatPassthrough:
     def test_response_format_passed_to_client(self, mock_ffmistralsmall):
         from unittest.mock import MagicMock
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         mock_ffmistralsmall.generate_response = MagicMock(return_value="response")
         ffai = FFAI(mock_ffmistralsmall)
@@ -1540,7 +1540,7 @@ class TestFFAIAddClientMessageError:
     def test_add_client_message_returns_false_on_exception(self, mock_ffmistralsmall):
         from unittest.mock import MagicMock
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         ffai.get_client_conversation_history = MagicMock(side_effect=RuntimeError("boom"))
@@ -1557,7 +1557,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Sentiment(BaseModel):
             label: str
@@ -1580,7 +1580,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Score(BaseModel):
             value: int
@@ -1600,7 +1600,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Strict(BaseModel):
             score: int
@@ -1620,7 +1620,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Item(BaseModel):
             name: str
@@ -1642,7 +1642,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Result(BaseModel):
             answer: str
@@ -1660,7 +1660,7 @@ class TestFFAIStructuredOutput:
         assert result.parsed.answer == "42"
 
     def test_structured_output_parsed_none_without_model(self, mock_ffmistralsmall):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         result = ffai.generate_response("Hello!")
@@ -1674,7 +1674,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Output(BaseModel):
             text: str
@@ -1694,7 +1694,7 @@ class TestFFAIStructuredOutput:
         assert result.parsed.text == "hello"
 
     def test_structured_output_invalid_model_type(self, mock_ffmistralsmall):
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         ffai = FFAI(mock_ffmistralsmall)
         with pytest.raises(TypeError, match="Pydantic BaseModel"):
@@ -1706,7 +1706,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Val(BaseModel):
             x: int
@@ -1727,7 +1727,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Simple(BaseModel):
             val: str
@@ -1749,7 +1749,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Simple(BaseModel):
             val: str
@@ -1771,7 +1771,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Score(BaseModel):
             value: int
@@ -1803,7 +1803,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Val(BaseModel):
             x: int
@@ -1833,7 +1833,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Val(BaseModel):
             x: int
@@ -1863,7 +1863,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Item(BaseModel):
             name: str
@@ -1888,7 +1888,7 @@ class TestFFAIStructuredOutput:
 
         from pydantic import BaseModel
 
-        from src.FFAI import FFAI
+        from ffai.FFAI import FFAI
 
         class Simple(BaseModel):
             val: str

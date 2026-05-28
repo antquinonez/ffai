@@ -6,7 +6,7 @@ import threading
 from typing import Any
 from unittest.mock import MagicMock
 
-from src.core.conversation_manager import ConversationManager
+from ffai.core.conversation_manager import ConversationManager
 
 
 def _make_client(history: list[dict[str, Any]] | None = None) -> MagicMock:

@@ -96,7 +96,7 @@ When the codebase changes (new fields, renamed parameters, changed defaults), re
 
 ### DW-14: Export table module paths must point to the definition site
 
-When documenting a "Symbol → Module" table, verify each module path points to where the symbol is **defined**, not just where it's **importable from**. Re-exports through `__init__.py` make every chain resolve, so `from src.rag import TextChunk` works even though `TextChunk` is defined in `src.rag.splitters.base`, not `src.rag.types`. Import testing alone won't catch this — you must read the actual definition file.
+When documenting a "Symbol → Module" table, verify each module path points to where the symbol is **defined**, not just where it's **importable from**. Re-exports through `__init__.py` make every chain resolve, so `from ffai.rag import TextChunk` works even though `TextChunk` is defined in `ffai.rag.splitters.base`, not `ffai.rag.types`. Import testing alone won't catch this — you must read the actual definition file.
 
 This applies to all structured reference tables: Public API, exports, type tables, and constructor parameter tables.
 

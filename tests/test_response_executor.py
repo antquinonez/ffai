@@ -9,9 +9,9 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import BaseModel
 
-from src.core.execution_result import ExecutionResult
-from src.core.response_executor import ResponseExecutor
-from src.core.response_options import ResponseOptions
+from ffai.core.execution_result import ExecutionResult
+from ffai.core.response_executor import ResponseExecutor
+from ffai.core.response_options import ResponseOptions
 
 
 def _make_executor(

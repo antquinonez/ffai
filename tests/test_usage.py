@@ -7,7 +7,7 @@ class TestTokenUsage:
     """Tests for TokenUsage dataclass."""
 
     def test_default_values(self):
-        from src.core.usage import TokenUsage
+        from ffai.core.usage import TokenUsage
 
         usage = TokenUsage()
         assert usage.input_tokens == 0
@@ -15,7 +15,7 @@ class TestTokenUsage:
         assert usage.total_tokens == 0
 
     def test_custom_values(self):
-        from src.core.usage import TokenUsage
+        from ffai.core.usage import TokenUsage
 
         usage = TokenUsage(input_tokens=100, output_tokens=50, total_tokens=150)
         assert usage.input_tokens == 100
@@ -23,7 +23,7 @@ class TestTokenUsage:
         assert usage.total_tokens == 150
 
     def test_addition(self):
-        from src.core.usage import TokenUsage
+        from ffai.core.usage import TokenUsage
 
         a = TokenUsage(input_tokens=100, output_tokens=50, total_tokens=150)
         b = TokenUsage(input_tokens=200, output_tokens=75, total_tokens=275)
@@ -33,7 +33,7 @@ class TestTokenUsage:
         assert result.total_tokens == 425
 
     def test_addition_does_not_mutate(self):
-        from src.core.usage import TokenUsage
+        from ffai.core.usage import TokenUsage
 
         a = TokenUsage(input_tokens=100, output_tokens=50, total_tokens=150)
         b = TokenUsage(input_tokens=200, output_tokens=75, total_tokens=275)
@@ -46,7 +46,7 @@ class TestClientBaseUsage:
     """Tests for usage metadata on FFAIClientBase."""
 
     def test_reset_usage(self, concrete_client):
-        from src.core.usage import TokenUsage
+        from ffai.core.usage import TokenUsage
 
         concrete_client._last_usage = TokenUsage(input_tokens=10, output_tokens=5, total_tokens=15)
         concrete_client._last_cost_usd = 0.001
@@ -66,9 +66,9 @@ class TestClientBaseRetryFallback:
     def test_fallback_defaults_when_config_unavailable(self):
         from unittest.mock import patch
 
-        from src.core.client_base import FFAIClientBase
+        from ffai.core.client_base import FFAIClientBase
 
-        with patch("src.config.get_config", side_effect=Exception("no config")):
+        with patch("ffai.config.get_config", side_effect=Exception("no config")):
             defaults = FFAIClientBase.get_default_retry_config()
 
         assert defaults["max_attempts"] == 3
@@ -84,7 +84,7 @@ class TestClientBaseAbstractMethodBodies:
 
     @staticmethod
     def _make_delegating_client():
-        from src.core.client_base import FFAIClientBase
+        from ffai.core.client_base import FFAIClientBase
 
         class DelegatingClient(FFAIClientBase):
             model = "test"
@@ -132,7 +132,7 @@ class TestClientBaseRetryConfigFromSettings:
     def test_reads_from_config_retry_attribute(self):
         from unittest.mock import MagicMock, patch
 
-        from src.core.client_base import FFAIClientBase
+        from ffai.core.client_base import FFAIClientBase
 
         mock_config = MagicMock()
         mock_retry = MagicMock()
@@ -144,7 +144,7 @@ class TestClientBaseRetryConfigFromSettings:
         mock_retry.log_level = "DEBUG"
         mock_config.retry = mock_retry
 
-        with patch("src.config.get_config", return_value=mock_config):
+        with patch("ffai.config.get_config", return_value=mock_config):
             result = FFAIClientBase.get_default_retry_config()
 
         assert result["max_attempts"] == 5
@@ -157,12 +157,12 @@ class TestClientBaseRetryConfigFromSettings:
     def test_returns_defaults_when_retry_is_none(self):
         from unittest.mock import MagicMock, patch
 
-        from src.core.client_base import FFAIClientBase
+        from ffai.core.client_base import FFAIClientBase
 
         mock_config = MagicMock()
         mock_config.retry = None
 
-        with patch("src.config.get_config", return_value=mock_config):
+        with patch("ffai.config.get_config", return_value=mock_config):
             result = FFAIClientBase.get_default_retry_config()
 
         assert result["max_attempts"] == 3
@@ -180,7 +180,7 @@ class TestClientBaseConfigureRetry:
         mock_config = MagicMock()
         mock_config.retry = None
 
-        with patch("src.config.get_config", return_value=mock_config):
+        with patch("ffai.config.get_config", return_value=mock_config):
             concrete_client.configure_retry(None)
 
         assert concrete_client.retry_config is not None

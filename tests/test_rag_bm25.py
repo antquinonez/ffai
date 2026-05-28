@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.rag.indexing.bm25 import BM25Index
+from ffai.rag.indexing.bm25 import BM25Index
 
 
 class TestBM25Init:

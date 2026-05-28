@@ -1,6 +1,6 @@
 import json
 
-from src.core.prompt_utils import extract_json_field, interpolate_prompt
+from ffai.core.prompt_utils import extract_json_field, interpolate_prompt
 
 
 class TestExtractJsonField:

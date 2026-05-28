@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.Clients.FFLiteLLMClient import FFLiteLLMClient
-from src.FFAIClientBase import FFAIClientBase
+from ffai.Clients.FFLiteLLMClient import FFLiteLLMClient
+from ffai.FFAIClientBase import FFAIClientBase
 
 
 class TestFFLiteLLMClientContract:
@@ -169,7 +169,7 @@ class TestFFLiteLLMClientClone:
 class TestFFLiteLLMClientGenerateResponse:
     """Test generate_response method."""
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_generate_response_basic(self, mock_completion):
         """Should call LiteLLM completion and return response."""
         mock_response = MagicMock()
@@ -183,7 +183,7 @@ class TestFFLiteLLMClientGenerateResponse:
         assert response == "Hello back!"
         mock_completion.assert_called_once()
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_generate_response_adds_to_history(self, mock_completion):
         """Should add prompt and response to history."""
         mock_response = MagicMock()
@@ -199,7 +199,7 @@ class TestFFLiteLLMClientGenerateResponse:
         assert client.conversation_history[0]["content"] == "Question"
         assert client.conversation_history[1]["role"] == "assistant"
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_generate_response_with_model_override(self, mock_completion):
         """Should use model override when provided."""
         mock_response = MagicMock()
@@ -213,7 +213,7 @@ class TestFFLiteLLMClientGenerateResponse:
         call_args = mock_completion.call_args
         assert call_args[1]["model"] == "anthropic/claude-3-haiku"
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_generate_response_with_temperature_override(self, mock_completion):
         """Should use temperature override when provided."""
         mock_response = MagicMock()
@@ -227,7 +227,7 @@ class TestFFLiteLLMClientGenerateResponse:
         call_args = mock_completion.call_args
         assert call_args[1]["temperature"] == 0.3
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_generate_response_with_tool_calls_adds_tool_history(self, mock_completion):
         """Tool-call responses should preserve tool_calls in history for agent mode."""
         mock_response = MagicMock()
@@ -264,7 +264,7 @@ class TestFFLiteLLMClientGenerateResponse:
             assistant_message["tool_calls"][0]["function"]["arguments"] == '{"expression": "2 + 2"}'
         )
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_generate_response_with_tool_calls_none_content(self, mock_completion):
         """Tool-call responses with no textual content should not crash."""
         mock_response = MagicMock()
@@ -305,7 +305,7 @@ class TestFFLiteLLMClientGenerateResponse:
 class TestFFLiteLLMClientFallbacks:
     """Test fallback model behavior."""
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_fallback_on_primary_failure(self, mock_completion):
         """Should try fallback when primary fails."""
         mock_response = MagicMock()
@@ -322,7 +322,7 @@ class TestFFLiteLLMClientFallbacks:
         assert response == "Fallback response"
         assert mock_completion.call_count == 2
 
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_all_fallbacks_fail_raises(self, mock_completion):
         """Should raise when all models fail."""
         mock_completion.side_effect = Exception("All failed")
@@ -395,13 +395,13 @@ class TestFFLiteLLMClientToolResult:
 
 class TestFFLiteLLMClientConfigFallback:
     def test_retry_config_fallback_on_exception(self):
-        with patch("src.config.get_config", side_effect=Exception("no config")):
+        with patch("ffai.config.get_config", side_effect=Exception("no config")):
             client = FFLiteLLMClient(model_string="openai/gpt-4")
         assert client._retry_config == {"max_attempts": 3}
 
 
 class TestFFLiteLLMClientModelOverrideWithProviderPrefix:
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_model_override_with_provider_prefix(self, mock_completion):
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -416,7 +416,7 @@ class TestFFLiteLLMClientModelOverrideWithProviderPrefix:
 
 
 class TestFFLiteLLMClientApiBasePassthrough:
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_api_base_passthrough(self, mock_completion):
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -431,7 +431,7 @@ class TestFFLiteLLMClientApiBasePassthrough:
 
 
 class TestFFLiteLLMClientApiVersionPassthrough:
-    @patch("src.Clients.FFLiteLLMClient.completion")
+    @patch("ffai.Clients.FFLiteLLMClient.completion")
     def test_api_version_passthrough(self, mock_completion):
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]

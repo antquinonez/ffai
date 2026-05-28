@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.retry_utils import (
+from ffai.retry_utils import (
     RETRYABLE_EXCEPTIONS,
     RateLimitError,
     ServiceUnavailableError,
@@ -284,7 +284,7 @@ class TestGetConfiguredRetryDecorator:
         mock_config = MagicMock()
         mock_config.retry = mock_retry
 
-        with patch("src.config.get_config", return_value=mock_config):
+        with patch("ffai.config.get_config", return_value=mock_config):
             call_count = 0
 
             @get_configured_retry_decorator()
@@ -310,7 +310,7 @@ class TestGetConfiguredRetryDecorator:
     def test_handles_config_import_error(self):
         from unittest.mock import patch
 
-        with patch("src.config.get_config", side_effect=Exception("no config")):
+        with patch("ffai.config.get_config", side_effect=Exception("no config")):
             call_count = 0
 
             @get_configured_retry_decorator()

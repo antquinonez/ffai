@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from src.rag.splitters.base import HierarchicalTextChunk, TextChunk
-from src.rag.splitters.character import CharacterChunker
-from src.rag.splitters.code import CodeChunker
-from src.rag.splitters.factory import CHUNKER_REGISTRY, chunk_text, get_chunker, list_chunkers
-from src.rag.splitters.hierarchical import HierarchicalChunker
-from src.rag.splitters.markdown import MarkdownChunker
-from src.rag.splitters.recursive import RecursiveChunker
+from ffai.rag.splitters.base import HierarchicalTextChunk, TextChunk
+from ffai.rag.splitters.character import CharacterChunker
+from ffai.rag.splitters.code import CodeChunker
+from ffai.rag.splitters.factory import CHUNKER_REGISTRY, chunk_text, get_chunker, list_chunkers
+from ffai.rag.splitters.hierarchical import HierarchicalChunker
+from ffai.rag.splitters.markdown import MarkdownChunker
+from ffai.rag.splitters.recursive import RecursiveChunker
 
 
 class TestTextChunk:

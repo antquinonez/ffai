@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.rag.types import SearchHit
+from ffai.rag.types import SearchHit
 
 
 def _make_mock_chromadb():
@@ -24,16 +24,16 @@ def _make_mock_chromadb():
 @contextmanager
 def _patch_store(mock_chromadb):
     with (
-        patch("src.rag.store.CHROMADB_AVAILABLE", True),
-        patch("src.rag.store.chromadb", mock_chromadb),
-        patch("src.rag.store.Settings", mock_chromadb.config.Settings),
+        patch("ffai.rag.store.CHROMADB_AVAILABLE", True),
+        patch("ffai.rag.store.chromadb", mock_chromadb),
+        patch("ffai.rag.store.Settings", mock_chromadb.config.Settings),
     ):
         yield
 
 
 class TestVectorStoreInit:
     def test_creates_collection(self):
-        from src.rag.store import VectorStore
+        from ffai.rag.store import VectorStore
         mock_chromadb, mock_client, _ = _make_mock_chromadb()
         with _patch_store(mock_chromadb):
             store = VectorStore("test_col", dir="/tmp/test")
@@ -41,15 +41,15 @@ class TestVectorStoreInit:
             assert store.collection_name == "test_col"
 
     def test_raises_when_chromadb_unavailable(self):
-        from src.rag.store import VectorStore
-        with patch("src.rag.store.CHROMADB_AVAILABLE", False):
+        from ffai.rag.store import VectorStore
+        with patch("ffai.rag.store.CHROMADB_AVAILABLE", False):
             with pytest.raises(ImportError, match="chromadb"):
                 VectorStore("test")
 
 
 class TestVectorStoreSearch:
     def test_asearch_returns_search_hits(self):
-        from src.rag.store import VectorStore
+        from ffai.rag.store import VectorStore
         mock_chromadb, _, mock_col = _make_mock_chromadb()
         mock_col.query.return_value = {
             "ids": [["id1"]],
@@ -69,7 +69,7 @@ class TestVectorStoreSearch:
 
 class TestVectorStoreAdd:
     def test_aadd_stores_chunks(self):
-        from src.rag.store import VectorStore
+        from ffai.rag.store import VectorStore
         mock_chromadb, _, mock_col = _make_mock_chromadb()
         with _patch_store(mock_chromadb):
             store = VectorStore("test", dir="/tmp/test")
@@ -83,7 +83,7 @@ class TestVectorStoreAdd:
 
 class TestVectorStoreLifecycle:
     def test_delete_by_source(self):
-        from src.rag.store import VectorStore
+        from ffai.rag.store import VectorStore
         mock_chromadb, _, mock_col = _make_mock_chromadb()
         with _patch_store(mock_chromadb):
             store = VectorStore("test", dir="/tmp/test")
@@ -91,7 +91,7 @@ class TestVectorStoreLifecycle:
             mock_col.delete.assert_called_once_with(where={"source": "doc1"})
 
     def test_count(self):
-        from src.rag.store import VectorStore
+        from ffai.rag.store import VectorStore
         mock_chromadb, _, mock_col = _make_mock_chromadb()
         mock_col.count.return_value = 42
         with _patch_store(mock_chromadb):
@@ -99,7 +99,7 @@ class TestVectorStoreLifecycle:
             assert store.count() == 42
 
     def test_list_sources(self):
-        from src.rag.store import VectorStore
+        from ffai.rag.store import VectorStore
         mock_chromadb, _, mock_col = _make_mock_chromadb()
         mock_col.get.return_value = {
             "ids": ["1", "2"],
@@ -110,7 +110,7 @@ class TestVectorStoreLifecycle:
             assert store.list_sources() == ["a", "b"]
 
     def test_needs_reindex_true_when_not_found(self):
-        from src.rag.store import VectorStore
+        from ffai.rag.store import VectorStore
         mock_chromadb, _, mock_col = _make_mock_chromadb()
         mock_col.get.return_value = {"metadatas": []}
         with _patch_store(mock_chromadb):
@@ -118,7 +118,7 @@ class TestVectorStoreLifecycle:
             assert store.needs_reindex("doc1", "abc") is True
 
     def test_needs_reindex_false_when_match(self):
-        from src.rag.store import VectorStore
+        from ffai.rag.store import VectorStore
         mock_chromadb, _, mock_col = _make_mock_chromadb()
         mock_col.get.return_value = {"metadatas": [{"document_checksum": "abc"}]}
         with _patch_store(mock_chromadb):

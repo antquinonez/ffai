@@ -21,11 +21,11 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.Clients.FFLiteLLMClient import FFLiteLLMClient
-from src.config import Config
-from src.core.execution_state import ExecutionState
-from src.core.graph import build_execution_graph_with_edges, get_ready_prompts
-from src.FFAI import FFAI
+from ffai.Clients.FFLiteLLMClient import FFLiteLLMClient
+from ffai.config import Config
+from ffai.core.execution_state import ExecutionState
+from ffai.core.graph import build_execution_graph_with_edges, get_ready_prompts
+from ffai.FFAI import FFAI
 
 
 def print_section(title: str) -> None:
@@ -44,7 +44,7 @@ def main() -> None:
     mock_client = MagicMock(spec=FFLiteLLMClient)
     mock_client.model = "mistral/mistral-small-latest"
 
-    with patch("src.FFAI.get_config", return_value=mock_config):
+    with patch("ffai.FFAI.get_config", return_value=mock_config):
         ffai = FFAI(mock_client)
 
     # ------------------------------------------------------------------

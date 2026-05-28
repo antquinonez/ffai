@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.core.response_options import ResponseOptions
+from ffai.core.response_options import ResponseOptions
 
 
 @pytest.fixture
@@ -22,9 +22,9 @@ def mock_client():
 
 @pytest.fixture
 def ffai(mock_client):
-    with patch("src.FFAI.get_config"):
-        from src.config import Config
-        from src.FFAI import FFAI
+    with patch("ffai.FFAI.get_config"):
+        from ffai.config import Config
+        from ffai.FFAI import FFAI
 
         mock_config = MagicMock(spec=Config)
         mock_config.paths = MagicMock()
@@ -32,7 +32,7 @@ def ffai(mock_client):
         mock_config.rag = MagicMock()
         mock_config.rag.enabled = False
 
-        with patch("src.FFAI.get_config", return_value=mock_config):
+        with patch("ffai.FFAI.get_config", return_value=mock_config):
             return FFAI(mock_client)
 
 
@@ -183,7 +183,7 @@ class TestStrictMode:
 
 class TestResponseResultExtended:
     def test_default_status(self):
-        from src.core.response_result import ResponseResult
+        from ffai.core.response_result import ResponseResult
 
         result = ResponseResult(response="ok")
         assert result.status == "success"
@@ -193,7 +193,7 @@ class TestResponseResultExtended:
         assert result.parsing_errors is None
 
     def test_skipped_status(self):
-        from src.core.response_result import ResponseResult
+        from ffai.core.response_result import ResponseResult
 
         result = ResponseResult(response=None, status="skipped", condition_trace='"failed" == "success"')
         assert result.status == "skipped"

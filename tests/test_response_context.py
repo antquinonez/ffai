@@ -1,6 +1,6 @@
 import threading
 
-from src.core.response_context import ResponseContext
+from ffai.core.response_context import ResponseContext
 
 
 class TestResponseContextInit:

@@ -368,13 +368,13 @@ class FFMistralSmall(FFAIClientBase):
             logger.info("Testing connection to Mistral API")
 
             # Make a simple request to test the connection
-            response = self.client.chat.complete(
+            self.client.chat.complete(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "Test connection"},
                     {"role": "user", "content": "Hello"},
                 ],
-                max_tokens=5,  # Keep it minimal for quicker response
+                max_tokens=5,
             )
 
             logger.info("Connection successful")

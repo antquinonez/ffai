@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 
-from src.core.condition_evaluator import (
+from ffai.core.condition_evaluator import (
     ConditionEvaluator,
     _parse_llm_json,
     _safe_json_get,

@@ -1,8 +1,8 @@
 import pytest
 
-from src.core.client_base import FFAIClientBase
-from src.core.response_options import ResponseOptions
-from src.FFAI import FFAI
+from ffai.core.client_base import FFAIClientBase
+from ffai.core.response_options import ResponseOptions
+from ffai.FFAI import FFAI
 
 pytestmark = pytest.mark.integration
 

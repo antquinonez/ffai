@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.core.client_base import FFAIClientBase
+from ffai.core.client_base import FFAIClientBase
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -55,7 +55,7 @@ def mock_openai_client(mock_openai_response):
 @pytest.fixture
 def mock_ffmistralsmall(mock_mistral_client):
     """Mock FFMistralSmall instance."""
-    from src.Clients.FFMistralSmall import FFMistralSmall
+    from ffai.Clients.FFMistralSmall import FFMistralSmall
 
     with patch.object(FFMistralSmall, "_initialize_client", return_value=mock_mistral_client):
         client = FFMistralSmall(

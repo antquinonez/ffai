@@ -30,7 +30,7 @@ from generate_api_docs import PUBLIC_MODULES  # noqa: E402
 def _grouped_modules() -> dict[str, list[str]]:
     groups: dict[str, list[str]] = {}
     for mod in PUBLIC_MODULES:
-        short = mod.removeprefix("src.")
+        short = mod.removeprefix("ffai.")
         parts = short.split(".")
         prefix = parts[0] if len(parts) > 1 else short
         groups.setdefault(prefix, []).append(short)
@@ -53,7 +53,7 @@ def generate_api_index() -> None:
 
 
 def generate_module_rst(module_name: str) -> None:
-    short = module_name.removeprefix("src.")
+    short = module_name.removeprefix("ffai.")
 
     try:
         mod = importlib.import_module(module_name)
@@ -74,7 +74,7 @@ def generate_module_rst(module_name: str) -> None:
             continue
         defining = getattr(obj, "__module__", "")
         if defining and defining != module_name and not defining.startswith(
-            "src." + module_name.removeprefix("src.") + "."
+            "ffai." + module_name.removeprefix("ffai.") + "."
         ):
             continue
         if inspect.isclass(obj):

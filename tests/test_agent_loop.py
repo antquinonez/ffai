@@ -1,10 +1,10 @@
 import time
 from unittest.mock import MagicMock
 
-from src.agent.agent_loop import AgentLoop
-from src.agent.agent_result import AgentResult, ToolCallRecord
-from src.core.client_base import FFAIClientBase
-from src.tools.tool_registry import ToolDefinition, ToolRegistry
+from ffai.agent.agent_loop import AgentLoop
+from ffai.agent.agent_result import AgentResult, ToolCallRecord
+from ffai.core.client_base import FFAIClientBase
+from ffai.tools.tool_registry import ToolDefinition, ToolRegistry
 
 
 def _make_mock_client(responses):

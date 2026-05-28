@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.rag.search.query_expansion import QueryExpander, fuse_search_results
+from ffai.rag.search.query_expansion import QueryExpander, fuse_search_results
 
 
 class TestQueryExpander:

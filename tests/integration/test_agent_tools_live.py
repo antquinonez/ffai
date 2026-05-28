@@ -2,10 +2,10 @@ import json
 
 import pytest
 
-from src.agent.agent_loop import AgentLoop
-from src.agent.agent_result import AgentResult
-from src.Clients.FFMistralSmall import FFMistralSmall
-from src.tools.tool_registry import ToolDefinition, ToolRegistry
+from ffai.agent.agent_loop import AgentLoop
+from ffai.agent.agent_result import AgentResult
+from ffai.Clients.FFMistralSmall import FFMistralSmall
+from ffai.tools.tool_registry import ToolDefinition, ToolRegistry
 
 pytestmark = pytest.mark.integration
 

@@ -1,7 +1,7 @@
 import polars as pl
 
-from src.core.history_exporter import HistoryExporter
-from src.OrderedPromptHistory import OrderedPromptHistory
+from ffai.core.history_exporter import HistoryExporter
+from ffai.OrderedPromptHistory import OrderedPromptHistory
 
 
 def _make_records(n=3):

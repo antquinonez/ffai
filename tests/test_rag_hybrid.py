@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.rag.search.hybrid import HybridSearch, reciprocal_rank_fusion
+from ffai.rag.search.hybrid import HybridSearch, reciprocal_rank_fusion
 
 
 def _vector_fn(query: str, n: int) -> list[dict]:

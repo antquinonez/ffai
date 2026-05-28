@@ -17,7 +17,7 @@ from __future__ import annotations
 import pytest
 from pydantic_core import ValidationError
 
-from src.config import Config, RetryConfig, get_config, reload_config
+from ffai.config import Config, RetryConfig, get_config, reload_config
 
 
 class TestConfigPrecedence:
@@ -282,7 +282,7 @@ class TestClientsConfigMethods:
     """Test ClientsConfig active methods."""
 
     def test_get_client_type_returns_config(self):
-        from src.config import ClientsConfig, ClientTypeConfig
+        from ffai.config import ClientsConfig, ClientTypeConfig
 
         cc = ClientsConfig(
             client_types={
@@ -301,13 +301,13 @@ class TestClientsConfigMethods:
         assert result.provider_prefix == "custom/"
 
     def test_get_client_type_returns_none_for_missing(self):
-        from src.config import ClientsConfig
+        from ffai.config import ClientsConfig
 
         cc = ClientsConfig()
         assert cc.get_client_type("missing") is None
 
     def test_get_available_client_types_returns_keys(self):
-        from src.config import ClientsConfig, ClientTypeConfig
+        from ffai.config import ClientsConfig, ClientTypeConfig
 
         cc = ClientsConfig(
             client_types={
@@ -323,7 +323,7 @@ class TestConfigGetYamlHelpers:
     """Test _find_config_dir fallback and _load_yaml_file missing file."""
 
     def test_find_config_dir_finds_project_config(self):
-        from src.config import _find_config_dir
+        from ffai.config import _find_config_dir
 
         result = _find_config_dir()
         assert result.name == "config"
@@ -331,7 +331,7 @@ class TestConfigGetYamlHelpers:
         assert (result / "main.yaml").exists()
 
     def test_load_yaml_file_missing_returns_empty(self, tmp_path, monkeypatch):
-        from src.config import _load_yaml_file
+        from ffai.config import _load_yaml_file
 
         monkeypatch.chdir(tmp_path)
         result = _load_yaml_file("does_not_exist.yaml")
@@ -359,7 +359,7 @@ class TestConfigLoggingRotation:
     """Test logging rotation sub-config."""
 
     def test_rotation_defaults(self):
-        from src.config import LoggingRotationConfig
+        from ffai.config import LoggingRotationConfig
 
         r = LoggingRotationConfig()
         assert r.when == "midnight"

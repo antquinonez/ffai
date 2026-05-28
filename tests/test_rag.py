@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.rag.rag import RAG
-from src.rag.types import SearchHit
+from ffai.rag.rag import RAG
+from ffai.rag.types import SearchHit
 
 
 def _make_mock_embed():
@@ -34,7 +34,7 @@ def _build_rag(**kwargs):
         MagicMock(content="chunk 1", chunk_index=0, metadata={"source": "doc1"}),
         MagicMock(content="chunk 2", chunk_index=1, metadata={"source": "doc1"}),
     ]
-    with patch("src.rag.rag.get_chunker", return_value=mock_chunker):
+    with patch("ffai.rag.rag.get_chunker", return_value=mock_chunker):
         rag = RAG(embed=embed, store=store, **kwargs)
     return rag, embed, store, mock_chunker
 
@@ -47,14 +47,14 @@ class TestRAGInit:
 
     def test_string_embed_creates_instance(self):
         mock_chunker = MagicMock()
-        with patch("src.rag.rag.get_chunker", return_value=mock_chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=mock_chunker):
             rag = RAG(embed="mistral/mistral-embed")
             assert rag._embed.model == "mistral/mistral-embed"
 
     def test_no_store_chunk_only_mode(self):
         mock_chunker = MagicMock()
         mock_chunker.chunk.return_value = []
-        with patch("src.rag.rag.get_chunker", return_value=mock_chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=mock_chunker):
             rag = RAG(embed="mistral/mistral-embed")
             assert rag._store is None
             assert rag.count() == 0
@@ -93,7 +93,7 @@ class TestRAGSearch:
 
     def test_returns_empty_without_store_or_bm25(self):
         mock_chunker = MagicMock()
-        with patch("src.rag.rag.get_chunker", return_value=mock_chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=mock_chunker):
             rag = RAG(embed=_make_mock_embed())
         assert rag.search("query") == []
 
@@ -238,7 +238,7 @@ class TestRAGDedup:
         embed = _make_mock_embed()
         chunker = MagicMock()
         chunker.chunk.return_value = [MagicMock(content="c1", metadata={"source": "s"})]
-        with patch("src.rag.rag.get_chunker", return_value=chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
             rag = RAG(embed=embed, bm25_alpha=0.6)
         result = rag.index("text", source="s1", checksum="abc")
         assert result == 1
@@ -487,7 +487,7 @@ class TestRAGBM25OnlySearch:
             MagicMock(content="async programming in python", chunk_index=0, metadata={"source": "tutorial"}),
             MagicMock(content="synchronous code blocks", chunk_index=1, metadata={"source": "tutorial"}),
         ]
-        with patch("src.rag.rag.get_chunker", return_value=chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
             rag = RAG(embed=embed, bm25_alpha=0.6)
         rag.index("some text", source="tutorial")
         hits = rag.search("async programming")
@@ -500,7 +500,7 @@ class TestRAGBM25OnlySearch:
         chunker.chunk.return_value = [
             MagicMock(content="chunk text", chunk_index=0, metadata={"source": "doc"}),
         ]
-        with patch("src.rag.rag.get_chunker", return_value=chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
             rag = RAG(embed=embed, bm25_alpha=0.6)
         rag.index("text", source="doc")
         assert rag.count() == 1
@@ -511,7 +511,7 @@ class TestRAGBM25OnlySearch:
         chunker.chunk.return_value = [
             MagicMock(content="Python uses async await for coroutines.", chunk_index=0, metadata={"source": "tutorial"}),
         ]
-        with patch("src.rag.rag.get_chunker", return_value=chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
             rag = RAG(embed=embed, bm25_alpha=0.6)
         rag.index("text", source="tutorial")
         result = rag.query("What are coroutines?", generate_fn=lambda p: "async functions")
@@ -525,7 +525,7 @@ class TestRAGBM25OnlySearch:
         chunker.chunk.return_value = [
             MagicMock(content="chunk text", chunk_index=0, metadata={"source": "doc1"}),
         ]
-        with patch("src.rag.rag.get_chunker", return_value=chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
             rag = RAG(embed=embed, bm25_alpha=0.6)
         rag.index("text", source="doc1")
         assert rag.count() == 1
@@ -539,7 +539,7 @@ class TestRAGBM25OnlySearch:
             [MagicMock(content="python async programming", chunk_index=0, metadata={"source": "tutorial"})],
             [MagicMock(content="python async programming", chunk_index=0, metadata={"source": "api_docs"})],
         ]
-        with patch("src.rag.rag.get_chunker", return_value=chunker):
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
             rag = RAG(embed=embed, bm25_alpha=0.6)
         rag.index("text", source="tutorial")
         rag.index("text", source="api_docs")
@@ -549,24 +549,24 @@ class TestRAGBM25OnlySearch:
 
 class TestRAGFromConfig:
     def test_from_config_creates_bm25_only_by_default(self):
-        with patch("src.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
             rag = RAG.from_config()
         assert rag._store is None
         assert rag._bm25 is not None
 
     def test_from_config_uses_config_values(self):
-        with patch("src.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
             rag = RAG.from_config(bm25_alpha=0.8)
         assert rag._bm25_alpha == 0.8
 
     def test_from_config_bm25_only_skips_store(self):
-        with patch("src.rag.rag.CHROMADB_AVAILABLE", True):
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", True):
             rag = RAG.from_config(bm25_only=True)
         assert rag._store is None
         assert rag._bm25 is not None
 
     def test_from_config_overrides_take_precedence(self):
-        with patch("src.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
             rag = RAG.from_config(chunk_size=200, chunk_overlap=20)
         assert rag._chunker_name == "recursive"
         sample = "word " * 300

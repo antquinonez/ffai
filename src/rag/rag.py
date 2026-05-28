@@ -17,7 +17,7 @@ from .search.query_expansion import fuse_search_results
 from .search.rerankers import RerankerBase
 from .splitters import TextChunk, get_chunker
 from .store import CHROMADB_AVAILABLE, VectorStore
-from .types import QueryResult, SearchHit
+from .types import GenerationResult, QueryResult, SearchHit
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,7 @@ class RAG:
         bm25_alpha: float | None = None,
         reranker: str | None = None,
         query_expander: Callable[[str], list[str]] | None = None,
+        generate_fn: Callable[[str], str | GenerationResult] | None = None,
     ) -> None:
         if isinstance(embed, str):
             embed = Embeddings(model=embed)
@@ -48,6 +49,7 @@ class RAG:
         self._bm25_rrf_k: int = 60
         self._reranker: RerankerBase | None = None
         self._query_expander = query_expander
+        self._generate_fn = generate_fn
 
         if bm25_alpha is not None:
             self._bm25 = BM25Index()
@@ -55,6 +57,9 @@ class RAG:
 
         if reranker is not None:
             self._reranker = get_reranker(reranker)
+
+        if self._query_expander is not None and self._generate_fn is not None:
+            self._wire_query_expander()
 
     @classmethod
     def from_config(
@@ -87,6 +92,17 @@ class RAG:
             kwargs["bm25_alpha"] = 0.6
 
         return cls(**kwargs)
+
+    def set_generate_fn(self, generate_fn: Callable[[str], str | GenerationResult]) -> None:
+        self._generate_fn = generate_fn
+        if self._query_expander is not None:
+            self._wire_query_expander()
+
+    def _wire_query_expander(self) -> None:
+        from .search.query_expansion import QueryExpander
+
+        if isinstance(self._query_expander, QueryExpander) and self._generate_fn is not None:
+            self._query_expander.set_llm_function(self._generate_fn)
 
     def index(
         self,
@@ -211,10 +227,12 @@ class RAG:
     def query(
         self,
         question: str,
-        generate_fn: Callable[[str], str],
+        generate_fn: Callable[[str], str | GenerationResult] | None = None,
         top_k: int = 5,
         prompt_template: str | None = None,
         max_context_chars: int | None = None,
+        allow_llm_on_empty: bool = True,
+        generate_timeout: float | None = None,
         **filters: str,
     ) -> QueryResult:
         """Retrieve context and generate an answer (sync wrapper).
@@ -224,16 +242,21 @@ class RAG:
         return run_sync(self.aquery(
             question, generate_fn=generate_fn, top_k=top_k,
             prompt_template=prompt_template,
-            max_context_chars=max_context_chars, **filters,
+            max_context_chars=max_context_chars,
+            allow_llm_on_empty=allow_llm_on_empty,
+            generate_timeout=generate_timeout,
+            **filters,
         ))
 
     async def aquery(
         self,
         question: str,
-        generate_fn: Callable[[str], str],
+        generate_fn: Callable[[str], str | GenerationResult] | None = None,
         top_k: int = 5,
         prompt_template: str | None = None,
         max_context_chars: int | None = None,
+        allow_llm_on_empty: bool = True,
+        generate_timeout: float | None = None,
         **filters: str,
     ) -> QueryResult:
         """Retrieve context and generate an answer.
@@ -246,7 +269,8 @@ class RAG:
         Args:
             question: The user question.
             generate_fn: A sync callable that takes the formatted prompt
-                and returns an answer string.
+                and returns an answer string or ``GenerationResult``.
+                When ``None``, uses the default set on the RAG instance.
             top_k: Number of search results to retrieve.
             prompt_template: Must contain ``{context}`` and ``{question}``
                 placeholders. Unknown placeholders resolve to empty string.
@@ -256,19 +280,53 @@ class RAG:
                 line (source, relevance) that counts toward the budget,
                 so small values may exclude all content. ``None`` means
                 no limit.
+            allow_llm_on_empty: When ``False`` and no search hits are
+                found, skip the LLM call and return an empty
+                ``QueryResult``. Defaults to ``True`` (backward compat).
+            generate_timeout: Maximum seconds to wait for ``generate_fn``
+                to complete. Raises ``TimeoutError`` if exceeded. The
+                underlying LLM request continues running in its thread
+                (cannot be cancelled), so the API cost may still be
+                incurred. Defaults to ``None`` (no timeout).
             **filters: Passed through to the vector store ``where`` clause.
 
         Returns:
             A ``QueryResult`` with the answer, search hits, deduplicated
-            sources, and the full prompt sent to ``generate_fn``.
+            sources, the full prompt sent to ``generate_fn``, and
+            generation metadata (usage, cost, duration).
         """
+        fn = generate_fn or self._generate_fn
+        if fn is None:
+            raise ValueError(
+                "generate_fn not provided and no default set on RAG. "
+                "Pass generate_fn= or use FFAI.query()."
+            )
         hits = await self.asearch(question, top_k=top_k, **filters)
+        if not hits and not allow_llm_on_empty:
+            return QueryResult(
+                answer="", hits=[], sources=[], prompt="",
+                usage=None, cost_usd=0.0, duration_ms=None,
+            )
         context = format_hits(hits, max_chars=max_context_chars)
         template = prompt_template or DEFAULT_RAG_PROMPT
         prompt = template.format_map(defaultdict(str, {"context": context, "question": question}))
-        answer = await asyncio.to_thread(generate_fn, prompt)
+        coro = asyncio.to_thread(fn, prompt)
+        raw = await (asyncio.wait_for(coro, timeout=generate_timeout) if generate_timeout is not None else coro)
+        if isinstance(raw, GenerationResult):
+            answer = raw.text
+            gen_usage = raw.usage
+            gen_cost = raw.cost_usd
+            gen_duration = raw.duration_ms
+        else:
+            answer = raw
+            gen_usage = None
+            gen_cost = 0.0
+            gen_duration = None
         sources = list(dict.fromkeys(h.source for h in hits if h.source))
-        return QueryResult(answer=answer, hits=hits, sources=sources, prompt=prompt)
+        return QueryResult(
+            answer=answer, hits=hits, sources=sources, prompt=prompt,
+            usage=gen_usage, cost_usd=gen_cost, duration_ms=gen_duration,
+        )
 
     def delete(self, source: str) -> None:
         if self._store is not None:

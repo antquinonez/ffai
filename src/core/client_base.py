@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -35,6 +36,7 @@ class FFAIClientBase(ABC):
 
     _last_usage: TokenUsage | None = None
     _last_cost_usd: float = 0.0
+    _last_duration_ms: float | None = None
 
     @staticmethod
     def get_default_retry_config() -> dict[str, Any]:
@@ -85,6 +87,7 @@ class FFAIClientBase(ABC):
         """Reset per-call usage metadata. Called at the start of generate_response()."""
         self._last_usage = None
         self._last_cost_usd = 0.0
+        self._last_duration_ms = None
 
     def _extract_token_usage(self, response: Any, model: str) -> None:
         """Extract token usage from an API response object.
@@ -144,9 +147,12 @@ class FFAIClientBase(ABC):
             span.set_attribute("llm.client_type", self.__class__.__name__)
             if prompt_name:
                 span.set_attribute("llm.prompt_name", prompt_name)
+            start = time.monotonic()
             try:
                 yield
             finally:
+                elapsed_ms = (time.monotonic() - start) * 1000
+                self._last_duration_ms = elapsed_ms
                 if self._last_usage:
                     span.set_attribute("llm.input_tokens", self._last_usage.input_tokens)
                     span.set_attribute("llm.output_tokens", self._last_usage.output_tokens)
@@ -162,6 +168,11 @@ class FFAIClientBase(ABC):
     def last_cost_usd(self) -> float:
         """Estimated cost in USD from the most recent generate_response() call."""
         return self._last_cost_usd
+
+    @property
+    def last_duration_ms(self) -> float | None:
+        """Wall-clock duration in ms of the most recent generate_response() call."""
+        return self._last_duration_ms
 
     @abstractmethod
     def generate_response(self, prompt: str, **kwargs: Any) -> str:

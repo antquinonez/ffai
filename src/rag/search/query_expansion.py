@@ -43,7 +43,7 @@ class QueryExpander:
 
     def __init__(
         self,
-        llm_generate_fn: Callable[[str], str] | None = None,
+        llm_generate_fn: Callable[[str], Any] | None = None,
         n_variations: int = 3,
         include_original: bool = True,
     ) -> None:
@@ -71,6 +71,8 @@ class QueryExpander:
                 query=query,
             )
             response = self.llm_generate_fn(prompt)
+            if hasattr(response, "text"):
+                response = response.text
             variations = self._parse_response(response)
 
             if not variations:
@@ -118,7 +120,7 @@ class QueryExpander:
 
         return queries
 
-    def set_llm_function(self, fn: Callable[[str], str]) -> None:
+    def set_llm_function(self, fn: Callable[[str], Any]) -> None:
         """Set or update the LLM generate function.
 
         Args:

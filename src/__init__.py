@@ -49,6 +49,7 @@ with contextlib.suppress(ImportError):
         ClientAdapter,
         DEFAULT_RAG_PROMPT,
         Embeddings,
+        GenerationResult,
         QueryResult,
         RAG,
         SearchHit,

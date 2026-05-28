@@ -28,7 +28,7 @@ from .splitters import (
     get_chunker,
     list_chunkers,
 )
-from .types import QueryResult, SearchHit
+from .types import GenerationResult, QueryResult, SearchHit
 
 try:
     from .store import CHROMADB_AVAILABLE, VectorStore
@@ -50,6 +50,7 @@ __all__ = [
     "CrossEncoderReranker",
     "DiversityReranker",
     "Embeddings",
+    "GenerationResult",
     "HierarchicalChunker",
     "HierarchicalIndex",
     "HierarchicalTextChunk",

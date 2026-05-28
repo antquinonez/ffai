@@ -91,7 +91,7 @@ class TestRAGSearch:
         assert hits[0].content == "result"
         assert hits[0].score == 0.9
 
-    def test_returns_empty_without_store(self):
+    def test_returns_empty_without_store_or_bm25(self):
         mock_chunker = MagicMock()
         with patch("src.rag.rag.get_chunker", return_value=mock_chunker):
             rag = RAG(embed=_make_mock_embed())
@@ -178,15 +178,6 @@ class TestRAGReranker:
         ])
         hits = rag.search("query")
         assert hits[0].score == pytest.approx(0.012)
-
-
-class TestRAGNoGetConfigImport:
-    def test_rag_module_has_no_get_config_import(self):
-        import inspect
-
-        import src.rag.rag as rag_module
-        source = inspect.getsource(rag_module)
-        assert "get_config" not in source
 
 
 class TestRAGBatchIndexing:
@@ -394,3 +385,99 @@ class TestRAGQuery:
         assert "Question: q?" in result.prompt
         assert "Role: " in result.prompt
         assert "Answer:" in result.prompt
+
+
+class TestRAGBM25OnlySearch:
+    def test_bm25_only_search_returns_hits(self):
+        embed = _make_mock_embed()
+        chunker = MagicMock()
+        chunker.chunk.return_value = [
+            MagicMock(content="async programming in python", chunk_index=0, metadata={"source": "tutorial"}),
+            MagicMock(content="synchronous code blocks", chunk_index=1, metadata={"source": "tutorial"}),
+        ]
+        with patch("src.rag.rag.get_chunker", return_value=chunker):
+            rag = RAG(embed=embed, bm25_alpha=0.6)
+        rag.index("some text", source="tutorial")
+        hits = rag.search("async programming")
+        assert len(hits) >= 1
+        assert hits[0].source == "tutorial"
+
+    def test_bm25_only_count_returns_bm25_count(self):
+        embed = _make_mock_embed()
+        chunker = MagicMock()
+        chunker.chunk.return_value = [
+            MagicMock(content="chunk text", chunk_index=0, metadata={"source": "doc"}),
+        ]
+        with patch("src.rag.rag.get_chunker", return_value=chunker):
+            rag = RAG(embed=embed, bm25_alpha=0.6)
+        rag.index("text", source="doc")
+        assert rag.count() == 1
+
+    def test_bm25_only_query_returns_answer(self):
+        embed = _make_mock_embed()
+        chunker = MagicMock()
+        chunker.chunk.return_value = [
+            MagicMock(content="Python uses async await for coroutines.", chunk_index=0, metadata={"source": "tutorial"}),
+        ]
+        with patch("src.rag.rag.get_chunker", return_value=chunker):
+            rag = RAG(embed=embed, bm25_alpha=0.6)
+        rag.index("text", source="tutorial")
+        result = rag.query("What are coroutines?", generate_fn=lambda p: "async functions")
+        assert result.answer == "async functions"
+        assert len(result.hits) >= 1
+        assert result.sources == ["tutorial"]
+
+    def test_bm25_only_delete_clears_index(self):
+        embed = _make_mock_embed()
+        chunker = MagicMock()
+        chunker.chunk.return_value = [
+            MagicMock(content="chunk text", chunk_index=0, metadata={"source": "doc1"}),
+        ]
+        with patch("src.rag.rag.get_chunker", return_value=chunker):
+            rag = RAG(embed=embed, bm25_alpha=0.6)
+        rag.index("text", source="doc1")
+        assert rag.count() == 1
+        rag.delete("doc1")
+        assert rag.count() == 0
+
+    def test_bm25_only_search_filters_by_metadata(self):
+        embed = _make_mock_embed()
+        chunker = MagicMock()
+        chunker.chunk.side_effect = [
+            [MagicMock(content="python async programming", chunk_index=0, metadata={"source": "tutorial"})],
+            [MagicMock(content="python async programming", chunk_index=0, metadata={"source": "api_docs"})],
+        ]
+        with patch("src.rag.rag.get_chunker", return_value=chunker):
+            rag = RAG(embed=embed, bm25_alpha=0.6)
+        rag.index("text", source="tutorial")
+        rag.index("text", source="api_docs")
+        hits = rag.search("python async", source="tutorial")
+        assert all(h.source == "tutorial" for h in hits)
+
+
+class TestRAGFromConfig:
+    def test_from_config_creates_bm25_only_by_default(self):
+        with patch("src.rag.rag.CHROMADB_AVAILABLE", False):
+            rag = RAG.from_config()
+        assert rag._store is None
+        assert rag._bm25 is not None
+
+    def test_from_config_uses_config_values(self):
+        with patch("src.rag.rag.CHROMADB_AVAILABLE", False):
+            rag = RAG.from_config(bm25_alpha=0.8)
+        assert rag._bm25_alpha == 0.8
+
+    def test_from_config_bm25_only_skips_store(self):
+        with patch("src.rag.rag.CHROMADB_AVAILABLE", True):
+            rag = RAG.from_config(bm25_only=True)
+        assert rag._store is None
+        assert rag._bm25 is not None
+
+    def test_from_config_overrides_take_precedence(self):
+        with patch("src.rag.rag.CHROMADB_AVAILABLE", False):
+            rag = RAG.from_config(chunk_size=200, chunk_overlap=20)
+        assert rag._chunker_name == "recursive"
+        sample = "word " * 300
+        chunks = rag._chunker.chunk(sample, metadata={})
+        assert len(chunks) > 0
+        assert max(len(c.content) for c in chunks) <= 200

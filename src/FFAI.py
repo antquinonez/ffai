@@ -316,6 +316,31 @@ class FFAI:
         assert isinstance(result, QueryResult)
         return result
 
+    async def aquery(
+        self,
+        question: str,
+        top_k: int = 5,
+        prompt_template: str | None = None,
+        max_context_chars: int | None = None,
+        **filters: str,
+    ) -> Any:
+        if self.rag is None:
+            raise ValueError("RAG is not configured. Pass rag= to the FFAI constructor.")
+        from .rag import ClientAdapter
+        from .rag.types import QueryResult
+
+        adapter = ClientAdapter(self.client)
+        result = await self.rag.aquery(
+            question,
+            generate_fn=adapter,
+            top_k=top_k,
+            prompt_template=prompt_template,
+            max_context_chars=max_context_chars,
+            **filters,
+        )
+        assert isinstance(result, QueryResult)
+        return result
+
     # ===========================================================================
     # Condition & DAG helpers
     # ===========================================================================

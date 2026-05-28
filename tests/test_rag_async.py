@@ -98,11 +98,23 @@ class TestRAGAsyncSearch:
         assert hits[0].content == "result"
         assert hits[0].id == "1"
 
-    def test_asearch_no_store_returns_empty(self):
+    def test_asearch_no_store_no_bm25_returns_empty(self):
         embed = _make_mock_embed()
         with patch("src.rag.rag.get_chunker", return_value=_make_chunker()):
             rag = RAG(embed=embed)
         assert asyncio.run(rag.asearch("query")) == []
+
+    def test_asearch_bm25_only_returns_hits(self):
+        embed = _make_mock_embed()
+        chunker = MagicMock()
+        chunker.chunk.return_value = [
+            MagicMock(content="async programming in python", chunk_index=0, metadata={"source": "tutorial"}),
+        ]
+        with patch("src.rag.rag.get_chunker", return_value=chunker):
+            rag = RAG(embed=embed, bm25_alpha=0.6)
+        asyncio.run(rag.aindex("text", source="tutorial"))
+        hits = asyncio.run(rag.asearch("async programming"))
+        assert len(hits) >= 1
 
     def test_asearch_respects_top_k(self):
         rag, _, store, _ = _build_rag()

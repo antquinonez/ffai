@@ -7,6 +7,8 @@ import os
 from collections import OrderedDict
 from typing import Any
 
+from ._async import run_sync
+
 logger = logging.getLogger(__name__)
 
 
@@ -150,7 +152,7 @@ class Embeddings:
         return (await self.aembed(text))[0]
 
     def embed(self, texts: str | list[str]) -> list[list[float]]:
-        return asyncio.run(self.aembed(texts))
+        return run_sync(self.aembed(texts))
 
     def embed_single(self, text: str) -> list[float]:
         return self.embed(text)[0]

@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
+from ._async import run_sync
 from .embed import Embeddings
 from .format import format_hits
 from .indexing import BM25Index
@@ -15,7 +16,7 @@ from .search.hybrid import reciprocal_rank_fusion
 from .search.query_expansion import fuse_search_results
 from .search.rerankers import RerankerBase
 from .splitters import TextChunk, get_chunker
-from .store import VectorStore
+from .store import CHROMADB_AVAILABLE, VectorStore
 from .types import QueryResult, SearchHit
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,38 @@ class RAG:
         if reranker is not None:
             self._reranker = get_reranker(reranker)
 
+    @classmethod
+    def from_config(
+        cls,
+        *,
+        bm25_only: bool = False,
+        **overrides: Any,
+    ) -> RAG:
+        from ..config import get_config
+
+        cfg = get_config().rag
+        kwargs: dict[str, Any] = {
+            "embed": cfg.embedding_model,
+            "chunker": cfg.chunker,
+            "chunk_size": cfg.chunk_size,
+            "chunk_overlap": cfg.chunk_overlap,
+            "bm25_alpha": cfg.bm25_alpha,
+            "reranker": cfg.reranker,
+        }
+        kwargs.update(overrides)
+
+        if not bm25_only and CHROMADB_AVAILABLE:
+            store = VectorStore(
+                collection_name=cfg.collection_name,
+                dir=cfg.persist_dir,
+            )
+            kwargs["store"] = store
+
+        if kwargs.get("bm25_alpha") is None and (bm25_only or not CHROMADB_AVAILABLE):
+            kwargs["bm25_alpha"] = 0.6
+
+        return cls(**kwargs)
+
     def index(
         self,
         text: str,
@@ -62,7 +95,7 @@ class RAG:
         checksum: str | None = None,
         **metadata: str,
     ) -> int:
-        return asyncio.run(self.aindex(text, source=source, checksum=checksum, **metadata))
+        return run_sync(self.aindex(text, source=source, checksum=checksum, **metadata))
 
     async def aindex(
         self,
@@ -108,7 +141,7 @@ class RAG:
         return len(chunks)
 
     def index_many(self, documents: list[dict[str, Any]]) -> int:
-        return asyncio.run(self.aindex_many(documents))
+        return run_sync(self.aindex_many(documents))
 
     async def aindex_many(self, documents: list[dict[str, Any]]) -> int:
         total = 0
@@ -120,7 +153,7 @@ class RAG:
         return self._chunker.chunk(text, metadata=metadata)
 
     def search(self, query: str, top_k: int = 5, **filters: str) -> list[SearchHit]:
-        return asyncio.run(self.asearch(query, top_k=top_k, **filters))
+        return run_sync(self.asearch(query, top_k=top_k, **filters))
 
     async def asearch(
         self,
@@ -128,46 +161,52 @@ class RAG:
         top_k: int = 5,
         **filters: str,
     ) -> list[SearchHit]:
-        if self._store is None:
-            return []
-
-        if self._bm25 is not None and self._store is not None:
-            raw = await self._ahybrid_search(query, top_k)
-        else:
-            query_emb = await self._embed.aembed_single(query)
-            store_hits = await self._store.asearch(
-                query_emb, top_k=top_k, where=filters or None,
-            )
-            raw = [
-                {"id": h.id, "content": h.content, "score": h.score,
-                 "metadata": h.metadata, "source": h.source}
-                for h in store_hits
-            ]
+        raw = await self._araw_search(query, top_k, filters)
 
         if self._query_expander is not None:
-            try:
-                queries = self._query_expander(query)
-            except Exception:
-                logger.warning("Query expansion failed, using original query only")
-                queries = [query]
-            if len(queries) > 1:
-                all_raws = [raw]
-                for extra_query in queries[1:]:
-                    if self._bm25 is not None and self._store is not None:
-                        extra_raw = await self._ahybrid_search(extra_query, top_k)
-                    else:
-                        extra_raw = await self._astore_search(
-                            extra_query, top_k, where=filters or None,
-                        )
-                    all_raws.append(extra_raw)
-                raw = fuse_search_results(all_raws, n_results=top_k)
+            raw = await self._expand_query(query, raw, top_k, filters)
 
         if self._reranker is not None and raw:
             raw = self._reranker.rerank(query, raw, n_results=top_k)
 
         hits = self._raw_to_hits(raw)
-
         return hits[:top_k]
+
+    async def _araw_search(
+        self, query: str, top_k: int, filters: dict[str, str],
+    ) -> list[dict[str, Any]]:
+        if self._store is not None and self._bm25 is not None:
+            return await self._ahybrid_search(query, top_k)
+
+        if self._store is not None:
+            return await self._astore_search(query, top_k, where=filters or None)
+
+        if self._bm25 is not None:
+            results = self._bm25.search(query, top_k)
+            if filters:
+                results = [
+                    r for r in results
+                    if all(r.get("metadata", {}).get(k) == v for k, v in filters.items())
+                ]
+            return results
+
+        return []
+
+    async def _expand_query(
+        self, query: str, raw: list[dict[str, Any]], top_k: int, filters: dict[str, str],
+    ) -> list[dict[str, Any]]:
+        try:
+            queries = self._query_expander(query)  # type: ignore[misc]
+        except Exception:
+            logger.warning("Query expansion failed, using original query only")
+            return raw
+        if len(queries) <= 1:
+            return raw
+        all_raws = [raw]
+        for extra_query in queries[1:]:
+            extra_raw = await self._araw_search(extra_query, top_k, filters)
+            all_raws.append(extra_raw)
+        return fuse_search_results(all_raws, n_results=top_k)
 
     def query(
         self,
@@ -180,10 +219,9 @@ class RAG:
     ) -> QueryResult:
         """Retrieve context and generate an answer (sync wrapper).
 
-        Uses ``asyncio.run()`` internally — do not call from inside an
-        event loop; use ``aquery`` instead.
+        Safe to call from within a running event loop (e.g. Jupyter).
         """
-        return asyncio.run(self.aquery(
+        return run_sync(self.aquery(
             question, generate_fn=generate_fn, top_k=top_k,
             prompt_template=prompt_template,
             max_context_chars=max_context_chars, **filters,
@@ -239,9 +277,11 @@ class RAG:
             self._bm25.delete_by_metadata("source", source)
 
     def count(self) -> int:
-        if self._store is None:
-            return 0
-        return self._store.count()
+        if self._store is not None:
+            return self._store.count()
+        if self._bm25 is not None:
+            return self._bm25.count()
+        return 0
 
     async def _astore_search(
         self, query: str, n_results: int, where: dict[str, Any] | None = None,

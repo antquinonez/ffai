@@ -1,3 +1,5 @@
+"""Manage a persistent ChromaDB-backed vector store for document embeddings with metadata."""
+
 from __future__ import annotations
 
 import logging

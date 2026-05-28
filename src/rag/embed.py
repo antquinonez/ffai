@@ -1,3 +1,5 @@
+"""Compute text embeddings via local sentence-transformer models or remote API providers."""
+
 from __future__ import annotations
 
 import asyncio

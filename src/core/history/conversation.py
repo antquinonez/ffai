@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Contact: antquinonez@farfiner.com
 
+"""Manage API-facing message history for provider SDK calls."""
 
 from __future__ import annotations
 

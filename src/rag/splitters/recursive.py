@@ -1,3 +1,5 @@
+"""Split text recursively by a prioritized list of separators."""
+
 from __future__ import annotations
 
 import logging

@@ -1,3 +1,5 @@
+"""Define the abstract ChunkerBase interface and the TextChunk and HierarchicalTextChunk data classes."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

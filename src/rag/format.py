@@ -1,3 +1,5 @@
+"""Format search hits into a numbered, human-readable text string."""
+
 from __future__ import annotations
 
 from .types import SearchHit

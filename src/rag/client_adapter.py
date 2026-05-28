@@ -1,3 +1,5 @@
+"""Adapt an FFAI client into a callable that returns a GenerationResult for RAG generation."""
+
 from __future__ import annotations
 
 import asyncio

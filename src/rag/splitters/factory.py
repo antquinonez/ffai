@@ -1,3 +1,5 @@
+"""Provide a registry and factory function for instantiating chunker strategies by name."""
+
 from __future__ import annotations
 
 import logging

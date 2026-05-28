@@ -1,3 +1,5 @@
+"""Orchestrate end-to-end RAG pipelines combining embedding, chunking, search, reranking, and generation."""
+
 from __future__ import annotations
 
 import asyncio

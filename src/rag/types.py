@@ -1,3 +1,5 @@
+"""Define shared data classes used across the RAG subsystem."""
+
 from dataclasses import dataclass, field
 from typing import Any
 

@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Contact: antquinonez@farfiner.com
 
+"""Maintain an append-only chronological turn history with coalesced consecutive user turns."""
+
 from __future__ import annotations
 
 import time

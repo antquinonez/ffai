@@ -1,3 +1,5 @@
+"""Split text into overlapping character-based chunks with optional word-boundary awareness."""
+
 from __future__ import annotations
 
 import logging

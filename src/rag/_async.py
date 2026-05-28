@@ -1,3 +1,5 @@
+"""Run async coroutines from synchronous contexts, handling both no-running-loop and already-running-loop cases."""
+
 from __future__ import annotations
 
 import asyncio

@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Contact: antquinonez@farfiner.com
 
+"""Mistral Small client with chat completions, streaming, function calling, and tool use."""
+
 from __future__ import annotations
 
 import json

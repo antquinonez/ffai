@@ -1,3 +1,5 @@
+"""Split text into hierarchical parent-child chunks for context-aware retrieval."""
+
 from __future__ import annotations
 
 import logging

@@ -1,3 +1,5 @@
+"""Split source code into chunks by structural boundaries with language-specific patterns."""
+
 from __future__ import annotations
 
 import logging

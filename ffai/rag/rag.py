@@ -96,13 +96,23 @@ class RAG:
         cls,
         *,
         bm25_only: bool = False,
+        api_key: str | None = None,
         **overrides: Any,
     ) -> RAG:
         """Create a RAG instance from the project configuration file.
 
+        Reads all settings from ``config/main.yaml`` under the ``rag:``
+        key.  The embedding model's API key is resolved in order:
+        the ``api_key`` parameter, the provider-specific environment
+        variable (e.g. ``MISTRAL_API_KEY``), and finally ``None``
+        (which will raise at embed time if no key is found).
+
         Args:
             bm25_only: If True, skip vector store creation and use BM25
                 search only.
+            api_key: API key for the embedding model provider.  When
+                *None*, the key is read from a provider-specific
+                environment variable (e.g. ``MISTRAL_API_KEY``).
             **overrides: Override any constructor parameter from config.
 
         Returns:
@@ -112,8 +122,12 @@ class RAG:
         from ..config import get_config
 
         cfg = get_config().rag
+
+        if "embed" not in overrides:
+            embed = Embeddings(model=cfg.embedding_model, api_key=api_key)
+            overrides["embed"] = embed
+
         kwargs: dict[str, Any] = {
-            "embed": cfg.embedding_model,
             "chunker": cfg.chunker,
             "chunk_size": cfg.chunk_size,
             "chunk_overlap": cfg.chunk_overlap,
@@ -122,7 +136,7 @@ class RAG:
         }
         kwargs.update(overrides)
 
-        if not bm25_only and CHROMADB_AVAILABLE:
+        if "store" not in kwargs and not bm25_only and CHROMADB_AVAILABLE:
             store = VectorStore(
                 collection_name=cfg.collection_name,
                 dir=cfg.persist_dir,

@@ -38,6 +38,7 @@ htmlcov/
 ffai_data/
 logs/
 outputs/
+chroma_db/
 
 # Design documents (untracked)
 designs/

@@ -489,3 +489,63 @@ class TestRAGQueryExpansionLive:
         rag.index(DOCUMENTS["cooking"], source="cooking")
         hits = rag.search("programming language safety")
         assert len(hits) >= 1
+
+
+class TestRAGFromConfigLive:
+    @pytest.fixture(autouse=True)
+    def setup_rag(self, tmp_path):
+        _skip_no_chromadb()
+        api_key = _get_mistral_api_key()
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
+
+        store = VectorStore(
+            collection_name=f"test_from_config_{os.getpid()}",
+            dir=str(tmp_path / "chroma_db"),
+        )
+        self.rag = RAG.from_config(api_key=api_key, store=store)
+
+    def test_from_config_index_and_search(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+
+        hits = self.rag.search("programming language")
+        assert len(hits) >= 1
+        assert any(h.source == "python" for h in hits)
+
+    def test_from_config_search_hit_fields(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        hits = self.rag.search("python")
+        assert len(hits) >= 1
+        hit = hits[0]
+        assert isinstance(hit.content, str)
+        assert len(hit.content) > 0
+        assert isinstance(hit.score, float)
+        assert 0 <= hit.score <= 1
+        assert hit.source == "python"
+
+    def test_from_config_delete_and_verify(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+        assert self.rag.count() >= 2
+
+        self.rag.delete("python")
+        hits = self.rag.search("python programming")
+        assert all(h.source != "python" for h in hits)
+
+    def test_from_config_count_tracks_indexed_docs(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        count_after_first = self.rag.count()
+        assert count_after_first > 0
+
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+        assert self.rag.count() > count_after_first
+
+    def test_from_config_index_many(self):
+        total = self.rag.index_many([
+            {"text": DOCUMENTS["python"], "source": "python"},
+            {"text": DOCUMENTS["rust"], "source": "rust"},
+            {"text": DOCUMENTS["cooking"], "source": "cooking"},
+        ])
+        assert total > 0
+        assert self.rag.count() >= 3

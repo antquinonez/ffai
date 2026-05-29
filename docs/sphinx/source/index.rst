@@ -13,6 +13,14 @@ cost/usage tracking.
 
 .. toctree::
    :maxdepth: 2
+   :caption: Tutorials
+
+   tutorials/rag_pipeline
+   tutorials/dag_execution
+   tutorials/agent_tools
+
+.. toctree::
+   :maxdepth: 2
    :caption: Guides
 
    guides/installation

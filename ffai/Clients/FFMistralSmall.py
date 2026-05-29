@@ -136,11 +136,15 @@ class FFMistralSmall(FFAIClientBase):
         # Add conversation history
         for message in self.conversation_history:
             if message["role"] in ["user", "assistant", "tool"]:
-                messages.append({"role": message["role"], "content": message["content"]})
+                msg: dict[str, Any] = {"role": message["role"], "content": message["content"]}
 
-                # Add tool_call_id if present for tool messages
                 if message["role"] == "tool" and "tool_call_id" in message:
-                    messages[-1]["tool_call_id"] = message["tool_call_id"]
+                    msg["tool_call_id"] = message["tool_call_id"]
+
+                if message["role"] == "assistant" and "tool_calls" in message:
+                    msg["tool_calls"] = message["tool_calls"]
+
+                messages.append(msg)
 
         return messages
 

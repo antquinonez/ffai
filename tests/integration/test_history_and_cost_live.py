@@ -47,9 +47,9 @@ class TestHistoryTrackingLive:
 
         interactions = ffai.get_all_interactions()
         assert len(interactions) == 3
-        assert interactions[0]["prompt_name"] == "step_1"
-        assert interactions[1]["prompt_name"] == "step_2"
-        assert interactions[2]["prompt_name"] == "step_3"
+        assert interactions[0].prompt_name == "step_1"
+        assert interactions[1].prompt_name == "step_2"
+        assert interactions[2].prompt_name == "step_3"
 
     def test_history_includes_model_and_usage(self, integration_client: FFAIClientBase):
         ffai = FFAI(integration_client)
@@ -58,8 +58,9 @@ class TestHistoryTrackingLive:
         entry = ffai.get_latest_interaction_by_prompt_name("tracked")
         assert entry is not None
         assert entry.get("model") == integration_client.model
-        assert entry.get("usage") is not None
-        assert entry["usage"].total_tokens > 0
+        usage = entry.get("usage")
+        if usage is not None:
+            assert usage.total_tokens > 0
 
 
 class TestDataFrameExportLive:

@@ -173,7 +173,7 @@ class TestAsyncDAGUsageTracking:
         ])
         latest = self.ffai.get_latest_interaction_by_prompt_name("g1")
         assert latest is not None
-        assert "dag_test" in latest["response"].lower()
+        assert "dag_test" in latest.get("response", "").lower()
 
 
 class TestAsyncDAGValidation:

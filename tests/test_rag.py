@@ -10,7 +10,7 @@ from ffai.rag.rag import RAG
 from ffai.rag.types import SearchHit
 
 try:
-    import chromadb as _chromadb  # noqa: F401
+    import chromadb as _chromadb  # type: ignore[import-untyped]  # noqa: F401
 
     _chromadb_available = True
 except ImportError:

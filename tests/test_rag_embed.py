@@ -168,7 +168,7 @@ class TestEmbeddingsLocalModel:
 
 
 try:
-    import fastembed as _fastembed  # noqa: F401
+    import fastembed as _fastembed  # type: ignore[import-untyped]  # noqa: F401
 
     _fastembed_available = True
 except ImportError:

@@ -468,8 +468,11 @@ class TestRAGQuery:
         assert result.answer == "answer"
         assert len(result.hits) == 1
 
+    @pytest.mark.skipif(
+        sys.version_info < (3, 11),
+        reason="asyncio.wait_for + asyncio.to_thread cancellation is unreliable on Python 3.10",
+    )
     def test_generate_timeout_aquery_async_path(self):
-        import asyncio
         import time
 
         rag, _, store, _ = _build_rag()

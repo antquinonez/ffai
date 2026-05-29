@@ -17,7 +17,7 @@ from .search import get_reranker
 from .search.hybrid import reciprocal_rank_fusion
 from .search.query_expansion import fuse_search_results
 from .search.rerankers import RerankerBase
-from .splitters import TextChunk, get_chunker
+from .splitters import HierarchicalTextChunk, TextChunk, get_chunker
 from .store import CHROMADB_AVAILABLE, VectorStore
 from .types import GenerationResult, QueryResult, SearchHit
 
@@ -168,6 +168,29 @@ class RAG:
         if isinstance(self._query_expander, QueryExpander) and self._generate_fn is not None:
             self._query_expander.set_llm_function(self._generate_fn)
 
+    def _enrich_hierarchical_chunks(
+        self,
+        chunks: list[Any],
+    ) -> list[Any]:
+        parent_map: dict[str, str] = {}
+        for c in chunks:
+            if isinstance(c, HierarchicalTextChunk) and c.hierarchy_level == 0:
+                parent_map[c.id] = c.content
+
+        children: list[Any] = []
+        for c in chunks:
+            if not isinstance(c, HierarchicalTextChunk) or c.hierarchy_level == 0:
+                continue
+            if c.metadata is None:
+                c.metadata = {}
+            c.metadata["parent_content"] = parent_map.get(c.parent_id or "", "")
+            c.metadata["hierarchy_level"] = c.hierarchy_level
+            if c.parent_id:
+                c.metadata["parent_id"] = c.parent_id
+            children.append(c)
+
+        return children if children else chunks
+
     def index(
         self,
         text: str,
@@ -231,6 +254,9 @@ class RAG:
         chunks = self._chunker.chunk(text, metadata=meta)
         if not chunks:
             return 0
+
+        if chunks and isinstance(chunks[0], HierarchicalTextChunk):
+            chunks = self._enrich_hierarchical_chunks(chunks)
 
         texts = [c.content for c in chunks]
         if self._store is not None:
@@ -555,6 +581,6 @@ class RAG:
                 score=score,
                 source=meta.get("source", "") or r.get("source", ""),
                 metadata=meta,
-                parent_content=r.get("parent_content"),
+                parent_content=r.get("parent_content") or meta.get("parent_content"),
             ))
         return hits

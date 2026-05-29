@@ -229,6 +229,7 @@ class TestCrossEncoderReranker:
         reranker = CrossEncoderReranker(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2")
         assert "cross-encoder/ms-marco-MiniLM-L-6-v2" in reranker._FASTEMBED_MODEL_MAP
 
+    @pytest.mark.skipif(not _fastembed_available, reason="fastembed not installed")
     def test_fastembed_custom_model_name(self):
         reranker = CrossEncoderReranker(fastembed_model_name="Xenova/ms-marco-MiniLM-L-6-v2")
         reranker._load_model()

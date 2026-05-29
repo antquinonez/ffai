@@ -52,6 +52,7 @@ otel = [
 ]
 rag = [
     "chromadb>=0.4.0",
+    "fastembed>=0.7.0",
 ]
 docs = [
     "sphinx>=7.0.0",

@@ -17,8 +17,9 @@ class TestEmbeddingsInit:
         assert emb.provider == "mistral"
 
     def test_local_model_detected(self):
-        with pytest.raises(ImportError, match="sentence-transformers"):
-            Embeddings("local/all-MiniLM-L6-v2")
+        with patch.dict("sys.modules", {"fastembed": None}):
+            with pytest.raises(ImportError, match="No local embedding backend found"):
+                Embeddings("local/all-MiniLM-L6-v2")
 
     def test_cache_enabled_by_default(self):
         emb = Embeddings("mistral/mistral-embed", api_key="key")
@@ -132,6 +133,7 @@ class TestEmbeddingsLocalModel:
         emb = object.__new__(Embeddings)
         emb._is_local = True
         emb._local_model = None
+        emb._local_backend = None
         emb._cache_enabled = True
         emb._cache_size = 256
         emb._cache = OrderedDict()
@@ -163,6 +165,70 @@ class TestEmbeddingsLocalModel:
             emb = Embeddings("local/test-model")
             vectors = asyncio.run(emb.aembed("hello"))
             assert vectors == [[0.5, 0.6]]
+
+
+class TestEmbeddingsLocalFastembedFallback:
+    def test_fastembed_fallback_init(self):
+        mock_fe_model = MagicMock()
+        with patch("fastembed.TextEmbedding", return_value=mock_fe_model):
+            emb = Embeddings("local/all-MiniLM-L6-v2")
+            assert emb._local_backend == "fastembed"
+            assert emb._local_model is mock_fe_model
+
+    def test_fastembed_model_name_mapping(self):
+        mock_fe_model = MagicMock()
+        mock_fe_cls = MagicMock(return_value=mock_fe_model)
+        with patch("fastembed.TextEmbedding", mock_fe_cls):
+            Embeddings("local/all-MiniLM-L6-v2")
+            mock_fe_cls.assert_called_with("sentence-transformers/all-MiniLM-L6-v2")
+
+    def test_fastembed_model_name_passthrough(self):
+        mock_fe_model = MagicMock()
+        mock_fe_cls = MagicMock(return_value=mock_fe_model)
+        with patch("fastembed.TextEmbedding", mock_fe_cls):
+            Embeddings("local/BAAI/bge-small-en-v1.5")
+            mock_fe_cls.assert_called_with("BAAI/bge-small-en-v1.5")
+
+    def test_fastembed_embed_returns_vectors(self):
+        mock_fe_model = MagicMock()
+        mock_fe_model.embed.return_value = iter([MagicMock(tolist=lambda: [0.1, 0.2, 0.3])])
+        with patch("fastembed.TextEmbedding", return_value=mock_fe_model):
+            emb = Embeddings("local/test-model")
+            vectors = asyncio.run(emb.aembed(["hello"]))
+            assert vectors == [[0.1, 0.2, 0.3]]
+
+    def test_fastembed_embed_multiple_texts(self):
+        mock_fe_model = MagicMock()
+        mock_fe_model.embed.return_value = iter([
+            MagicMock(tolist=lambda: [0.1, 0.2]),
+            MagicMock(tolist=lambda: [0.3, 0.4]),
+        ])
+        with patch("fastembed.TextEmbedding", return_value=mock_fe_model):
+            emb = Embeddings("local/test-model")
+            vectors = asyncio.run(emb.aembed(["hello", "world"]))
+            assert vectors == [[0.1, 0.2], [0.3, 0.4]]
+
+    def test_fastembed_embed_caches_result(self):
+        mock_fe_model = MagicMock()
+        mock_fe_model.embed.return_value = iter([MagicMock(tolist=lambda: [0.5, 0.6])])
+        with patch("fastembed.TextEmbedding", return_value=mock_fe_model):
+            emb = Embeddings("local/test-model")
+            asyncio.run(emb.aembed(["hello"]))
+            assert emb.cache_stats()["entries"] == 1
+
+    def test_fastembed_embed_returns_from_cache(self):
+        mock_fe_model = MagicMock()
+        mock_fe_model.embed.return_value = iter([MagicMock(tolist=lambda: [0.5, 0.6])])
+        with patch("fastembed.TextEmbedding", return_value=mock_fe_model):
+            emb = Embeddings("local/test-model")
+            asyncio.run(emb.aembed(["hello"]))
+            asyncio.run(emb.aembed(["hello"]))
+            assert mock_fe_model.embed.call_count == 1
+
+    def test_no_backend_available_raises(self):
+        with patch.dict("sys.modules", {"fastembed": None}):
+            with pytest.raises(ImportError, match="No local embedding backend found"):
+                Embeddings("local/all-MiniLM-L6-v2")
 
 
 class TestEmbeddingsSync:

@@ -16,8 +16,7 @@ Prerequisites
 Step 1: Set up the client and RAG pipeline
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Create an LLM client, an embedding model, a vector store, and wire them
-together through ``RAG`` and ``FFAI``:
+Create an LLM client and wire it together with RAG using ``from_config()``:
 
 .. code-block:: python
 
@@ -26,34 +25,33 @@ together through ``RAG`` and ``FFAI``:
    from ffai.Clients import FFLiteLLMClient
    from ffai.FFAI import FFAI
    from ffai.rag import RAG
-   from ffai.rag.embed import Embeddings
-   from ffai.rag.store import VectorStore
 
    client = FFLiteLLMClient(
        model_string="mistral/mistral-small-latest",
        api_key=os.environ["MISTRAL_API_KEY"],
    )
 
-   embed = Embeddings(
-       model="mistral/mistral-embed",
-       api_key=os.environ["MISTRAL_API_KEY"],
-   )
-
-   store = VectorStore(
-       collection_name="tutorial_kb",
-       dir="./tutorial_db",
-   )
-
-   rag = RAG(embed=embed, store=store, chunk_size=500, chunk_overlap=100)
+   rag = RAG.from_config(api_key=os.environ["MISTRAL_API_KEY"])
    ffai = FFAI(client, rag=rag)
 
 What each component does:
 
-- **Embeddings** generates vector representations of your text.
-- **VectorStore** stores and retrieves those vectors via ChromaDB.
-- **RAG** orchestrates chunking, embedding, search, and generation.
+- **RAG.from_config()** reads settings from ``config/main.yaml`` and creates
+  the embedding model, vector store, and chunker automatically.
 - **FFAI** ties the LLM client to the RAG pipeline so you can call
   ``ffai.query()`` directly.
+
+For full control over each component, you can construct them manually:
+
+.. code-block:: python
+
+   from ffai.rag.embed import Embeddings
+   from ffai.rag.store import VectorStore
+
+   embed = Embeddings(model="mistral/mistral-embed", api_key=os.environ["MISTRAL_API_KEY"])
+   store = VectorStore(collection_name="tutorial_kb", dir="./tutorial_db")
+   rag = RAG(embed=embed, store=store, chunk_size=500, chunk_overlap=100)
+   ffai = FFAI(client, rag=rag)
 
 Step 2: Index documents
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -216,17 +214,13 @@ Here is the full script assembled from all steps:
    from ffai.Clients import FFLiteLLMClient
    from ffai.FFAI import FFAI
    from ffai.rag import RAG
-   from ffai.rag.embed import Embeddings
-   from ffai.rag.store import VectorStore
 
    # Step 1: Set up
    client = FFLiteLLMClient(
        model_string="mistral/mistral-small-latest",
        api_key=os.environ["MISTRAL_API_KEY"],
    )
-   embed = Embeddings("mistral/mistral-embed", api_key=os.environ["MISTRAL_API_KEY"])
-   store = VectorStore(collection_name="tutorial_kb", dir="./tutorial_db")
-   rag = RAG(embed=embed, store=store, chunk_size=500, chunk_overlap=100)
+   rag = RAG.from_config(api_key=os.environ["MISTRAL_API_KEY"])
    ffai = FFAI(client, rag=rag)
 
    # Step 2: Index

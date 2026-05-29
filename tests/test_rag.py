@@ -9,6 +9,13 @@ import pytest
 from ffai.rag.rag import RAG
 from ffai.rag.types import SearchHit
 
+try:
+    import chromadb as _chromadb  # noqa: F401
+
+    _chromadb_available = True
+except ImportError:
+    _chromadb_available = False
+
 
 def _make_mock_embed():
     mock = MagicMock(spec=["aembed", "aembed_single", "model", "provider", "is_local", "cache_stats", "clear_cache"])
@@ -620,6 +627,10 @@ class TestRAGFromConfigZeroArgs:
             rag = RAG.from_config(embed=mock_embed, api_key="should-be-ignored")
         assert rag._embed is mock_embed
 
+    @pytest.mark.skipif(
+        not _chromadb_available,
+        reason="chromadb not installed",
+    )
     def test_zero_args_with_chromadb_creates_store(self):
         with patch("ffai.rag.rag.CHROMADB_AVAILABLE", True):
             rag = RAG.from_config()

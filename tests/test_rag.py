@@ -424,11 +424,11 @@ class TestRAGQuery:
         ])
 
         def slow_fn(p: str) -> str:
-            time.sleep(1.0)
+            time.sleep(5.0)
             return "too late"
 
         with pytest.raises(TimeoutError):
-            rag.query("q?", generate_fn=slow_fn, generate_timeout=0.01)
+            rag.query("q?", generate_fn=slow_fn, generate_timeout=0.1)
 
     def test_generate_timeout_allows_fast_fn(self):
         rag, _, store, _ = _build_rag()

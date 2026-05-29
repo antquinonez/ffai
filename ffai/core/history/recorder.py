@@ -52,6 +52,8 @@ class HistoryRecorder:
         prompt_name: str | None = None,
         history: list[str] | None = None,
         status: str = "success",
+        resolved_prompt: str | None = None,
+        usage: Any = None,
     ) -> None:
         """Record an interaction to all 5 history stores.
 
@@ -62,6 +64,8 @@ class HistoryRecorder:
             prompt_name: Logical name for the prompt.
             history: List of prompt names this call depends on.
             status: Execution status ("success", "skipped", "failed").
+            resolved_prompt: The fully interpolated prompt sent to the model.
+            usage: Token usage from the API call.
         """
         self._permanent.add_turn_user(prompt)
         self._permanent.add_turn_assistant(
@@ -76,6 +80,8 @@ class HistoryRecorder:
             "model": model,
             "history": history,
             "status": status,
+            "resolved_prompt": resolved_prompt,
+            "usage": usage,
         }
 
         self.history.append(interaction)

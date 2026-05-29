@@ -300,6 +300,8 @@ class FFAI:
             prompt_name=prompt_name,
             history=opts.history,
             status=exec_result.status,
+            resolved_prompt=exec_result.resolved_prompt,
+            usage=usage,
         )
 
         return ResponseResult(
@@ -689,6 +691,8 @@ class FFAI:
                     model=result.model,
                     prompt_name=name,
                     status="success",
+                    resolved_prompt=result.resolved_prompt,
+                    usage=result.usage,
                 )
 
         return graph_result

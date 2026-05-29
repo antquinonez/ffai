@@ -298,6 +298,83 @@ class TestRecursiveChunker:
         joined = "".join(c.content for c in chunks)
         assert "\n\n" not in joined
 
+    def test_split_large_text_forces_character_split(self):
+        chunker = RecursiveChunker(chunk_size=10, chunk_overlap=0, separators=["|"])
+        text = "abcdefghijklmnopqrstuvwxyz"
+        chunks = chunker.chunk(text)
+        assert len(chunks) == 3
+        assert chunks[0].content == "abcdefghij"
+        assert chunks[1].content == "klmnopqrst"
+        assert chunks[2].content == "uvwxyz"
+
+    def test_empty_separators_falls_back_to_text(self):
+        chunker = RecursiveChunker(chunk_size=100, chunk_overlap=0, separators=[])
+        chunks = chunker.chunk("hello world")
+        assert len(chunks) == 1
+        assert chunks[0].content == "hello world"
+
+    def test_no_splits_produces_text(self):
+        chunker = RecursiveChunker(chunk_size=100, chunk_overlap=0, separators=["Z"])
+        chunks = chunker.chunk("hello world")
+        assert len(chunks) == 1
+        assert chunks[0].content == "hello world"
+
+    def test_overlap_text_with_short_chunks(self):
+        chunker = RecursiveChunker(chunk_size=15, chunk_overlap=10, separators=[" "])
+        text = "aa bb cc dd ee ff gg hh"
+        chunks = chunker.chunk(text)
+        assert len(chunks) > 1
+        for c in chunks:
+            assert len(c.content) <= 15
+
+    def test_split_large_text_word_boundary(self):
+        chunker = RecursiveChunker(chunk_size=10, chunk_overlap=0, separators=["|"])
+        text = "hello world foo bar baz"
+        chunks = chunker.chunk(text)
+        assert len(chunks) > 1
+        for c in chunks:
+            assert len(c.content) <= 10
+
+    def test_large_text_start_char_offsets(self):
+        chunker = RecursiveChunker(chunk_size=10, chunk_overlap=0, separators=["|"], keep_separator=False)
+        text = "abcdefghij|klmnopqrst|uvwxyz"
+        chunks = chunker.chunk(text)
+        assert chunks[0].start_char == 0
+        assert chunks[0].end_char == 10
+        assert chunks[1].start_char == 11
+        assert chunks[1].end_char == 21
+
+    def test_overlap_preserves_context(self):
+        chunker = RecursiveChunker(chunk_size=20, chunk_overlap=10, separators=[" "])
+        text = "alpha beta gamma delta epsilon zeta eta theta iota kappa"
+        chunks = chunker.chunk(text)
+        assert len(chunks) > 1
+        first_content = chunks[0].content
+        second_content = chunks[1].content
+        overlap_words = set(first_content.split()) & set(second_content.split())
+        assert len(overlap_words) > 0
+
+    def test_finalize_empty_combined_text_skipped(self):
+        chunker = RecursiveChunker(chunk_size=5, chunk_overlap=0, separators=["|"])
+        text = "|||"
+        chunks = chunker.chunk(text)
+        assert all(c.content.strip() != "" for c in chunks)
+
+    def test_chunk_covers_full_text(self):
+        chunker = RecursiveChunker(chunk_size=15, chunk_overlap=0)
+        text = "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
+        chunks = chunker.chunk(text)
+        assert chunks[0].start_char == 0
+        assert chunks[-1].end_char == len(text)
+
+    def test_split_start_fallback_when_not_found(self):
+        chunker = RecursiveChunker(chunk_size=10, chunk_overlap=0, keep_separator=False)
+        text = "a" * 5 + " " + "b" * 5 + " " + "c" * 5
+        chunks = chunker.chunk(text)
+        assert len(chunks) >= 2
+        for c in chunks:
+            assert len(c.content) <= 10
+
 
 class TestMarkdownChunker:
     def test_empty_string(self):

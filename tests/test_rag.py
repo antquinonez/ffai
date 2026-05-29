@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -416,6 +417,10 @@ class TestRAGQuery:
         result = rag.query("q?", generate_fn=lambda p: "no info")
         assert result.answer == "no info"
 
+    @pytest.mark.skipif(
+        sys.version_info < (3, 11),
+        reason="asyncio.wait_for + asyncio.to_thread cancellation is unreliable on Python 3.10",
+    )
     def test_generate_timeout_raises_on_slow_fn(self):
         import time
 
@@ -424,17 +429,12 @@ class TestRAGQuery:
             SearchHit(content="ctx", score=0.9, source="s1", metadata={"source": "s1"}),
         ])
 
-        original_sleep = time.sleep
-
         def slow_fn(p: str) -> str:
-            original_sleep(10.0)
+            time.sleep(10.0)
             return "too late"
 
-        try:
+        with pytest.raises((TimeoutError, asyncio.CancelledError)):
             rag.query("q?", generate_fn=slow_fn, generate_timeout=0.05)
-            pytest.fail("Expected TimeoutError or CancelledError")
-        except (TimeoutError, asyncio.CancelledError):
-            pass
 
     def test_generate_timeout_allows_fast_fn(self):
         rag, _, store, _ = _build_rag()

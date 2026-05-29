@@ -2,6 +2,8 @@
 
 Declarative multi-provider AI client with named-prompt context assembly, async DAG execution, RAG, agentic tool-call loops, and built-in cost/usage tracking.
 
+**[Documentation](https://ffai.readthedocs.io)** | **[PyPI](https://pypi.org/project/ffai/)** | **[Source](https://github.com/antquinonez/ffai)**
+
 ## Installation
 
 ```bash

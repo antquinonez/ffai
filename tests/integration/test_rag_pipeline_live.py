@@ -489,3 +489,136 @@ class TestRAGQueryExpansionLive:
         rag.index(DOCUMENTS["cooking"], source="cooking")
         hits = rag.search("programming language safety")
         assert len(hits) >= 1
+
+
+class TestRAGFromConfigLive:
+    @pytest.fixture(autouse=True)
+    def setup_rag(self, tmp_path):
+        _skip_no_chromadb()
+        api_key = _get_mistral_api_key()
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
+
+        store = VectorStore(
+            collection_name=f"test_from_config_{os.getpid()}",
+            dir=str(tmp_path / "chroma_db"),
+        )
+        self.rag = RAG.from_config(api_key=api_key, store=store)
+
+    def test_from_config_index_and_search(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+
+        hits = self.rag.search("programming language")
+        assert len(hits) >= 1
+        assert any(h.source == "python" for h in hits)
+
+    def test_from_config_search_hit_fields(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        hits = self.rag.search("python")
+        assert len(hits) >= 1
+        hit = hits[0]
+        assert isinstance(hit.content, str)
+        assert len(hit.content) > 0
+        assert isinstance(hit.score, float)
+        assert 0 <= hit.score <= 1
+        assert hit.source == "python"
+
+    def test_from_config_delete_and_verify(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+        assert self.rag.count() >= 2
+
+        self.rag.delete("python")
+        hits = self.rag.search("python programming")
+        assert all(h.source != "python" for h in hits)
+
+    def test_from_config_count_tracks_indexed_docs(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        count_after_first = self.rag.count()
+        assert count_after_first > 0
+
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+        assert self.rag.count() > count_after_first
+
+    def test_from_config_index_many(self):
+        total = self.rag.index_many([
+            {"text": DOCUMENTS["python"], "source": "python"},
+            {"text": DOCUMENTS["rust"], "source": "rust"},
+            {"text": DOCUMENTS["cooking"], "source": "cooking"},
+        ])
+        assert total > 0
+        assert self.rag.count() >= 3
+
+
+class TestRAGHierarchicalLive:
+    @pytest.fixture(autouse=True)
+    def setup_rag(self, tmp_path):
+        _skip_no_chromadb()
+        api_key = _get_mistral_api_key()
+        from ffai.rag.embed import Embeddings
+        from ffai.rag.rag import RAG
+        from ffai.rag.store import VectorStore
+
+        embed = Embeddings("mistral/mistral-embed", api_key=api_key, cache_enabled=True)
+        store = VectorStore(
+            collection_name=f"test_hier_{os.getpid()}",
+            dir=str(tmp_path / "chroma_db"),
+        )
+        self.rag = RAG(
+            embed=embed, store=store,
+            chunker="hierarchical", chunk_size=200, chunk_overlap=50,
+        )
+
+    def test_hierarchical_search_returns_parent_content(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+        hits = self.rag.search("programming language")
+        assert len(hits) >= 1
+        assert all(h.parent_content is not None for h in hits)
+        assert all(len(h.parent_content) > 0 for h in hits)  # type: ignore[arg-type]
+
+    def test_hierarchical_only_stores_children(self):
+        from ffai.rag.splitters.hierarchical import HierarchicalChunker
+
+        text = DOCUMENTS["python"]
+        chunker = HierarchicalChunker(chunk_size=200, chunk_overlap=50)
+        all_chunks = chunker.chunk(text)
+        parents = [c for c in all_chunks if c.hierarchy_level == 0]
+        children = [c for c in all_chunks if c.hierarchy_level > 0]
+
+        self.rag.index(text, source="python")
+        stored_count = self.rag.count()
+
+        assert stored_count == len(children)
+        assert stored_count < len(all_chunks)
+        assert len(parents) > 0
+
+    def test_hierarchical_search_hit_has_parent_context(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        hits = self.rag.search("programming paradigms")
+        assert len(hits) >= 1
+        hit = hits[0]
+        assert hit.content != hit.parent_content
+        assert len(hit.parent_content) >= len(hit.content)  # type: ignore[arg-type]
+
+    def test_hierarchical_delete_works(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+        count_before = self.rag.count()
+        assert count_before > 0
+
+        self.rag.delete("python")
+        assert self.rag.count() < count_before
+
+    def test_hierarchical_retrieval_enriched_context(self):
+        self.rag.index(DOCUMENTS["python"], source="python")
+        self.rag.index(DOCUMENTS["rust"], source="rust")
+        self.rag.index(DOCUMENTS["cooking"], source="cooking")
+
+        hits = self.rag.search("memory safety borrow checker", top_k=3)
+        assert len(hits) >= 1
+        rust_hits = [h for h in hits if h.source == "rust"]
+        assert len(rust_hits) >= 1
+        assert rust_hits[0].parent_content is not None
+        assert "Rust" in rust_hits[0].parent_content

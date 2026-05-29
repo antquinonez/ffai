@@ -573,3 +573,268 @@ class TestRAGFromConfig:
         chunks = rag._chunker.chunk(sample, metadata={})
         assert len(chunks) > 0
         assert max(len(c.content) for c in chunks) <= 200
+
+
+class TestRAGFromConfigZeroArgs:
+    def test_zero_args_auto_creates_embeddings(self):
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+            rag = RAG.from_config()
+        assert rag._embed is not None
+        from ffai.rag.embed import Embeddings
+        assert isinstance(rag._embed, Embeddings)
+
+    def test_zero_args_uses_config_embedding_model(self):
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+            rag = RAG.from_config()
+        assert rag._embed.model == "mistral/mistral-embed"
+
+    def test_api_key_forwarded_to_embeddings(self):
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+            rag = RAG.from_config(api_key="test-key-123")
+        assert rag._embed.api_key == "test-key-123"
+
+    def test_api_key_none_reads_from_env(self):
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+            with patch.dict("os.environ", {"MISTRAL_API_KEY": "env-key-456"}):
+                rag = RAG.from_config()
+        assert rag._embed.api_key == "env-key-456"
+
+    def test_explicit_embed_overrides_auto_creation(self):
+        mock_embed = _make_mock_embed()
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+            rag = RAG.from_config(embed=mock_embed)
+        assert rag._embed is mock_embed
+
+    def test_explicit_embed_ignores_api_key(self):
+        mock_embed = _make_mock_embed()
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+            rag = RAG.from_config(embed=mock_embed, api_key="should-be-ignored")
+        assert rag._embed is mock_embed
+
+    def test_zero_args_with_chromadb_creates_store(self):
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", True):
+            rag = RAG.from_config()
+        assert rag._store is not None
+
+    def test_zero_args_bm25_only_no_store(self):
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", True):
+            rag = RAG.from_config(bm25_only=True)
+        assert rag._store is None
+        assert rag._bm25 is not None
+
+    def test_zero_args_configures_chunker_from_yaml(self):
+        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+            rag = RAG.from_config()
+        assert rag._chunker_name == "recursive"
+
+
+class TestRAGHierarchicalEnrichment:
+    def test_enrich_filters_to_children_only(self):
+        from ffai.rag.splitters.base import HierarchicalTextChunk
+        parent = HierarchicalTextChunk(
+            content="parent text", chunk_index=0, start_char=0, end_char=11,
+            id="p1", hierarchy_level=0, child_ids=["c1"],
+        )
+        child = HierarchicalTextChunk(
+            content="child text", chunk_index=1, start_char=0, end_char=10,
+            id="c1", parent_id="p1", hierarchy_level=1,
+        )
+        rag = RAG.__new__(RAG)
+        result = rag._enrich_hierarchical_chunks([parent, child])
+        assert len(result) == 1
+        assert result[0].id == "c1"
+        assert result[0].hierarchy_level == 1
+
+    def test_enrich_injects_parent_content(self):
+        from ffai.rag.splitters.base import HierarchicalTextChunk
+        parent = HierarchicalTextChunk(
+            content="parent text here", chunk_index=0, start_char=0, end_char=17,
+            id="p1", hierarchy_level=0, child_ids=["c1"],
+        )
+        child = HierarchicalTextChunk(
+            content="child text", chunk_index=1, start_char=0, end_char=10,
+            id="c1", parent_id="p1", hierarchy_level=1,
+        )
+        rag = RAG.__new__(RAG)
+        result = rag._enrich_hierarchical_chunks([parent, child])
+        assert result[0].metadata["parent_content"] == "parent text here"
+
+    def test_enrich_injects_hierarchy_level_in_metadata(self):
+        from ffai.rag.splitters.base import HierarchicalTextChunk
+        parent = HierarchicalTextChunk(
+            content="p", chunk_index=0, start_char=0, end_char=1,
+            id="p1", hierarchy_level=0, child_ids=["c1"],
+        )
+        child = HierarchicalTextChunk(
+            content="c", chunk_index=1, start_char=0, end_char=1,
+            id="c1", parent_id="p1", hierarchy_level=1,
+        )
+        rag = RAG.__new__(RAG)
+        result = rag._enrich_hierarchical_chunks([parent, child])
+        assert result[0].metadata["hierarchy_level"] == 1
+
+    def test_enrich_injects_parent_id_in_metadata(self):
+        from ffai.rag.splitters.base import HierarchicalTextChunk
+        parent = HierarchicalTextChunk(
+            content="p", chunk_index=0, start_char=0, end_char=1,
+            id="p1", hierarchy_level=0, child_ids=["c1"],
+        )
+        child = HierarchicalTextChunk(
+            content="c", chunk_index=1, start_char=0, end_char=1,
+            id="c1", parent_id="p1", hierarchy_level=1,
+        )
+        rag = RAG.__new__(RAG)
+        result = rag._enrich_hierarchical_chunks([parent, child])
+        assert result[0].metadata["parent_id"] == "p1"
+
+    def test_enrich_fallback_when_no_children(self):
+        from ffai.rag.splitters.base import HierarchicalTextChunk
+        parent = HierarchicalTextChunk(
+            content="only parents", chunk_index=0, start_char=0, end_char=12,
+            id="p1", hierarchy_level=0,
+        )
+        rag = RAG.__new__(RAG)
+        result = rag._enrich_hierarchical_chunks([parent])
+        assert result == [parent]
+
+    def test_enrich_multiple_parents_multiple_children(self):
+        from ffai.rag.splitters.base import HierarchicalTextChunk
+        p1 = HierarchicalTextChunk(
+            content="parent one", chunk_index=0, start_char=0, end_char=10,
+            id="p1", hierarchy_level=0, child_ids=["c1", "c2"],
+        )
+        c1 = HierarchicalTextChunk(
+            content="child one", chunk_index=1, start_char=0, end_char=9,
+            id="c1", parent_id="p1", hierarchy_level=1,
+        )
+        c2 = HierarchicalTextChunk(
+            content="child two", chunk_index=2, start_char=0, end_char=9,
+            id="c2", parent_id="p1", hierarchy_level=1,
+        )
+        p2 = HierarchicalTextChunk(
+            content="parent two", chunk_index=3, start_char=0, end_char=10,
+            id="p2", hierarchy_level=0, child_ids=["c3"],
+        )
+        c3 = HierarchicalTextChunk(
+            content="child three", chunk_index=4, start_char=0, end_char=11,
+            id="c3", parent_id="p2", hierarchy_level=1,
+        )
+        rag = RAG.__new__(RAG)
+        result = rag._enrich_hierarchical_chunks([p1, c1, c2, p2, c3])
+        assert len(result) == 3
+        assert result[0].metadata["parent_content"] == "parent one"
+        assert result[1].metadata["parent_content"] == "parent one"
+        assert result[2].metadata["parent_content"] == "parent two"
+
+
+class TestRAGHierarchicalIndexing:
+    def test_hierarchical_chunker_only_stores_children(self):
+        mock_embed = _make_mock_embed()
+        mock_store = MagicMock()
+        mock_store.needs_reindex = MagicMock(return_value=True)
+        mock_store.aadd = AsyncMock(return_value=3)
+
+        from ffai.rag.splitters.hierarchical import HierarchicalChunker
+        chunker = HierarchicalChunker(chunk_size=80, chunk_overlap=10, parent_chunk_size=200)
+
+        rag = RAG(embed=mock_embed, store=mock_store)
+        rag._chunker = chunker
+        rag._chunker_name = "hierarchical"
+
+        text = (
+            "Python is a high-level programming language. It supports multiple paradigms. "
+            "Python has a large standard library.\n\n"
+            "Rust is a systems programming language focused on safety."
+        )
+        count = rag.index(text, source="test_doc")
+        assert count > 0
+        assert mock_store.aadd.call_count == 1
+        stored_ids = mock_store.aadd.call_args[0][0]
+        stored_texts = mock_store.aadd.call_args[0][1]
+        assert len(stored_texts) == count
+        assert count < len(chunker.chunk(text))
+
+    def test_hierarchical_children_have_parent_content_in_metadata(self):
+        mock_embed = _make_mock_embed()
+        mock_store = MagicMock()
+        mock_store.needs_reindex = MagicMock(return_value=True)
+        mock_store.aadd = AsyncMock(return_value=3)
+
+        from ffai.rag.splitters.hierarchical import HierarchicalChunker
+        chunker = HierarchicalChunker(chunk_size=80, chunk_overlap=10, parent_chunk_size=200)
+
+        rag = RAG(embed=mock_embed, store=mock_store)
+        rag._chunker = chunker
+        rag._chunker_name = "hierarchical"
+
+        text = "Python is a language. It has many features. The standard library is large."
+        rag.index(text, source="test_doc")
+
+        metas = mock_store.aadd.call_args[0][3]
+        for meta in metas:
+            assert "parent_content" in meta
+            assert len(meta["parent_content"]) > 0
+
+    def test_non_hierarchical_chunker_unchanged(self):
+        mock_embed = _make_mock_embed()
+        mock_store = MagicMock()
+        mock_store.needs_reindex = MagicMock(return_value=True)
+        mock_store.aadd = AsyncMock(return_value=2)
+
+        rag = RAG(embed=mock_embed, store=mock_store)
+        text = "Some text to chunk. More text here. And even more."
+        count = rag.index(text, source="test_doc")
+        assert count > 0
+        metas = mock_store.aadd.call_args[0][3]
+        for meta in metas:
+            assert "parent_content" not in meta
+
+
+class TestRAGRawToHitsParentContent:
+    def test_parent_content_from_metadata(self):
+        rag = RAG.__new__(RAG)
+        raw = [{
+            "id": "c1",
+            "content": "child text",
+            "score": 0.9,
+            "metadata": {"source": "doc1", "parent_content": "parent text"},
+        }]
+        hits = rag._raw_to_hits(raw)
+        assert len(hits) == 1
+        assert hits[0].parent_content == "parent text"
+
+    def test_parent_content_from_top_level(self):
+        rag = RAG.__new__(RAG)
+        raw = [{
+            "id": "c1",
+            "content": "child text",
+            "score": 0.9,
+            "parent_content": "parent text",
+            "metadata": {},
+        }]
+        hits = rag._raw_to_hits(raw)
+        assert len(hits) == 1
+        assert hits[0].parent_content == "parent text"
+
+    def test_parent_content_none_when_absent(self):
+        rag = RAG.__new__(RAG)
+        raw = [{
+            "id": "c1",
+            "content": "some text",
+            "score": 0.9,
+            "metadata": {},
+        }]
+        hits = rag._raw_to_hits(raw)
+        assert hits[0].parent_content is None
+
+    def test_top_level_parent_content_takes_precedence(self):
+        rag = RAG.__new__(RAG)
+        raw = [{
+            "id": "c1",
+            "content": "child text",
+            "score": 0.9,
+            "parent_content": "top-level parent",
+            "metadata": {"parent_content": "metadata parent"},
+        }]
+        hits = rag._raw_to_hits(raw)
+        assert hits[0].parent_content == "top-level parent"

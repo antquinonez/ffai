@@ -48,7 +48,7 @@ RAG installs ChromaDB for persistent vector storage. OpenTelemetry installs OTLP
 - **History management** — four history views with Polars DataFrame export, full-text search, and Parquet persistence
 - **OpenTelemetry tracing** — optional span emission with model, token, and cost attributes
 - **Condition DSL** — AST-safe expression evaluation with JSON navigation, string ops, regex matching, and math
-- **Runtime configuration** — YAML-based config with `pyproject.toml` extras for RAG, or programmatic `RAG.from_config()`
+- **Runtime configuration** — YAML-based config with `pyproject.toml` extras for RAG, or zero-config `RAG.from_config()`
 
 ## Quick Start
 
@@ -117,15 +117,12 @@ print(result.response)
 
 ### RAG: Retrieval-Augmented Generation
 
+The fastest way to get started is `RAG.from_config()`, which reads all settings from `config/main.yaml` and picks up your API key from the environment:
+
 ```python
 from ffai.rag import RAG
-from ffai.rag.embed import Embeddings
-from ffai.rag.store import VectorStore
 
-embed = Embeddings("mistral/mistral-embed", api_key="your-key")
-store = VectorStore(collection_name="my_kb", dir="./chroma_db")
-
-rag = RAG(embed=embed, store=store, chunk_size=500, chunk_overlap=100)
+rag = RAG.from_config()                        # reads config/main.yaml + MISTRAL_API_KEY
 rag.index("Python is a high-level programming language...", source="python_intro")
 
 # Search for relevant chunks
@@ -144,7 +141,25 @@ print(result.sources)
 # ['python_intro']
 ```
 
-RAG supports BM25 hybrid search (`bm25_alpha`), result reranking (`reranker="diversity"`), query expansion via LLM (`query_expander`), local embedding models (`local/` prefix via `sentence-transformers`), embedding caching, and custom prompt templates.
+You can also pass an API key explicitly:
+
+```python
+rag = RAG.from_config(api_key="your-key")
+```
+
+Or construct each component manually for full control:
+
+```python
+from ffai.rag.embed import Embeddings
+from ffai.rag.store import VectorStore
+
+embed = Embeddings("mistral/mistral-embed", api_key="your-key")
+store = VectorStore(collection_name="my_kb", dir="./chroma_db")
+
+rag = RAG(embed=embed, store=store, chunk_size=500, chunk_overlap=100)
+```
+
+RAG supports BM25 hybrid search (`bm25_alpha`), result reranking (`reranker="diversity"`), query expansion via LLM (`query_expander`), hierarchical chunking with parent-context retrieval (`chunker="hierarchical"`), local embedding models (`local/` prefix via `sentence-transformers`), embedding caching, and custom prompt templates.
 
 You can also manage the RAG lifecycle directly through FFAI:
 
@@ -605,13 +620,73 @@ Runnable Jupyter notebooks in `examples/`:
 
 ## Configuration
 
-FFAI reads YAML config from a `config/` directory. Key files:
+FFAI reads YAML config from a `config/` directory. Values are resolved in priority order: **constructor kwargs > environment variables > YAML files**.
 
-- `config/main.yaml` — retry, observability, and other settings
-- `config/clients.yaml` — client type definitions
-- `config/paths.yaml` — file system paths
-- `config/model_defaults.yaml` — per-model default parameters
-- `config/logging.yaml` — logging format with context variables (`batch_name`, `prompt_name`)
+Config files:
+
+- `config/main.yaml` — retry, RAG, and observability settings
+- `config/clients.yaml` — client type definitions with API key env vars and model strings
+- `config/paths.yaml` — file system paths for data persistence
+- `config/model_defaults.yaml` — per-model default parameters (temperature, max_tokens, etc.)
+- `config/logging.yaml` — logging format, level, and rotation settings
+
+### Client configuration
+
+FFAI uses [LiteLLM](https://github.com/BerriAI/litellm) as its primary routing layer, supporting 100+ providers through a unified interface. For the full list of supported providers and their model string formats, see the [LiteLLM Providers docs](https://docs.litellm.ai/docs/providers).
+
+Add providers in `config/clients.yaml`:
+
+```yaml
+default_client: "litellm-mistral-small"
+
+client_types:
+  litellm-mistral-small:
+    client_class: "FFLiteLLMClient"
+    type: "litellm"
+    provider_prefix: "mistral/"
+    api_key_env: "MISTRAL_API_KEY"
+    default_model: "mistral-small-latest"
+    fallbacks:
+      - "openai/gpt-4o-mini"
+
+  litellm-openai:
+    client_class: "FFLiteLLMClient"
+    type: "litellm"
+    provider_prefix: "openai/"
+    api_key_env: "OPENAI_API_KEY"
+    default_model: "gpt-4o-mini"
+```
+
+Common model string prefixes:
+
+| Prefix | Example | API key env var |
+|--------|---------|----------------|
+| `openai/` | `openai/gpt-4o` | `OPENAI_API_KEY` |
+| `anthropic/` | `anthropic/claude-3-5-sonnet-20241022` | `ANTHROPIC_API_KEY` |
+| `mistral/` | `mistral/mistral-small-latest` | `MISTRAL_API_KEY` |
+| `azure/` | `azure/my-deployment` | `AZURE_OPENAI_API_KEY` |
+| `gemini/` | `gemini/gemini-1.5-pro` | `GEMINI_API_KEY` |
+| `groq/` | `groq/llama-3.1-70b-versatile` | `GROQ_API_KEY` |
+| `deepseek/` | `deepseek/deepseek-chat` | `DEEPSEEK_API_KEY` |
+| `ollama/` | `ollama/llama3` | (local, no key) |
+
+### Retry settings
+
+Defined in `config/main.yaml`:
+
+```yaml
+retry:
+  max_attempts: 3
+  min_wait_seconds: 1
+  max_wait_seconds: 60
+  exponential_base: 2
+  exponential_jitter: true
+  retry_on_status_codes:
+    - 429
+    - 503
+    - 502
+    - 504
+```
 
 ### RAG configuration
 
@@ -621,25 +696,42 @@ FFAI reads YAML config from a `config/` directory. Key files:
 rag:
   enabled: true
   persist_dir: "./chroma_db"
-  collection_name: "default"
+  collection_name: "ffai_kb"
   embedding_model: "mistral/mistral-embed"
   chunker: "recursive"
-  chunk_size: 500
-  chunk_overlap: 100
+  chunk_size: 1000
+  chunk_overlap: 200
   bm25_alpha: 0.5
   reranker: "diversity"
 ```
 
 ```python
 from ffai.rag import RAG
-from ffai.rag.embed import Embeddings
 
-embed = Embeddings("mistral/mistral-embed", api_key="your-key")
-rag = RAG.from_config(embed=embed)
-# Uses chunk_size, chunk_overlap, reranker, bm25_alpha from config/main.yaml
+# Zero-config: reads embedding_model from config, API key from MISTRAL_API_KEY env var
+rag = RAG.from_config()
+
+# Or with explicit API key
+rag = RAG.from_config(api_key="your-key")
 ```
 
-### Programmatic model defaults
+### Model defaults
+
+Define per-model defaults in `config/model_defaults.yaml`:
+
+```yaml
+model_defaults:
+  generic:
+    max_tokens: 4096
+    temperature: 0.7
+    system_instructions: "You are a helpful assistant."
+  models:
+    mistral/mistral-small-latest:
+      max_tokens: 32000
+      temperature: 0.7
+```
+
+Or register programmatically:
 
 ```python
 from ffai.Clients.model_defaults import register_model_defaults

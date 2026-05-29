@@ -73,8 +73,8 @@ class CrossEncoderReranker(RerankerBase):
                 logger.info(f"Loaded cross-encoder model (sentence-transformers): {self.model_name}")
             except ImportError:
                 try:
-                    from fastembed.rerank.cross_encoder import (
-                        TextCrossEncoder,  # type: ignore[reportMissingImports]
+                    from fastembed.rerank.cross_encoder import (  # type: ignore[import-untyped]
+                        TextCrossEncoder,
                     )
 
                     fe_name = self._fastembed_model_name or self._FASTEMBED_MODEL_MAP.get(

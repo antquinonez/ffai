@@ -25,7 +25,12 @@ cost/usage tracking.
 
    guides/installation
    guides/configuration
+   guides/rag_search
+   guides/chunking
+   guides/fallback_and_switching
+   guides/cost_tracking
    guides/history
+   guides/response_validation
 
 .. toctree::
    :maxdepth: 2

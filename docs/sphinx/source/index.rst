@@ -18,6 +18,9 @@ cost/usage tracking.
    tutorials/rag_pipeline
    tutorials/dag_execution
    tutorials/agent_tools
+   tutorials/structured_output
+   tutorials/async_patterns
+   tutorials/condition_dsl
 
 .. toctree::
    :maxdepth: 2

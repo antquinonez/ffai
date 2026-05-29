@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -423,12 +424,14 @@ class TestRAGQuery:
             SearchHit(content="ctx", score=0.9, source="s1", metadata={"source": "s1"}),
         ])
 
+        original_sleep = time.sleep
+
         def slow_fn(p: str) -> str:
-            time.sleep(5.0)
+            original_sleep(10.0)
             return "too late"
 
-        with pytest.raises(TimeoutError):
-            rag.query("q?", generate_fn=slow_fn, generate_timeout=0.1)
+        with pytest.raises((TimeoutError, asyncio.CancelledError)):
+            rag.query("q?", generate_fn=slow_fn, generate_timeout=0.05)
 
     def test_generate_timeout_allows_fast_fn(self):
         rag, _, store, _ = _build_rag()

@@ -430,8 +430,11 @@ class TestRAGQuery:
             original_sleep(10.0)
             return "too late"
 
-        with pytest.raises((TimeoutError, asyncio.CancelledError)):
+        try:
             rag.query("q?", generate_fn=slow_fn, generate_timeout=0.05)
+            pytest.fail("Expected TimeoutError or CancelledError")
+        except (TimeoutError, asyncio.CancelledError):
+            pass
 
     def test_generate_timeout_allows_fast_fn(self):
         rag, _, store, _ = _build_rag()

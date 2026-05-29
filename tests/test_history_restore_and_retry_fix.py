@@ -14,6 +14,7 @@
    disables LiteLLM's internal retries.
 """
 
+import importlib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,13 +22,15 @@ import pytest
 from ffai.Clients.FFLiteLLMClient import FFLiteLLMClient
 from ffai.FFAI import FFAI
 
+_fflitellm_mod = importlib.import_module("ffai.Clients.FFLiteLLMClient")
+
 
 class TestHistoryRestoreWithCopyReturningClient:
     """Validate that client history is correctly restored even when
     ``get_conversation_history()`` returns a defensive copy (like FFLiteLLMClient).
     """
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_litellm_client_history_restored_after_declarative_call(self, mock_completion):
         """FFLiteLLMClient.get_conversation_history() returns a copy.
         Verify FFAI's suspend/restore still merges new messages back.
@@ -54,7 +57,7 @@ class TestHistoryRestoreWithCopyReturningClient:
         # After restore: original 4 + 2 new (user + assistant)
         assert len(client.conversation_history) == 6
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_litellm_client_original_history_preserved_after_restore(
         self, mock_completion
     ):
@@ -78,7 +81,7 @@ class TestHistoryRestoreWithCopyReturningClient:
         assert client.conversation_history[0] == original[0]
         assert client.conversation_history[1] == original[1]
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_litellm_client_interpolation_suspends_and_restores(self, mock_completion):
         """{{name.response}} interpolation also triggers suspend/restore."""
         mock_response = MagicMock()
@@ -101,7 +104,7 @@ class TestHistoryRestoreWithCopyReturningClient:
 
         assert len(client.conversation_history) == 4
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_litellm_client_get_history_returns_copy(self, mock_completion):
         """Confirm the precondition: get_conversation_history returns a copy,
         so appending to the return value does NOT modify internal state.
@@ -114,7 +117,7 @@ class TestHistoryRestoreWithCopyReturningClient:
 
         assert len(client.conversation_history) == 1
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_litellm_client_mixed_declarative_and_normal(self, mock_completion):
         """Mix of declarative and normal calls preserves full history."""
         mock_response = MagicMock()
@@ -147,7 +150,7 @@ class TestHistoryRestoreWithCopyReturningClient:
 class TestFFLiteLLMClientRetryUsesSharedMechanism:
     """Validate that FFLiteLLMClient delegates retry to retry_utils."""
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_retryable_exception_retried(self, mock_completion):
         """A retryable exception should trigger retries via tenacity."""
         from ffai.retry_utils import RateLimitError
@@ -169,7 +172,7 @@ class TestFFLiteLLMClientRetryUsesSharedMechanism:
         assert response == "Success"
         assert mock_completion.call_count == 2
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_non_retryable_exception_not_retried(self, mock_completion):
         """A non-retryable exception should NOT be retried."""
         mock_completion.side_effect = ValueError("bad input")
@@ -181,7 +184,7 @@ class TestFFLiteLLMClientRetryUsesSharedMechanism:
 
         assert mock_completion.call_count == 1
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_all_retries_exhausted_raises(self, mock_completion):
         """When all retries are exhausted, the original exception is raised."""
         from ffai.retry_utils import RateLimitError
@@ -195,7 +198,7 @@ class TestFFLiteLLMClientRetryUsesSharedMechanism:
 
         assert mock_completion.call_count == 3
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_fallback_after_retries_exhausted(self, mock_completion):
         """Fallbacks should be tried after primary retries are exhausted."""
 
@@ -227,7 +230,7 @@ class TestFFLiteLLMClientRetryUsesSharedMechanism:
         assert response == "Fallback OK"
         assert call_count == 4  # 3 primary retries + 1 fallback
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_litellm_internal_retries_disabled(self, mock_completion):
         """LiteLLM's own retry counter should be 0 (we use our own)."""
         client = FFLiteLLMClient(model_string="openai/gpt-4")
@@ -236,14 +239,14 @@ class TestFFLiteLLMClientRetryUsesSharedMechanism:
 
         assert litellm.num_retries == 0
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_call_primary_is_decorated(self, mock_completion):
         """_call_primary should have tenacity retry metadata."""
         client = FFLiteLLMClient(model_string="openai/gpt-4")
 
         assert hasattr(client._call_primary, "retry")
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_retry_does_not_corrupt_history(self, mock_completion):
         """Failed attempts should not leave partial history entries."""
         from ffai.retry_utils import RateLimitError
@@ -271,7 +274,7 @@ class TestFFLiteLLMClientRetryUsesSharedMechanism:
 class TestFFLiteLLMClientFallbackAfterRetry:
     """Validate fallback behavior with the new retry mechanism."""
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_all_models_fail_raises_runtime_error(self, mock_completion):
         """When primary + all fallbacks fail, raise RuntimeError."""
         from ffai.retry_utils import RateLimitError
@@ -286,7 +289,7 @@ class TestFFLiteLLMClientFallbackAfterRetry:
         with pytest.raises(RuntimeError, match="All models failed"):
             client.generate_response("Hello")
 
-    @patch("ffai.Clients.FFLiteLLMClient.completion")
+    @patch.object(_fflitellm_mod, "completion")
     def test_first_fallback_succeeds(self, mock_completion):
         """First fallback model succeeds."""
         from ffai.retry_utils import RateLimitError

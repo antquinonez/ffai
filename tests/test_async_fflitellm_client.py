@@ -3,6 +3,7 @@
 # Contact: antquinonez@farfiner.com
 
 import asyncio
+import importlib
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,6 +11,9 @@ import pytest
 
 from ffai.Clients.AsyncFFLiteLLMClient import AsyncFFLiteLLMClient
 from ffai.core.usage import TokenUsage
+
+_async_mod = importlib.import_module("ffai.Clients.AsyncFFLiteLLMClient")
+_baselitellm_mod = importlib.import_module("ffai.Clients.BaseLiteLLMClient")
 
 
 def _make_mock_response(content: str | None = "test response", tool_calls=None, usage=None):
@@ -42,7 +46,7 @@ def env_key():
 
 @pytest.fixture
 def client(env_key):
-    with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+    with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
         return AsyncFFLiteLLMClient(
             model_string="openai/gpt-4",
             api_key="test-key",
@@ -53,12 +57,12 @@ def client(env_key):
 
 class TestAsyncFFLiteLLMClientInit:
     def test_model_string_parsing_with_provider(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(model_string="anthropic/claude-3-opus", api_key="k")
         assert c.model == "claude-3-opus"
 
     def test_model_string_without_slash(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(model_string="gpt-4", api_key="k")
         assert c.model == "gpt-4"
 
@@ -69,7 +73,7 @@ class TestAsyncFFLiteLLMClientInit:
         assert client.system_instructions == "You are a helpful assistant."
 
     def test_custom_system_instructions(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(
                 model_string="openai/gpt-4",
                 api_key="k",
@@ -78,7 +82,7 @@ class TestAsyncFFLiteLLMClientInit:
         assert c.system_instructions == "Custom instructions"
 
     def test_fallbacks_preserved(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(
                 model_string="openai/gpt-4",
                 api_key="k",
@@ -113,7 +117,7 @@ class TestAsyncFFLiteLLMClientGetEnv:
         assert val == "env-key"
 
     def test_anthropic_prefix(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(model_string="anthropic/claude-3", api_key="k")
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "anth-key"}):
             val = c._get_env("API_KEY")
@@ -133,7 +137,7 @@ class TestAsyncFFLiteLLMClientGetEnv:
 class TestAsyncFFLiteLLMClientGenerateResponse:
     def test_basic_async_call(self, client):
         mock_resp = _make_mock_response("hello world")
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, return_value=mock_resp):
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, return_value=mock_resp):
             result = asyncio.run(client.generate_response("hi"))
         assert result == "hello world"
 
@@ -143,28 +147,28 @@ class TestAsyncFFLiteLLMClientGenerateResponse:
 
     def test_model_override_bare_name_gets_prefix(self, client):
         mock_resp = _make_mock_response("ok")
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, return_value=mock_resp) as mock_ac:
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, return_value=mock_resp) as mock_ac:
             asyncio.run(client.generate_response("hi", model="gpt-3.5-turbo"))
         call_kwargs = mock_ac.call_args
         assert call_kwargs.kwargs["model"] == "openai/gpt-3.5-turbo"
 
     def test_model_override_full_string_passes_through(self, client):
         mock_resp = _make_mock_response("ok")
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, return_value=mock_resp) as mock_ac:
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, return_value=mock_resp) as mock_ac:
             asyncio.run(client.generate_response("hi", model="anthropic/claude-3"))
         call_kwargs = mock_ac.call_args
         assert call_kwargs.kwargs["model"] == "anthropic/claude-3"
 
     def test_temperature_override_per_call(self, client):
         mock_resp = _make_mock_response("ok")
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, return_value=mock_resp) as mock_ac:
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, return_value=mock_resp) as mock_ac:
             asyncio.run(client.generate_response("hi", temperature=0.1))
         call_kwargs = mock_ac.call_args
         assert call_kwargs.kwargs["temperature"] == 0.1
 
     def test_api_params_passed(self, client):
         mock_resp = _make_mock_response("ok")
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, return_value=mock_resp) as mock_ac:
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, return_value=mock_resp) as mock_ac:
             asyncio.run(client.generate_response("hi"))
         call_kwargs = mock_ac.call_args.kwargs
         assert call_kwargs["api_key"] == "test-key"
@@ -173,7 +177,7 @@ class TestAsyncFFLiteLLMClientGenerateResponse:
 
     def test_records_to_conversation_history(self, client):
         mock_resp = _make_mock_response("answer")
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, return_value=mock_resp):
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, return_value=mock_resp):
             asyncio.run(client.generate_response("question"))
         assert len(client.conversation_history) == 2
         assert client.conversation_history[0]["role"] == "user"
@@ -190,7 +194,7 @@ class TestAsyncFFLiteLLMClientToolCalls:
         tc.function.arguments = '{"city": "Paris"}'
 
         mock_resp = _make_mock_response("checking", tool_calls=[tc])
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, return_value=mock_resp):
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, return_value=mock_resp):
             result = asyncio.run(client.generate_response("weather?"))
         assert result == "checking"
         assert len(client.conversation_history) == 2
@@ -198,7 +202,7 @@ class TestAsyncFFLiteLLMClientToolCalls:
 
     def test_none_content_returns_empty_string(self, client):
         mock_resp = _make_mock_response(content=None)
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, return_value=mock_resp):
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, return_value=mock_resp):
             result = asyncio.run(client.generate_response("hi"))
         assert result == ""
 
@@ -207,7 +211,7 @@ class TestAsyncFFLiteLLMClientExtractUsage:
     def test_usage_extracted(self, client):
         usage = _make_usage(100, 50, 150)
         mock_resp = _make_mock_response("ok", usage=usage)
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, return_value=mock_resp), \
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, return_value=mock_resp), \
              patch("ffai.Clients.BaseLiteLLMClient.litellm.completion_cost", return_value=0.005):
             asyncio.run(client.generate_response("hi"))
         assert client.last_usage is not None
@@ -217,7 +221,7 @@ class TestAsyncFFLiteLLMClientExtractUsage:
 
     def test_no_usage_defaults(self, client):
         mock_resp = _make_mock_response("ok", usage=None)
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, return_value=mock_resp):
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, return_value=mock_resp):
             asyncio.run(client.generate_response("hi"))
         assert client.last_usage is None
         assert client.last_cost_usd == 0.0
@@ -225,7 +229,7 @@ class TestAsyncFFLiteLLMClientExtractUsage:
     def test_cost_failure_defaults_to_zero(self, client):
         usage = _make_usage(10, 5, 15)
         mock_resp = _make_mock_response("ok", usage=usage)
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, return_value=mock_resp), \
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, return_value=mock_resp), \
              patch("ffai.Clients.BaseLiteLLMClient.litellm.completion_cost", side_effect=Exception("no pricing")):
             asyncio.run(client.generate_response("hi"))
         assert client.last_cost_usd == 0.0
@@ -260,7 +264,7 @@ class TestAsyncFFLiteLLMClientBuildMessages:
         assert msgs[0]["content"] == "override"
 
     def test_none_system_uses_default(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(model_string="openai/gpt-4", api_key="k")
         assert c.system_instructions == "You are a helpful assistant."
 
@@ -270,19 +274,19 @@ class TestAsyncFFLiteLLMClientFallbacks:
         primary_resp = _make_mock_response("primary")
         fallback_resp = _make_mock_response("fallback answer")
 
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, side_effect=[RuntimeError("fail"), fallback_resp]):
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, side_effect=[RuntimeError("fail"), fallback_resp]):
             client._fallbacks = ["openai/gpt-3.5-turbo"]
             result = asyncio.run(client.generate_response("hi"))
         assert result == "fallback answer"
 
     def test_all_fallbacks_fail_raises(self, client):
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, side_effect=RuntimeError("fail")):
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, side_effect=RuntimeError("fail")):
             client._fallbacks = ["openai/gpt-3.5-turbo", "anthropic/claude-3"]
             with pytest.raises(RuntimeError, match="All models failed"):
                 asyncio.run(client.generate_response("hi"))
 
     def test_no_fallbacks_raises_original(self, client):
-        with patch("ffai.Clients.AsyncFFLiteLLMClient.acompletion", new_callable=AsyncMock, side_effect=RuntimeError("primary fail")):
+        with patch.object(_async_mod, "acompletion", new_callable=AsyncMock, side_effect=RuntimeError("primary fail")):
             client._fallbacks = []
             with pytest.raises(RuntimeError, match="primary fail"):
                 asyncio.run(client.generate_response("hi"))

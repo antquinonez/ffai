@@ -7,6 +7,8 @@ import pytest
 
 from ffai.core.response_options import ResponseOptions
 
+_ffai_mod = __import__("importlib").import_module("ffai.FFAI")
+
 
 @pytest.fixture
 def mock_client():
@@ -22,7 +24,7 @@ def mock_client():
 
 @pytest.fixture
 def ffai(mock_client):
-    with patch("ffai.FFAI.get_config"):
+    with patch.object(_ffai_mod, "get_config"):
         from ffai.config import Config
         from ffai.FFAI import FFAI
 
@@ -32,7 +34,7 @@ def ffai(mock_client):
         mock_config.rag = MagicMock()
         mock_config.rag.enabled = False
 
-        with patch("ffai.FFAI.get_config", return_value=mock_config):
+        with patch.object(_ffai_mod, "get_config", return_value=mock_config):
             return FFAI(mock_client)
 
 

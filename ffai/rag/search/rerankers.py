@@ -34,23 +34,33 @@ class RerankerBase:
 class CrossEncoderReranker(RerankerBase):
     """Re-ranker using cross-encoder models.
 
-    Uses sentence-transformers cross-encoder models for re-ranking.
-    Requires: pip install sentence-transformers
+    Tries sentence-transformers first, then falls back to fastembed (ONNX-based).
+    Requires at least one of:
+        pip install sentence-transformers
+        pip install fastembed
 
     Args:
         model_name: Cross-encoder model name.
-        max_length: Maximum sequence length.
+        max_length: Maximum sequence length (sentence-transformers only).
+        fastembed_model_name: Model name for fastembed fallback.
 
     """
+
+    _FASTEMBED_MODEL_MAP = {
+        "cross-encoder/ms-marco-MiniLM-L-6-v2": "Xenova/ms-marco-MiniLM-L-6-v2",
+    }
 
     def __init__(
         self,
         model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
         max_length: int = 512,
+        fastembed_model_name: str | None = None,
     ) -> None:
         self.model_name = model_name
         self.max_length = max_length
-        self._model = None
+        self._fastembed_model_name = fastembed_model_name
+        self._model: Any = None
+        self._backend: str | None = None
 
     def _load_model(self) -> Any:
         """Lazily load the cross-encoder model."""
@@ -59,13 +69,39 @@ class CrossEncoderReranker(RerankerBase):
                 from sentence_transformers import CrossEncoder  # type: ignore[reportMissingImports]
 
                 self._model = CrossEncoder(self.model_name, max_length=self.max_length)
-                logger.info(f"Loaded cross-encoder model: {self.model_name}")
-            except ImportError as e:
-                raise ImportError(
-                    "sentence-transformers not installed. "
-                    "Install with: pip install sentence-transformers"
-                ) from e
+                self._backend = "sentence-transformers"
+                logger.info(f"Loaded cross-encoder model (sentence-transformers): {self.model_name}")
+            except ImportError:
+                try:
+                    from fastembed.rerank.cross_encoder import (  # type: ignore[import-untyped]
+                        TextCrossEncoder,
+                    )
+
+                    fe_name = self._fastembed_model_name or self._FASTEMBED_MODEL_MAP.get(
+                        self.model_name, self.model_name,
+                    )
+                    self._model = TextCrossEncoder(fe_name)
+                    self._backend = "fastembed"
+                    logger.info(f"Loaded cross-encoder model (fastembed): {fe_name}")
+                except ImportError as e:
+                    raise ImportError(
+                        "No cross-encoder backend available. Install one of:\n"
+                        "  pip install sentence-transformers\n"
+                        "  pip install fastembed"
+                    ) from e
         return self._model
+
+    def _predict(self, query: str, results: list[dict[str, Any]]) -> list[float]:
+        """Run prediction using the loaded backend."""
+        model = self._load_model()
+
+        if self._backend == "fastembed":
+            docs = [r.get("content", "") for r in results]
+            return list(model.rerank(query=query, documents=docs))
+
+        pairs = [(query, r.get("content", "")) for r in results]
+        raw = model.predict(pairs)
+        return [float(s) for s in raw]
 
     def rerank(
         self,
@@ -88,12 +124,9 @@ class CrossEncoderReranker(RerankerBase):
             return []
 
         logger.info(f"Cross-encoder reranking {len(results)} results for query: {query[:50]}...")
-        model = self._load_model()
-
-        pairs = [(query, r.get("content", "")) for r in results]
 
         try:
-            scores = model.predict(pairs)
+            scores = self._predict(query, results)
         except Exception as e:
             logger.warning(f"Cross-encoder prediction failed: {e}")
             return results[:n_results] if n_results else results
@@ -249,7 +282,6 @@ def get_reranker(
     """
     if reranker_type == "cross_encoder":
         return CrossEncoderReranker(**kwargs)
-    elif reranker_type == "diversity":
+    if reranker_type == "diversity":
         return DiversityReranker(**kwargs)
-    else:
-        return NoopReranker()
+    return NoopReranker()

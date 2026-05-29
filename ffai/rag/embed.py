@@ -52,6 +52,7 @@ class Embeddings:
         self._extra_kwargs = kwargs
         self._is_local = model.startswith("local/")
         self._local_model: Any = None
+        self._local_backend: str | None = None
         self.api_key: str | None = None
         self.api_base: str | None = None
 
@@ -65,18 +66,32 @@ class Embeddings:
         self._cache_size = cache_size
         self._cache: OrderedDict[str, list[float]] = OrderedDict()
 
+    _FASTEMBED_MODEL_MAP: dict[str, str] = {
+        "all-MiniLM-L6-v2": "sentence-transformers/all-MiniLM-L6-v2",
+    }
+
     def _init_local(self, model: str) -> None:
         model_name = model.replace("local/", "")
         try:
             from sentence_transformers import SentenceTransformer  # type: ignore[import-untyped]
 
             self._local_model = SentenceTransformer(model_name, device=self._device)
-            logger.info(f"Loaded local model: {model_name}")
-        except ImportError as e:
-            raise ImportError(
-                "sentence-transformers not installed. "
-                "Install with: pip install sentence-transformers"
-            ) from e
+            self._local_backend = "sentence-transformers"
+            logger.info(f"Loaded local model (sentence-transformers): {model_name}")
+        except ImportError:
+            try:
+                from fastembed import TextEmbedding  # type: ignore[import-untyped]
+
+                fe_name = self._FASTEMBED_MODEL_MAP.get(model_name, model_name)
+                self._local_model = TextEmbedding(fe_name)
+                self._local_backend = "fastembed"
+                logger.info(f"Loaded local model (fastembed): {fe_name}")
+            except ImportError as e:
+                raise ImportError(
+                    "No local embedding backend found. Install one of:\n"
+                    "  pip install sentence-transformers\n"
+                    "  pip install fastembed"
+                ) from e
 
     def _get_default_api_key(self) -> str | None:
         provider = self.model.split("/")[0] if "/" in self.model else "openai"
@@ -168,9 +183,16 @@ class Embeddings:
                 uncached_indices.append(i)
 
         if uncached_texts:
-            embeddings = self._local_model.encode(uncached_texts, convert_to_numpy=True)
+            if self._local_backend == "fastembed":
+                raw = self._local_model.embed(uncached_texts)
+                embeddings_list = [e.tolist() for e in raw]
+            else:
+                import numpy as np
+
+                embeddings = self._local_model.encode(uncached_texts, convert_to_numpy=True)
+                embeddings_list = [row.tolist() for row in np.asarray(embeddings)]
             for j, (idx, text) in enumerate(zip(uncached_indices, uncached_texts)):
-                emb = embeddings[j].tolist()
+                emb = embeddings_list[j]
                 results.append((idx, emb))
                 if self._cache_enabled:
                     self._cache[text] = emb

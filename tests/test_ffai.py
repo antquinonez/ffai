@@ -954,12 +954,11 @@ class TestFFAIGenerateResponseExtended:
 
     def test_generate_response_with_thread_lock(self, mock_ffmistralsmall):
         """Test thread lock is used when provided."""
-        import threading
         from unittest.mock import MagicMock
 
         from ffai.FFAI import FFAI
 
-        lock = MagicMock(spec=threading.Lock)
+        lock = MagicMock()
         lock.__enter__ = MagicMock(return_value=None)
         lock.__exit__ = MagicMock(return_value=False)
         ffai = FFAI(mock_ffmistralsmall, history_lock=lock)

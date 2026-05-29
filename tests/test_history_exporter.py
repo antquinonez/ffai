@@ -1,6 +1,7 @@
 import polars as pl
 
 from ffai.core.history_exporter import HistoryExporter
+from ffai.core.usage import TokenUsage
 from ffai.OrderedPromptHistory import OrderedPromptHistory
 
 
@@ -367,3 +368,189 @@ class TestHistoryExporterPersistence:
         )
         exporter.history_to_dataframe()
         assert not (tmp_path / "auto_history_to_dataframe.parquet").exists()
+
+
+class TestHistoryExporterUsageSerialization:
+    def test_usage_object_is_stringified(self):
+        records = [
+            {
+                "prompt": "p",
+                "response": "r",
+                "prompt_name": "test",
+                "model": "m",
+                "timestamp": 1700000000.0,
+                "usage": TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
+            },
+        ]
+        exporter = _make_exporter(history=records)
+        df = exporter.history_to_dataframe()
+        assert df.height == 1
+        assert isinstance(df["usage"][0], str)
+        assert "30" in df["usage"][0]
+
+    def test_usage_string_preserved(self):
+        records = [
+            {
+                "prompt": "p",
+                "response": "r",
+                "prompt_name": "test",
+                "model": "m",
+                "timestamp": 1700000000.0,
+                "usage": "already a string",
+            },
+        ]
+        exporter = _make_exporter(history=records)
+        df = exporter.history_to_dataframe()
+        assert df["usage"][0] == "already a string"
+
+    def test_usage_none_preserved(self):
+        records = [
+            {
+                "prompt": "p",
+                "response": "r",
+                "prompt_name": "test",
+                "model": "m",
+                "timestamp": 1700000000.0,
+                "usage": None,
+            },
+        ]
+        exporter = _make_exporter(history=records)
+        df = exporter.history_to_dataframe()
+        assert df["usage"][0] is None
+
+    def test_history_list_is_stringified(self):
+        records = [
+            {
+                "prompt": "p",
+                "response": "r",
+                "prompt_name": "test",
+                "model": "m",
+                "timestamp": 1700000000.0,
+                "history": ["step1", "step2"],
+            },
+        ]
+        exporter = _make_exporter(history=records)
+        df = exporter.history_to_dataframe()
+        assert df.height == 1
+        assert isinstance(df["history"][0], str)
+        assert "step1" in df["history"][0]
+        assert "step2" in df["history"][0]
+
+    def test_history_string_preserved(self):
+        records = [
+            {
+                "prompt": "p",
+                "response": "r",
+                "prompt_name": "test",
+                "model": "m",
+                "timestamp": 1700000000.0,
+                "history": "not a list",
+            },
+        ]
+        exporter = _make_exporter(history=records)
+        df = exporter.history_to_dataframe()
+        assert df["history"][0] == "not a list"
+
+    def test_no_history_key_no_error(self):
+        records = [
+            {
+                "prompt": "p",
+                "response": "r",
+                "prompt_name": "test",
+                "model": "m",
+                "timestamp": 1700000000.0,
+            },
+        ]
+        exporter = _make_exporter(history=records)
+        df = exporter.history_to_dataframe()
+        assert df.height == 1
+
+
+class TestHistoryExporterPersistRoundTrip:
+    def test_persist_and_reload_ordered_history(self, tmp_path):
+        oh = OrderedPromptHistory()
+        oh.add_interaction("test-model", "Hello", "Hi!", prompt_name="greet")
+        oh.add_interaction("test-model", "Bye", "Goodbye!", prompt_name="farewell")
+        exporter = _make_exporter(
+            ordered_history=oh,
+            persist_dir=str(tmp_path),
+            persist_name="roundtrip",
+        )
+        assert exporter.persist_all_histories() is True
+
+        reloaded = pl.read_parquet(tmp_path / "roundtrip_ordered.parquet")
+        assert reloaded.height == 2
+        assert reloaded["prompt_name"][0] == "greet"
+        assert reloaded["prompt_name"][1] == "farewell"
+        assert reloaded["model"][0] == "test-model"
+        assert "datetime" in reloaded.columns
+
+    def test_persist_and_reload_with_usage_object(self, tmp_path):
+        records = [
+            {
+                "prompt": "p1",
+                "response": "r1",
+                "prompt_name": "test",
+                "model": "m",
+                "timestamp": 1700000000.0,
+                "usage": TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
+                "history": ["dep1", "dep2"],
+                "status": "success",
+                "resolved_prompt": "resolved p1",
+            },
+        ]
+        exporter = _make_exporter(
+            history=records,
+            clean_history=records,
+            persist_dir=str(tmp_path),
+            persist_name="usage_test",
+        )
+        assert exporter.persist_all_histories() is True
+
+        reloaded = pl.read_parquet(tmp_path / "usage_test_history.parquet")
+        assert reloaded.height == 1
+        assert "30" in reloaded["usage"][0]
+        assert "dep1" in reloaded["history"][0]
+
+    def test_persist_all_four_files_created(self, tmp_path):
+        oh = OrderedPromptHistory()
+        oh.add_interaction("m", "p", "r", prompt_name="x")
+        records = [
+            {
+                "prompt": "p",
+                "response": "r",
+                "prompt_name": "x",
+                "model": "m",
+                "timestamp": 1700000000.0,
+            },
+        ]
+        exporter = _make_exporter(
+            history=records,
+            clean_history=records,
+            prompt_attr_history=records,
+            ordered_history=oh,
+            persist_dir=str(tmp_path),
+            persist_name="four",
+        )
+        assert exporter.persist_all_histories() is True
+        assert (tmp_path / "four_history.parquet").exists()
+        assert (tmp_path / "four_clean_history.parquet").exists()
+        assert (tmp_path / "four_prompt_attr.parquet").exists()
+        assert (tmp_path / "four_ordered.parquet").exists()
+
+    def test_persist_skips_empty_history(self, tmp_path):
+        oh = OrderedPromptHistory()
+        oh.add_interaction("m", "p", "r", prompt_name="x")
+        exporter = _make_exporter(
+            history=[],
+            clean_history=[],
+            prompt_attr_history=[],
+            ordered_history=oh,
+            persist_dir=str(tmp_path),
+            persist_name="partial",
+        )
+        assert exporter.persist_all_histories() is True
+        assert not (tmp_path / "partial_history.parquet").exists()
+        assert not (tmp_path / "partial_clean_history.parquet").exists()
+        assert not (tmp_path / "partial_prompt_attr.parquet").exists()
+        assert (tmp_path / "partial_ordered.parquet").exists()

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Contact: antquinonez@farfiner.com
 
+import importlib
 import os
 from unittest.mock import MagicMock, patch
 
@@ -13,10 +14,13 @@ from ffai.Clients.FFLiteLLMClient import FFLiteLLMClient
 from ffai.core.async_client_base import AsyncFFAIClientBase
 from ffai.FFAIClientBase import FFAIClientBase
 
+_fflitellm_mod = importlib.import_module("ffai.Clients.FFLiteLLMClient")
+_baselitellm_mod = importlib.import_module("ffai.Clients.BaseLiteLLMClient")
+
 
 @pytest.fixture
 def sync_client():
-    with patch("ffai.Clients.FFLiteLLMClient.completion"):
+    with patch.object(_fflitellm_mod, "completion"):
         return FFLiteLLMClient(model_string="openai/gpt-4", api_key="test-key")
 
 
@@ -26,7 +30,7 @@ class TestBaseLiteLLMClientInit:
         assert sync_client.model == "gpt-4"
 
     def test_init_with_custom_settings(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(
                 model_string="openai/gpt-4",
                 api_key="key",
@@ -39,7 +43,7 @@ class TestBaseLiteLLMClientInit:
         assert client.system_instructions == "Be helpful"
 
     def test_init_with_config_dict(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(
                 model_string="openai/gpt-4",
                 config={"temperature": 0.3, "api_key": "cfg-key"},
@@ -48,7 +52,7 @@ class TestBaseLiteLLMClientInit:
         assert client.api_key == "cfg-key"
 
     def test_init_with_fallbacks(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(
                 model_string="openai/gpt-4",
                 api_key="key",
@@ -57,14 +61,14 @@ class TestBaseLiteLLMClientInit:
         assert client._fallbacks == ["anthropic/claude-3-opus"]
 
     def test_init_default_retry_config(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(model_string="openai/gpt-4", api_key="key")
         assert client._retry_config["max_attempts"] == 3
 
 
 class TestBaseLiteLLMClientResolveSettings:
     def test_constructor_over_config(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(
                 model_string="openai/gpt-4",
                 config={"temperature": 0.3},
@@ -74,8 +78,8 @@ class TestBaseLiteLLMClientResolveSettings:
         assert client.temperature == 0.9
 
     def test_config_over_defaults(self):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={"temperature": 0.1}):
-            with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={"temperature": 0.1}):
+            with patch.object(_fflitellm_mod, "completion"):
                 client = FFLiteLLMClient(
                     model_string="openai/gpt-4",
                     config={"temperature": 0.5},
@@ -84,14 +88,14 @@ class TestBaseLiteLLMClientResolveSettings:
         assert client.temperature == 0.5
 
     def test_defaults_as_fallback(self):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={"temperature": 0.1, "max_tokens": 2048}):
-            with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={"temperature": 0.1, "max_tokens": 2048}):
+            with patch.object(_fflitellm_mod, "completion"):
                 client = FFLiteLLMClient(model_string="openai/gpt-4", api_key="key")
         assert client.temperature == 0.1
         assert client.max_tokens == 2048
 
     def test_extra_kwargs_preserved(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(
                 model_string="openai/gpt-4",
                 api_key="key",
@@ -102,26 +106,26 @@ class TestBaseLiteLLMClientResolveSettings:
 
 class TestBaseLiteLLMClientEnvVars:
     def test_get_env_openai_prefix(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(model_string="openai/gpt-4")
         with patch.dict(os.environ, {"OPENAI_API_KEY": "env-key"}):
             assert client._get_env("API_KEY") == "env-key"
 
     def test_get_env_anthropic_prefix(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(model_string="anthropic/claude-3-opus")
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "anthropic-key"}):
             assert client._get_env("API_KEY") == "anthropic-key"
 
     def test_get_env_litellm_fallback(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(model_string="openai/gpt-4")
         with patch.dict(os.environ, {"OPENAI_API_KEY": "", "LITELLM_API_KEY": "litellm-key"}):
             result = client._get_env("API_KEY")
             assert result == "litellm-key"
 
     def test_get_env_generic_provider(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(model_string="someprovider/my-model")
         with patch.dict(os.environ, {"SOMEPROVIDER_API_KEY": "gen-key"}):
             assert client._get_env("API_KEY") == "gen-key"
@@ -139,7 +143,7 @@ class TestBaseLiteLLMClientBuildMessages:
         assert msgs[0]["content"] == "Override"
 
     def test_no_system(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(
                 model_string="openai/gpt-4",
                 api_key="key",
@@ -184,7 +188,7 @@ class TestBaseLiteLLMClientPrepareParams:
         assert params["api_key"] == "test-key"
 
     def test_extra_kwargs_merged(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(
                 model_string="openai/gpt-4",
                 api_key="key",
@@ -207,7 +211,7 @@ class TestBaseLiteLLMClientExtractUsage:
         mock_response.usage.completion_tokens = 50
         mock_response.usage.total_tokens = 150
 
-        with patch("ffai.Clients.BaseLiteLLMClient.litellm.completion_cost", return_value=0.01):
+        with patch("litellm.completion_cost", return_value=0.01):
             sync_client._extract_usage(mock_response, "test-model")
 
         assert sync_client._last_usage.input_tokens == 100
@@ -217,14 +221,14 @@ class TestBaseLiteLLMClientExtractUsage:
 
     def test_no_usage_attr(self, sync_client):
         mock_response = MagicMock(spec=[])
-        with patch("ffai.Clients.BaseLiteLLMClient.litellm.completion_cost", return_value=0.0):
+        with patch("litellm.completion_cost", return_value=0.0):
             sync_client._extract_usage(mock_response, "test-model")
         assert sync_client._last_usage is None
 
     def test_cost_failure_defaults_zero(self, sync_client):
         mock_response = MagicMock()
         mock_response.usage = None
-        with patch("ffai.Clients.BaseLiteLLMClient.litellm.completion_cost", side_effect=Exception("no pricing")):
+        with patch("litellm.completion_cost", side_effect=Exception("no pricing")):
             sync_client._extract_usage(mock_response, "test-model")
         assert sync_client._last_cost_usd == 0.0
 
@@ -259,7 +263,7 @@ class TestBaseLiteLLMClientRecordResponse:
         mock_resp.choices[0].message.tool_calls = None
         mock_resp.usage = None
 
-        with patch("ffai.Clients.BaseLiteLLMClient.litellm.completion_cost", return_value=0.0):
+        with patch("litellm.completion_cost", return_value=0.0):
             result = sync_client._record_response("Hi", mock_resp, "test-model")
 
         assert result == "Hello!"
@@ -283,7 +287,7 @@ class TestBaseLiteLLMClientRecordResponse:
         mock_resp.choices[0].message.tool_calls = [tc]
         mock_resp.usage = None
 
-        with patch("ffai.Clients.BaseLiteLLMClient.litellm.completion_cost", return_value=0.0):
+        with patch("litellm.completion_cost", return_value=0.0):
             result = sync_client._record_response("Search for X", mock_resp, "test-model")
 
         assert result == "Searching..."
@@ -298,7 +302,7 @@ class TestBaseLiteLLMClientRecordFallbackResponse:
         mock_resp.choices[0].message.content = "Fallback answer"
         mock_resp.usage = None
 
-        with patch("ffai.Clients.BaseLiteLLMClient.litellm.completion_cost", return_value=0.0):
+        with patch("litellm.completion_cost", return_value=0.0):
             result = sync_client._record_fallback_response(mock_resp, "fallback-model")
 
         assert result == "Fallback answer"
@@ -347,17 +351,17 @@ class TestSubclassDelegation:
         assert BaseLiteLLMClient in AsyncFFLiteLLMClient.__mro__
 
     def test_sync_is_ffaibase(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(model_string="openai/gpt-4", api_key="key")
         assert isinstance(client, FFAIClientBase)
 
     def test_async_is_async_ffaibase(self):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             client = AsyncFFLiteLLMClient(model_string="openai/gpt-4", api_key="key")
         assert isinstance(client, AsyncFFAIClientBase)
 
     def test_sync_inherits_init_from_mixin(self):
-        with patch("ffai.Clients.FFLiteLLMClient.completion"):
+        with patch.object(_fflitellm_mod, "completion"):
             client = FFLiteLLMClient(
                 model_string="anthropic/claude-3-opus",
                 api_key="key",
@@ -367,7 +371,7 @@ class TestSubclassDelegation:
         assert client.temperature == 0.3
 
     def test_async_inherits_init_from_mixin(self):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             client = AsyncFFLiteLLMClient(
                 model_string="anthropic/claude-3-opus",
                 api_key="key",

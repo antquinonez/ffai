@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ffai"
-version = "0.1.2"
+version = "0.1.3"
 description = "Declarative multi-provider AI client with named-prompt context assembly, thread-safe parallel execution, and built-in cost/usage tracking"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -52,6 +52,7 @@ otel = [
 ]
 rag = [
     "chromadb>=0.4.0",
+    "fastembed>=0.7.0",
 ]
 docs = [
     "sphinx>=7.0.0",

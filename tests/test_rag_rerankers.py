@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -11,6 +11,13 @@ from ffai.rag.search.rerankers import (
     NoopReranker,
     get_reranker,
 )
+
+try:
+    import fastembed as _fastembed  # type: ignore[import-untyped]  # noqa: F401
+
+    _fastembed_available = True
+except ImportError:
+    _fastembed_available = False
 
 
 def _make_results(n: int) -> list[dict]:
@@ -97,6 +104,7 @@ class TestCrossEncoderReranker:
         mock_model = MagicMock()
         mock_model.predict.return_value = np.array([0.9, 0.1, 0.5])
         reranker._model = mock_model
+        reranker._backend = "sentence-transformers"
 
         results = [
             {"id": "1", "content": "first", "score": 0.3},
@@ -118,10 +126,125 @@ class TestCrossEncoderReranker:
         mock_model = MagicMock()
         mock_model.predict.return_value = np.array([0.8, 0.2])
         reranker._model = mock_model
+        reranker._backend = "sentence-transformers"
 
         results = [{"id": "1", "content": "a", "score": 0.5}, {"id": "2", "content": "b", "score": 0.5}]
         reranked = reranker.rerank("query", results, n_results=1)
         assert len(reranked) == 1
+
+    def test_fastembed_backend_rerank(self):
+        mock_model = MagicMock()
+        mock_model.rerank.return_value = iter([4.5, -2.0, 1.3])
+
+        reranker = CrossEncoderReranker()
+        reranker._model = mock_model
+        reranker._backend = "fastembed"
+
+        results = [
+            {"id": "1", "content": "async await", "score": 0.8},
+            {"id": "2", "content": "rust borrow", "score": 0.6},
+            {"id": "3", "content": "go channels", "score": 0.5},
+        ]
+        reranked = reranker.rerank("async programming", results)
+
+        assert len(reranked) == 3
+        assert reranked[0]["id"] == "1"
+        assert reranked[0]["rerank_score"] == pytest.approx(4.5)
+        assert reranked[0]["original_score"] == pytest.approx(0.8)
+        mock_model.rerank.assert_called_once_with(
+            query="async programming",
+            documents=["async await", "rust borrow", "go channels"],
+        )
+
+    def test_fastembed_backend_n_results(self):
+        mock_model = MagicMock()
+        mock_model.rerank.return_value = iter([3.0, 1.0, 2.0])
+
+        reranker = CrossEncoderReranker()
+        reranker._model = mock_model
+        reranker._backend = "fastembed"
+
+        results = [
+            {"id": "a", "content": "x", "score": 0.5},
+            {"id": "b", "content": "y", "score": 0.5},
+            {"id": "c", "content": "z", "score": 0.5},
+        ]
+        reranked = reranker.rerank("query", results, n_results=2)
+        assert len(reranked) == 2
+        assert reranked[0]["id"] == "a"
+        assert reranked[1]["id"] == "c"
+
+    def test_predict_dispatches_to_fastembed(self):
+        mock_model = MagicMock()
+        mock_model.rerank.return_value = iter([1.0, 2.0])
+
+        reranker = CrossEncoderReranker()
+        reranker._model = mock_model
+        reranker._backend = "fastembed"
+
+        results = [{"id": "1", "content": "a", "score": 0.5}, {"id": "2", "content": "b", "score": 0.5}]
+        scores = reranker._predict("query", results)
+
+        assert scores == [1.0, 2.0]
+        mock_model.rerank.assert_called_once_with(query="query", documents=["a", "b"])
+
+    def test_predict_dispatches_to_sentence_transformers(self):
+        mock_model = MagicMock()
+        mock_model.predict.return_value = np.array([0.9, 0.3])
+
+        reranker = CrossEncoderReranker()
+        reranker._model = mock_model
+        reranker._backend = "sentence-transformers"
+
+        results = [{"id": "1", "content": "a", "score": 0.5}, {"id": "2", "content": "b", "score": 0.5}]
+        scores = reranker._predict("query", results)
+
+        assert scores == [0.9, 0.3]
+        mock_model.predict.assert_called_once_with([("query", "a"), ("query", "b")])
+
+    @pytest.mark.skipif(not _fastembed_available, reason="fastembed not installed")
+    def test_load_model_falls_back_to_fastembed(self):
+        reranker = CrossEncoderReranker()
+        reranker._load_model()
+        assert reranker._backend == "fastembed"
+        assert reranker._model is not None
+
+    def test_load_model_raises_when_no_backend(self):
+        reranker = CrossEncoderReranker()
+        import builtins
+        real_import = builtins.__import__
+
+        blocked = {"sentence_transformers", "fastembed"}
+
+        def blocking_import(name, *args, **kwargs):
+            if any(name == b or name.startswith(b + ".") for b in blocked):
+                raise ImportError(f"No module named '{name}'")
+            return real_import(name, *args, **kwargs)
+
+        with patch.object(builtins, "__import__", blocking_import):
+            with pytest.raises(ImportError, match="No cross-encoder backend available"):
+                reranker._load_model()
+
+    def test_fastembed_model_name_mapping(self):
+        reranker = CrossEncoderReranker(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2")
+        assert "cross-encoder/ms-marco-MiniLM-L-6-v2" in reranker._FASTEMBED_MODEL_MAP
+
+    @pytest.mark.skipif(not _fastembed_available, reason="fastembed not installed")
+    def test_fastembed_custom_model_name(self):
+        reranker = CrossEncoderReranker(fastembed_model_name="Xenova/ms-marco-MiniLM-L-6-v2")
+        reranker._load_model()
+        assert reranker._backend == "fastembed"
+
+    def test_prediction_failure_returns_original_results(self):
+        reranker = CrossEncoderReranker()
+        reranker._model = MagicMock()
+        reranker._backend = "sentence-transformers"
+        reranker._model.predict.side_effect = RuntimeError("model failed")
+
+        results = [{"id": "1", "content": "a", "score": 0.5}]
+        reranked = reranker.rerank("query", results)
+        assert len(reranked) == 1
+        assert reranked[0]["id"] == "1"
 
 
 class TestGetReranker:

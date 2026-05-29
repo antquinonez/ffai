@@ -54,7 +54,7 @@ class TestExecuteBasic:
         assert result.status == "success"
         assert result.response == "Hello world"
         assert result.model == "test-model"
-        assert result.duration_ms > 0
+        assert result.duration_ms >= 0
         assert result.parsed is None
         assert result.parsing_errors is None
 

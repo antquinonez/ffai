@@ -13,6 +13,7 @@ from ffai.Clients.AsyncFFLiteLLMClient import AsyncFFLiteLLMClient
 from ffai.core.usage import TokenUsage
 
 _async_mod = importlib.import_module("ffai.Clients.AsyncFFLiteLLMClient")
+_baselitellm_mod = importlib.import_module("ffai.Clients.BaseLiteLLMClient")
 
 
 def _make_mock_response(content: str | None = "test response", tool_calls=None, usage=None):
@@ -45,7 +46,7 @@ def env_key():
 
 @pytest.fixture
 def client(env_key):
-    with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+    with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
         return AsyncFFLiteLLMClient(
             model_string="openai/gpt-4",
             api_key="test-key",
@@ -56,12 +57,12 @@ def client(env_key):
 
 class TestAsyncFFLiteLLMClientInit:
     def test_model_string_parsing_with_provider(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(model_string="anthropic/claude-3-opus", api_key="k")
         assert c.model == "claude-3-opus"
 
     def test_model_string_without_slash(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(model_string="gpt-4", api_key="k")
         assert c.model == "gpt-4"
 
@@ -72,7 +73,7 @@ class TestAsyncFFLiteLLMClientInit:
         assert client.system_instructions == "You are a helpful assistant."
 
     def test_custom_system_instructions(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(
                 model_string="openai/gpt-4",
                 api_key="k",
@@ -81,7 +82,7 @@ class TestAsyncFFLiteLLMClientInit:
         assert c.system_instructions == "Custom instructions"
 
     def test_fallbacks_preserved(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(
                 model_string="openai/gpt-4",
                 api_key="k",
@@ -116,7 +117,7 @@ class TestAsyncFFLiteLLMClientGetEnv:
         assert val == "env-key"
 
     def test_anthropic_prefix(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(model_string="anthropic/claude-3", api_key="k")
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "anth-key"}):
             val = c._get_env("API_KEY")
@@ -263,7 +264,7 @@ class TestAsyncFFLiteLLMClientBuildMessages:
         assert msgs[0]["content"] == "override"
 
     def test_none_system_uses_default(self, env_key):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             c = AsyncFFLiteLLMClient(model_string="openai/gpt-4", api_key="k")
         assert c.system_instructions == "You are a helpful assistant."
 

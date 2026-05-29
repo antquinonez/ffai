@@ -1,9 +1,12 @@
+import importlib
 import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from ffai.Clients.FFMistralSmall import FFMistralSmall
+
+_ffmistral_mod = importlib.import_module("ffai.Clients.FFMistralSmall")
 
 
 @pytest.fixture
@@ -273,6 +276,6 @@ class TestFFMistralSmallParameterValidation:
 class TestFFMistralSmallNonRetryableError:
     def test_non_retryable_raises_runtime_error(self, client, mock_mistral_client):
         mock_mistral_client.chat.complete.side_effect = ValueError("bad request")
-        with patch("ffai.Clients.FFMistralSmall.should_retry_exception", return_value=False):
+        with patch.object(_ffmistral_mod, "should_retry_exception", return_value=False):
             with pytest.raises(RuntimeError, match="bad request"):
                 client.generate_response("Hello")

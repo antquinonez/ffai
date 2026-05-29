@@ -78,7 +78,7 @@ class TestBaseLiteLLMClientResolveSettings:
         assert client.temperature == 0.9
 
     def test_config_over_defaults(self):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={"temperature": 0.1}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={"temperature": 0.1}):
             with patch.object(_fflitellm_mod, "completion"):
                 client = FFLiteLLMClient(
                     model_string="openai/gpt-4",
@@ -88,7 +88,7 @@ class TestBaseLiteLLMClientResolveSettings:
         assert client.temperature == 0.5
 
     def test_defaults_as_fallback(self):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={"temperature": 0.1, "max_tokens": 2048}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={"temperature": 0.1, "max_tokens": 2048}):
             with patch.object(_fflitellm_mod, "completion"):
                 client = FFLiteLLMClient(model_string="openai/gpt-4", api_key="key")
         assert client.temperature == 0.1
@@ -356,7 +356,7 @@ class TestSubclassDelegation:
         assert isinstance(client, FFAIClientBase)
 
     def test_async_is_async_ffaibase(self):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             client = AsyncFFLiteLLMClient(model_string="openai/gpt-4", api_key="key")
         assert isinstance(client, AsyncFFAIClientBase)
 
@@ -371,7 +371,7 @@ class TestSubclassDelegation:
         assert client.temperature == 0.3
 
     def test_async_inherits_init_from_mixin(self):
-        with patch("ffai.Clients.BaseLiteLLMClient.get_model_defaults", return_value={}):
+        with patch.object(_baselitellm_mod, "get_model_defaults", return_value={}):
             client = AsyncFFLiteLLMClient(
                 model_string="anthropic/claude-3-opus",
                 api_key="key",

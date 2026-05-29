@@ -159,7 +159,7 @@ store = VectorStore(collection_name="my_kb", dir="./chroma_db")
 rag = RAG(embed=embed, store=store, chunk_size=500, chunk_overlap=100)
 ```
 
-RAG supports BM25 hybrid search (`bm25_alpha`), result reranking (`reranker="diversity"`), query expansion via LLM (`query_expander`), local embedding models (`local/` prefix via `sentence-transformers`), embedding caching, and custom prompt templates.
+RAG supports BM25 hybrid search (`bm25_alpha`), result reranking (`reranker="diversity"`), query expansion via LLM (`query_expander`), hierarchical chunking with parent-context retrieval (`chunker="hierarchical"`), local embedding models (`local/` prefix via `sentence-transformers`), embedding caching, and custom prompt templates.
 
 You can also manage the RAG lifecycle directly through FFAI:
 

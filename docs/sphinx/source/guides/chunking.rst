@@ -152,17 +152,61 @@ Splits source code at function and class boundaries:
 Hierarchical chunker
 --------------------
 
-Creates parent-child relationships between chunks. Child chunks provide
-granularity; parent chunks provide broader context. When a child chunk is
-retrieved, its parent content is available via ``parent_content`` on
-``SearchHit``:
+Creates parent-child relationships between chunks. Parent chunks cover a
+larger span of the document; child chunks are smaller and more specific.
+This is useful for long documents where a search hit on a specific paragraph
+should also return the surrounding section for context.
+
+**How it works during indexing:**
+
+1. ``HierarchicalChunker`` splits text into parent chunks (``parent_chunk_size``)
+   and then subdivides each parent into child chunks (``chunk_size``).
+2. ``RAG.aindex()`` detects the hierarchical chunks and stores **only child
+   chunks** in the vector store. Each child's metadata includes
+   ``parent_content`` — the full text of its parent section.
+3. Parent chunks are never embedded or stored directly, avoiding redundancy.
+
+**How it works during search:**
+
+1. The query matches child chunks by vector similarity.
+2. Each ``SearchHit`` has ``parent_content`` populated from metadata.
+3. ``format_hits()`` includes a ``[Parent context: ...]`` snippet when parent
+   content is available.
+4. ``FFAI.query()`` sends both the child content and parent context to the LLM.
 
 .. code-block:: python
 
-   from ffai.rag.splitters.hierarchical import HierarchicalChunker
+   from ffai.rag import RAG
 
-   chunker = HierarchicalChunker(chunk_size=200, chunk_overlap=20)
-   chunks = chunker.chunk(long_document)
+   rag = RAG(
+       embed=embed,
+       store=store,
+       chunker="hierarchical",
+       chunk_size=200,
+       chunk_overlap=20,
+       parent_chunk_size=1500,
+   )
+
+   rag.index(contract_text, source="contract")
+   hits = rag.search("termination conditions")
+
+   for hit in hits:
+       print(f"Child: {hit.content[:80]}...")
+       print(f"Parent: {hit.parent_content[:80]}...")
+
+Output (illustrative):
+
+.. code-block:: text
+
+   Child: The agreement may be terminated by either party with 30 days notice...
+   Parent: Section 5. Termination. This section covers termination conditions, notice...
+
+Constructor parameters:
+
+- ``chunk_size`` — maximum characters per child chunk (default: 400)
+- ``chunk_overlap`` — overlap between child chunks (default: 100)
+- ``parent_chunk_size`` — maximum characters per parent chunk (default: 1500)
+- ``max_levels`` — hierarchy depth, currently only 2 levels (default: 2)
 
 Using with RAG
 --------------

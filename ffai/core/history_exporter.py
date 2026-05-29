@@ -122,6 +122,10 @@ class HistoryExporter:
                 entry = item.copy()
                 if isinstance(entry.get("response"), dict):
                     entry["response"] = str(entry["response"])
+                if "usage" in entry and not isinstance(entry["usage"], (str, int, float, type(None))):
+                    entry["usage"] = str(entry["usage"])
+                if "history" in entry and isinstance(entry["history"], list):
+                    entry["history"] = str(entry["history"])
                 cleaned.append(entry)
 
             df = pl.from_dicts(cleaned)
@@ -285,7 +289,7 @@ class HistoryExporter:
 
         return (
             df.with_columns(
-                pl.col("timestamp").cast(pl.Float64).cast(pl.Datetime).dt.date().alias("date")
+                (pl.col("timestamp") * 1_000_000).cast(pl.Datetime).dt.date().alias("date")
             )
             .group_by("date")
             .len()

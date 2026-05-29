@@ -12,6 +12,13 @@ from ffai.rag.search.rerankers import (
     get_reranker,
 )
 
+try:
+    import fastembed as _fastembed  # noqa: F401
+
+    _fastembed_available = True
+except ImportError:
+    _fastembed_available = False
+
 
 def _make_results(n: int) -> list[dict]:
     return [
@@ -195,6 +202,7 @@ class TestCrossEncoderReranker:
         assert scores == [0.9, 0.3]
         mock_model.predict.assert_called_once_with([("query", "a"), ("query", "b")])
 
+    @pytest.mark.skipif(not _fastembed_available, reason="fastembed not installed")
     def test_load_model_falls_back_to_fastembed(self):
         reranker = CrossEncoderReranker()
         reranker._load_model()

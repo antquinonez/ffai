@@ -167,6 +167,15 @@ class TestEmbeddingsLocalModel:
             assert vectors == [[0.5, 0.6]]
 
 
+try:
+    import fastembed as _fastembed  # noqa: F401
+
+    _fastembed_available = True
+except ImportError:
+    _fastembed_available = False
+
+
+@pytest.mark.skipif(not _fastembed_available, reason="fastembed not installed")
 class TestEmbeddingsLocalFastembedFallback:
     def test_fastembed_fallback_init(self):
         mock_fe_model = MagicMock()

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from ffai.rag.types import SearchHit
 
 pytestmark = pytest.mark.qdrant
 
@@ -238,3 +241,213 @@ class TestQdrantLocalMode:
                 collection_name="test",
             )
             assert store._is_local is False
+
+
+class TestQdrantVectorStoreAdd:
+    def _make_store(self):
+        from ffai.rag.stores.qdrant import QdrantVectorStore
+        mock_mod, mock_client, _, _ = _make_mock_qdrant()
+        ctx = _patch_qdrant(mock_mod)
+        ctx.__enter__()
+        store = QdrantVectorStore(collection_name="test_col", embedding_dim=4)
+        return store, mock_client, ctx
+
+    def test_aadd_returns_count(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            count = asyncio.run(store.aadd(
+                ids=["id1", "id2"],
+                texts=["text1", "text2"],
+                embeddings=[[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8]],
+                metadatas=[{"source": "a"}, {"source": "b"}],
+            ))
+            assert count == 2
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_aadd_calls_upsert(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            asyncio.run(store.aadd(
+                ids=["id1"],
+                texts=["text1"],
+                embeddings=[[0.1, 0.2, 0.3, 0.4]],
+                metadatas=[{"source": "a"}],
+            ))
+            mock_client.upsert.assert_called_once()
+            call_kwargs = mock_client.upsert.call_args
+            assert call_kwargs.kwargs["collection_name"] == "test_col"
+            assert len(call_kwargs.kwargs["points"]) == 1
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_aadd_converts_non_uuid_ids(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            asyncio.run(store.aadd(
+                ids=["not-a-uuid"],
+                texts=["text"],
+                embeddings=[[0.1, 0.2, 0.3, 0.4]],
+                metadatas=[{"source": "a"}],
+            ))
+            points = mock_client.upsert.call_args.kwargs["points"]
+            point_id = points[0].id
+            assert str(point_id) != "not-a-uuid"
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_aadd_passes_uuid_ids_unchanged(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            from ffai.rag.stores.qdrant import QdrantVectorStore
+            uid_str = "550e8400-e29b-41d4-a716-446655440000"
+            uid = QdrantVectorStore._ensure_uuid(uid_str)
+            assert str(uid) == uid_str
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_aadd_builds_correct_point_count(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            asyncio.run(store.aadd(
+                ids=["id1", "id2", "id3"],
+                texts=["t1", "t2", "t3"],
+                embeddings=[[0.1] * 4, [0.2] * 4, [0.3] * 4],
+                metadatas=[{"source": "a"}, {"source": "b"}, {"source": "c"}],
+            ))
+            points = mock_client.upsert.call_args.kwargs["points"]
+            assert len(points) == 3
+        finally:
+            ctx.__exit__(None, None, None)
+
+
+class TestQdrantVectorStoreSearch:
+    def _make_store(self):
+        from ffai.rag.stores.qdrant import QdrantVectorStore
+        mock_mod, mock_client, _, _ = _make_mock_qdrant()
+        ctx = _patch_qdrant(mock_mod)
+        ctx.__enter__()
+        store = QdrantVectorStore(collection_name="test_col", embedding_dim=4)
+        return store, mock_client, ctx
+
+    def _mock_query_result(self, points):
+        result = MagicMock()
+        result.points = points
+        return result
+
+    def test_asearch_returns_search_hits(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            mock_point = MagicMock()
+            mock_point.id = "abc-123"
+            mock_point.score = 0.85
+            mock_point.payload = {"content": "Rust memory safety", "source": "rust.md"}
+            mock_client.query_points.return_value = self._mock_query_result([mock_point])
+
+            hits = asyncio.run(store.asearch([0.1, 0.2, 0.3, 0.4], top_k=5))
+            assert len(hits) == 1
+            assert isinstance(hits[0], SearchHit)
+            assert hits[0].content == "Rust memory safety"
+            assert hits[0].score == pytest.approx(0.85)
+            assert hits[0].source == "rust.md"
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_asearch_converts_score_none_to_zero(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            mock_point = MagicMock()
+            mock_point.id = "abc-123"
+            mock_point.score = None
+            mock_point.payload = {"content": "text", "source": "doc"}
+            mock_client.query_points.return_value = self._mock_query_result([mock_point])
+
+            hits = asyncio.run(store.asearch([0.1, 0.2, 0.3, 0.4]))
+            assert hits[0].score == 0.0
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_asearch_returns_empty_when_no_results(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            mock_client.query_points.return_value = self._mock_query_result([])
+            hits = asyncio.run(store.asearch([0.1, 0.2, 0.3, 0.4]))
+            assert hits == []
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_asearch_passes_top_k_and_filter(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            mock_client.query_points.return_value = self._mock_query_result([])
+            asyncio.run(store.asearch(
+                [0.1, 0.2, 0.3, 0.4],
+                top_k=3,
+                where={"source": "doc1"},
+            ))
+            call_kwargs = mock_client.query_points.call_args.kwargs
+            assert call_kwargs["limit"] == 3
+            assert call_kwargs["query_filter"] is not None
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_asearch_without_filter_passes_none(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            mock_client.query_points.return_value = self._mock_query_result([])
+            asyncio.run(store.asearch([0.1, 0.2, 0.3, 0.4]))
+            call_kwargs = mock_client.query_points.call_args.kwargs
+            assert call_kwargs["query_filter"] is None
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_asearch_handles_missing_content_in_payload(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            mock_point = MagicMock()
+            mock_point.id = "abc-123"
+            mock_point.score = 0.5
+            mock_point.payload = {"source": "doc"}
+            mock_client.query_points.return_value = self._mock_query_result([mock_point])
+
+            hits = asyncio.run(store.asearch([0.1, 0.2, 0.3, 0.4]))
+            assert hits[0].content == ""
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_asearch_preserves_extra_metadata(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            mock_point = MagicMock()
+            mock_point.id = "abc-123"
+            mock_point.score = 0.9
+            mock_point.payload = {
+                "content": "text",
+                "source": "doc",
+                "chunking_strategy": "recursive",
+                "document_checksum": "sha256:abc",
+            }
+            mock_client.query_points.return_value = self._mock_query_result([mock_point])
+
+            hits = asyncio.run(store.asearch([0.1, 0.2, 0.3, 0.4]))
+            assert hits[0].metadata["chunking_strategy"] == "recursive"
+            assert hits[0].metadata["document_checksum"] == "sha256:abc"
+            assert "content" not in hits[0].metadata
+        finally:
+            ctx.__exit__(None, None, None)
+
+    def test_asearch_multiple_results_ranked(self):
+        store, mock_client, ctx = self._make_store()
+        try:
+            p1 = MagicMock(id="1", score=0.9, payload={"content": "first", "source": "a"})
+            p2 = MagicMock(id="2", score=0.7, payload={"content": "second", "source": "b"})
+            p3 = MagicMock(id="3", score=0.5, payload={"content": "third", "source": "c"})
+            mock_client.query_points.return_value = self._mock_query_result([p1, p2, p3])
+
+            hits = asyncio.run(store.asearch([0.1, 0.2, 0.3, 0.4], top_k=3))
+            assert len(hits) == 3
+            assert hits[0].score > hits[1].score > hits[2].score
+            assert hits[0].content == "first"
+            assert hits[2].content == "third"
+        finally:
+            ctx.__exit__(None, None, None)

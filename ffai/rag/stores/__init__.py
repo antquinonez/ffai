@@ -81,8 +81,8 @@ def list_available_stores() -> list[str]:
 
 def is_store_available(name: str) -> bool:
     """Check if a backend's dependencies are installed."""
-    _ensure_registered(name)
-    return name in STORE_REGISTRY
+    _ensure_registered(name.lower())
+    return name.lower() in STORE_REGISTRY
 
 
 __all__ = [

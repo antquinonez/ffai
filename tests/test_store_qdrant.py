@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.qdrant
+
 
 def _make_mock_qdrant():
     mock_client = MagicMock()
@@ -190,3 +192,49 @@ class TestQdrantBuildFilter:
             assert f is not None
         finally:
             ctx.__exit__(None, None, None)
+
+
+class TestQdrantEnsureUuid:
+    def test_valid_uuid_passthrough(self):
+        import uuid
+
+        from ffai.rag.stores.qdrant import QdrantVectorStore
+        uid = str(uuid.uuid4())
+        result = QdrantVectorStore._ensure_uuid(uid)
+        assert str(result) == uid
+
+    def test_non_uuid_gets_deterministic_uuid5(self):
+        from ffai.rag.stores.qdrant import QdrantVectorStore
+        r1 = QdrantVectorStore._ensure_uuid("chunk_0")
+        r2 = QdrantVectorStore._ensure_uuid("chunk_0")
+        assert r1 == r2
+        assert str(r1) != "chunk_0"
+
+    def test_different_ids_produce_different_uuids(self):
+        from ffai.rag.stores.qdrant import QdrantVectorStore
+        r1 = QdrantVectorStore._ensure_uuid("chunk_0")
+        r2 = QdrantVectorStore._ensure_uuid("chunk_1")
+        assert r1 != r2
+
+
+class TestQdrantLocalMode:
+    def test_local_mode_uses_sync_client_for_aadd(self):
+        from ffai.rag.stores.qdrant import QdrantVectorStore
+        mock_mod, mock_client, _, _ = _make_mock_qdrant()
+        with _patch_qdrant(mock_mod):
+            store = QdrantVectorStore(
+                path="/tmp/test_qdrant_local",
+                embedding_dim=8,
+                collection_name="test",
+            )
+            assert store._is_local is True
+
+    def test_server_mode_is_not_local(self):
+        from ffai.rag.stores.qdrant import QdrantVectorStore
+        mock_mod, mock_client, _, _ = _make_mock_qdrant()
+        with _patch_qdrant(mock_mod):
+            store = QdrantVectorStore(
+                url="http://localhost:6333",
+                collection_name="test",
+            )
+            assert store._is_local is False

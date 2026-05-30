@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import uuid as _uuid
 from typing import Any
 
 from ffai.rag.types import SearchHit
@@ -42,7 +44,7 @@ class QdrantVectorStore(VectorStoreBase):
     """Qdrant vector store backend.
 
     Stores embeddings in a Qdrant collection using cosine distance.
-    Supports server mode, local mode, and in-memory mode.
+    Supports server mode, local mode, in-memory mode, and cloud mode.
 
     Args:
         collection_name: Qdrant collection name.
@@ -51,6 +53,7 @@ class QdrantVectorStore(VectorStoreBase):
         port: Qdrant server port.
         path: Local storage path (local mode). When set, host/port
             are ignored.
+        location: ``":memory:"`` for in-memory mode (ephemeral).
         api_key: Qdrant API key (cloud mode).
         url: Qdrant URL (cloud mode).
     """
@@ -63,6 +66,7 @@ class QdrantVectorStore(VectorStoreBase):
         host: str = "localhost",
         port: int = 6333,
         path: str | None = None,
+        location: str | None = None,
         api_key: str | None = None,
         url: str | None = None,
     ) -> None:
@@ -81,12 +85,16 @@ class QdrantVectorStore(VectorStoreBase):
             client_kwargs["api_key"] = api_key
         elif path:
             client_kwargs["path"] = path
+        elif location:
+            client_kwargs["location"] = location
         else:
             client_kwargs["host"] = host
             client_kwargs["port"] = port
 
         self._client: Any = QdrantClient(**client_kwargs)  # type: ignore[union-attr]
-        self._async_client: Any = AsyncQdrantClient(**client_kwargs)  # type: ignore[union-attr]
+        self._async_client: Any = None
+        self._client_kwargs = client_kwargs
+        self._is_local = (path is not None or location is not None) and url is None
         self._ensure_collection()
 
     def _ensure_collection(self) -> None:
@@ -100,10 +108,31 @@ class QdrantVectorStore(VectorStoreBase):
                     distance=Distance.COSINE,
                 ),
             )
+            self._create_payload_indexes()
+
+    def _create_payload_indexes(self) -> None:
+        import warnings
+
+        for field in ("source", "chunking_strategy"):
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    self._client.create_payload_index(
+                        collection_name=self._collection_name,
+                        field_name=field,
+                        field_schema="keyword",
+                    )
+            except Exception:
+                pass
 
     @property
     def name(self) -> str:
         return "qdrant"
+
+    async def _get_async_client(self) -> Any:
+        if self._async_client is None:
+            self._async_client = AsyncQdrantClient(**self._client_kwargs)  # type: ignore[union-attr]
+        return self._async_client
 
     def _build_filter(self, where: dict[str, Any] | None) -> Any:
         if not where:
@@ -118,6 +147,13 @@ class QdrantVectorStore(VectorStoreBase):
                 conditions.append(FieldCondition(key=k, match=MatchValue(value=v)))
         return Filter(must=conditions)
 
+    @staticmethod
+    def _ensure_uuid(id_str: str) -> str | _uuid.UUID:
+        try:
+            return _uuid.UUID(id_str)
+        except ValueError:
+            return _uuid.uuid5(_uuid.NAMESPACE_URL, id_str)
+
     async def aadd(
         self,
         ids: list[str],
@@ -126,10 +162,11 @@ class QdrantVectorStore(VectorStoreBase):
         metadatas: list[dict[str, Any]],
     ) -> int:
         points = [
-            PointStruct(id=id_, vector=emb, payload={"content": text, **meta})
+            PointStruct(id=self._ensure_uuid(id_), vector=emb, payload={"content": text, **meta})
             for id_, text, emb, meta in zip(ids, texts, embeddings, metadatas)
         ]
-        await self._async_client.upsert(
+        await asyncio.to_thread(
+            self._client.upsert,
             collection_name=self._collection_name,
             points=points,
         )
@@ -142,7 +179,8 @@ class QdrantVectorStore(VectorStoreBase):
         top_k: int = 5,
         where: dict[str, Any] | None = None,
     ) -> list[SearchHit]:
-        results = await self._async_client.query_points(
+        results = await asyncio.to_thread(
+            self._client.query_points,
             collection_name=self._collection_name,
             query=query_embedding,
             limit=top_k,
@@ -165,7 +203,7 @@ class QdrantVectorStore(VectorStoreBase):
         self._client.delete(
             collection_name=self._collection_name,
             points_selector=Filter(
-                must=[FieldCondition(key="source", match=MatchValue(value=source))],
+                must=[FieldCondition(key="source", match=MatchValue(value=source))],  # type: ignore[arg-type]
             ),
         )
 
@@ -176,7 +214,7 @@ class QdrantVectorStore(VectorStoreBase):
                 must=[
                     FieldCondition(key="source", match=MatchValue(value=source)),
                     FieldCondition(key="chunking_strategy", match=MatchValue(value=strategy)),
-                ],
+                ],  # type: ignore[arg-type]
             ),
         )
 
@@ -223,7 +261,7 @@ class QdrantVectorStore(VectorStoreBase):
                 must=[
                     FieldCondition(key="source", match=MatchValue(value=source)),
                     FieldCondition(key="chunking_strategy", match=MatchValue(value=strategy)),
-                ],
+                ],  # type: ignore[arg-type]
             ),
             limit=1,
             with_payload=True,

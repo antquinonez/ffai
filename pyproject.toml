@@ -66,6 +66,10 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short -m 'not integration'"
 markers = [
     "integration: tests requiring real API keys",
+    "chroma: tests exercising the ChromaDB vector store backend",
+    "qdrant: tests exercising the Qdrant vector store backend",
+    "pgvector: tests exercising the pgvector vector store backend",
+    "sqlite_vss: tests exercising the SQLite-vss vector store backend",
 ]
 
 [tool.coverage.run]

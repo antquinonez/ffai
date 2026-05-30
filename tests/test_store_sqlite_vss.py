@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.sqlite_vss
+
 
 def _make_mock_sqlite_vss():
     mock_conn = MagicMock()

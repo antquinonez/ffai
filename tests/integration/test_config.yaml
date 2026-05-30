@@ -1,10 +1,13 @@
 # Integration Test Configuration
 # ===============================
-# Configures which LLM clients the integration tests exercise.
-# These tests make REAL API calls — valid API keys are required.
+# Configures which LLM clients and vector store backends the integration
+# tests exercise. These tests make REAL API calls or use real DB instances
+# — valid API keys and/or installed packages are required.
 #
 # Usage:
 #   pytest tests/integration/ -m integration -v
+#   pytest tests/integration/ -m integration -v -k chroma    # ChromaDB only
+#   pytest tests/integration/ -m integration -v -k qdrant    # Qdrant only
 #
 # How it works:
 #   - Every client with "enabled: true" runs through the full contract
@@ -13,12 +16,21 @@
 #     test classes that only run for matching client_class values
 #   - If the required API key env var is missing, that client's tests
 #     are skipped automatically with a clear message
+#   - Vector store backends with "enabled: true" run contract tests
+#     against the real backend (no mocks).  No API keys needed — just
+#     the Python package installed locally.
 #
 # Adding a new client:
 #   1. Uncomment or add a block below
 #   2. Set enabled: true
 #   3. Make sure the API key env var is in your .env file
 #   4. Run the tests — the contract suite runs automatically
+#
+# Adding a new vector store backend:
+#   1. Add a block under vector_stores below
+#   2. Set enabled: true
+#   3. Create test_store_<name>_live.py in tests/integration/
+#   4. Add a pytest marker in pyproject.toml
 
 clients:
 
@@ -138,3 +150,49 @@ clients:
   #     temperature: 0
   #     max_tokens: 50
   #     system_instructions: "Be concise. Answer in one sentence."
+
+# ════════════════════════════════════════════════
+# Vector Store Backends
+# ════════════════════════════════════════════════
+# These use synthetic embeddings (no LLM calls).
+# Just install the package and set enabled: true.
+# Store tests use local/embedded mode — no server
+# needed.  Tests are skipped if the package is not
+# installed.
+
+vector_stores:
+
+  chroma:
+    enabled: true
+    backend: "chroma"
+    notes: "Uses ChromaDB persistent client (local files). Installed via ffai[rag]."
+
+  qdrant:
+    enabled: true
+    backend: "qdrant"
+    notes: "Uses Qdrant local mode (no server). Install with: pip install qdrant-client"
+
+  # Qdrant Cloud — requires QDRANT_CLUSTER_ENDPOINT and QDRANT_KEY
+  # env vars. Tests are skipped if either is missing.
+  # qdrant_cloud:
+  #   enabled: false
+  #   backend: "qdrant"
+  #   notes: "Requires QDRANT_CLUSTER_ENDPOINT and QDRANT_KEY env vars."
+  #   url_env: "QDRANT_CLUSTER_ENDPOINT"
+  #   api_key_env: "QDRANT_KEY"
+
+  # pgvector:
+  #   enabled: false
+  #   backend: "pgvector"
+  #   notes: "Requires Docker: docker compose -f docker-compose.dev.yaml up -d"
+  #   connection:
+  #     host: "localhost"
+  #     port: 5432
+  #     database: "ffai_test"
+  #     user: "ffai"
+  #     password: "ffai"
+
+  # sqlite_vss:
+  #   enabled: false
+  #   backend: "sqlite_vss"
+  #   notes: "Install with: pip install sqlite-vss"

@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.pgvector
+
 
 def _make_mock_psycopg():
     mock_conn = MagicMock()

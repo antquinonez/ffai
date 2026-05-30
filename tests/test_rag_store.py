@@ -8,6 +8,8 @@ import pytest
 
 from ffai.rag.types import SearchHit
 
+pytestmark = pytest.mark.chroma
+
 
 def _make_mock_chromadb():
     mock_collection = MagicMock()

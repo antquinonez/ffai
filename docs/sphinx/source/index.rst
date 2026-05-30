@@ -28,6 +28,7 @@ cost/usage tracking.
 
    guides/installation
    guides/configuration
+   guides/vector_stores
    guides/rag_search
    guides/chunking
    guides/fallback_and_switching

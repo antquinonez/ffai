@@ -25,6 +25,11 @@ except ImportError:
 
 
 def get_store_class() -> type[VectorStoreBase]:
+    """Return the SQLite-vss store class.
+
+    Raises:
+        ImportError: If ``sqlite-vss`` is not installed.
+    """
     if not SQLITE_VSS_AVAILABLE:
         raise ImportError(
             "sqlite-vss backend requires sqlite-vss. "
@@ -134,6 +139,7 @@ class SQLiteVssStore(VectorStoreBase):
         embeddings: list[list[float]],
         metadatas: list[dict[str, Any]],
     ) -> int:
+        """Add documents to both the data and VSS tables via ``asyncio.to_thread``."""
         return await asyncio.to_thread(self._sync_add, ids, texts, embeddings, metadatas)
 
     def _sync_search(
@@ -185,6 +191,10 @@ class SQLiteVssStore(VectorStoreBase):
         top_k: int = 5,
         where: dict[str, Any] | None = None,
     ) -> list[SearchHit]:
+        """Search using VSS extension, applying metadata filtering in Python.
+
+        Over-fetches by 3× when ``where`` is provided, then filters post-hoc.
+        """
         effective_top_k = top_k * 3 if where else top_k
         hits = await asyncio.to_thread(
             self._sync_search, query_embedding, effective_top_k,
@@ -194,6 +204,7 @@ class SQLiteVssStore(VectorStoreBase):
         return hits[:top_k]
 
     def delete_by_source(self, source: str) -> None:
+        """Delete matching rows from both the VSS and data tables."""
         conn = self._connect()
         try:
             rows = conn.execute(
@@ -215,6 +226,7 @@ class SQLiteVssStore(VectorStoreBase):
             conn.close()
 
     def delete_by_source_and_strategy(self, source: str, strategy: str) -> None:
+        """Delete rows matching both ``source`` and ``chunking_strategy`` from both tables."""
         conn = self._connect()
         try:
             rows = conn.execute(
@@ -238,6 +250,7 @@ class SQLiteVssStore(VectorStoreBase):
             conn.close()
 
     def count(self) -> int:
+        """Return the total number of rows in the data table."""
         conn = self._connect()
         try:
             row = conn.execute(f"SELECT COUNT(*) FROM {self._data_table}").fetchone()
@@ -246,6 +259,7 @@ class SQLiteVssStore(VectorStoreBase):
             conn.close()
 
     def clear(self) -> None:
+        """Delete all rows from both the VSS and data tables."""
         conn = self._connect()
         try:
             conn.execute(f"DELETE FROM {self._vss_table}")
@@ -255,6 +269,7 @@ class SQLiteVssStore(VectorStoreBase):
             conn.close()
 
     def list_sources(self) -> list[str]:
+        """Return a sorted list of distinct source names from the metadata column."""
         conn = self._connect()
         try:
             rows = conn.execute(
@@ -266,6 +281,7 @@ class SQLiteVssStore(VectorStoreBase):
             conn.close()
 
     def get_all(self) -> list[dict[str, Any]]:
+        """Return all rows as dicts with ``id``, ``content``, ``metadata`` keys."""
         conn = self._connect()
         try:
             rows = conn.execute(
@@ -279,6 +295,7 @@ class SQLiteVssStore(VectorStoreBase):
             conn.close()
 
     def needs_reindex(self, source: str, checksum: str, strategy: str = "default") -> bool:
+        """Check whether ``source`` needs re-indexing by comparing stored checksum in metadata."""
         conn = self._connect()
         try:
             row = conn.execute(

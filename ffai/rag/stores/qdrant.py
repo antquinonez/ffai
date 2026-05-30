@@ -32,6 +32,11 @@ except ImportError:
 
 
 def get_store_class() -> type[VectorStoreBase]:
+    """Return the Qdrant store class.
+
+    Raises:
+        ImportError: If ``qdrant-client`` is not installed.
+    """
     if not QDRANT_AVAILABLE:
         raise ImportError(
             "Qdrant backend requires qdrant-client. "
@@ -161,6 +166,10 @@ class QdrantVectorStore(VectorStoreBase):
         embeddings: list[list[float]],
         metadatas: list[dict[str, Any]],
     ) -> int:
+        """Add documents as Qdrant points via ``asyncio.to_thread``.
+
+        Non-UUID IDs are converted to deterministic UUID5 values.
+        """
         points = [
             PointStruct(id=self._ensure_uuid(id_), vector=emb, payload={"content": text, **meta})
             for id_, text, emb, meta in zip(ids, texts, embeddings, metadatas)
@@ -179,6 +188,7 @@ class QdrantVectorStore(VectorStoreBase):
         top_k: int = 5,
         where: dict[str, Any] | None = None,
     ) -> list[SearchHit]:
+        """Search for similar points via ``asyncio.to_thread`` using cosine distance."""
         results = await asyncio.to_thread(
             self._client.query_points,
             collection_name=self._collection_name,
@@ -200,6 +210,7 @@ class QdrantVectorStore(VectorStoreBase):
         return hits
 
     def delete_by_source(self, source: str) -> None:
+        """Delete all points matching ``source`` using a Qdrant field filter."""
         self._client.delete(
             collection_name=self._collection_name,
             points_selector=Filter(
@@ -208,6 +219,7 @@ class QdrantVectorStore(VectorStoreBase):
         )
 
     def delete_by_source_and_strategy(self, source: str, strategy: str) -> None:
+        """Delete points matching both ``source`` and ``chunking_strategy`` via compound Qdrant filter."""
         self._client.delete(
             collection_name=self._collection_name,
             points_selector=Filter(
@@ -219,14 +231,17 @@ class QdrantVectorStore(VectorStoreBase):
         )
 
     def count(self) -> int:
+        """Return the total number of points in the Qdrant collection."""
         info = self._client.get_collection(self._collection_name)
         return info.points_count or 0
 
     def clear(self) -> None:
+        """Delete and recreate the Qdrant collection."""
         self._client.delete_collection(self._collection_name)
         self._ensure_collection()
 
     def list_sources(self) -> list[str]:
+        """Return a sorted list of unique source names by scrolling all point payloads."""
         results = self._client.scroll(
             collection_name=self._collection_name,
             limit=10000,
@@ -240,6 +255,7 @@ class QdrantVectorStore(VectorStoreBase):
         return sorted(sources)
 
     def get_all(self) -> list[dict[str, Any]]:
+        """Return all stored points as dicts with ``id``, ``content``, ``metadata`` keys."""
         results = self._client.scroll(
             collection_name=self._collection_name,
             limit=10000,
@@ -255,6 +271,7 @@ class QdrantVectorStore(VectorStoreBase):
         ]
 
     def needs_reindex(self, source: str, checksum: str, strategy: str = "default") -> bool:
+        """Check whether ``source`` needs re-indexing by scrolling with a compound filter."""
         results = self._client.scroll(
             collection_name=self._collection_name,
             scroll_filter=Filter(

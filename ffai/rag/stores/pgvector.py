@@ -24,6 +24,11 @@ except ImportError:
 
 
 def get_store_class() -> type[VectorStoreBase]:
+    """Return the pgvector store class.
+
+    Raises:
+        ImportError: If ``psycopg`` and ``asyncpg`` are not installed.
+    """
     if not PGVECTOR_AVAILABLE:
         raise ImportError(
             "pgvector backend requires psycopg and asyncpg. "
@@ -114,6 +119,7 @@ class PgVectorStore(VectorStoreBase):
         embeddings: list[list[float]],
         metadatas: list[dict[str, Any]],
     ) -> int:
+        """Add documents via asyncpg with UPSERT semantics (ON CONFLICT DO UPDATE)."""
         pool = await self._get_pool()
         async with pool.acquire() as conn:
             await conn.executemany(
@@ -139,6 +145,7 @@ class PgVectorStore(VectorStoreBase):
         top_k: int = 5,
         where: dict[str, Any] | None = None,
     ) -> list[SearchHit]:
+        """Search using pgvector cosine distance operator (``<=>``) with optional metadata filtering."""
         pool = await self._get_pool()
         where_clause, params = self._build_where(where)
         emb_str = json.dumps(query_embedding)
@@ -188,6 +195,7 @@ class PgVectorStore(VectorStoreBase):
         return f"WHERE {' AND '.join(conditions)}", params
 
     def delete_by_source(self, source: str) -> None:
+        """Delete all rows matching ``source`` via a synchronous psycopg connection."""
         with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             conn.execute(
                 f"DELETE FROM {self._table_name} WHERE metadata->>'source' = %s",
@@ -196,6 +204,7 @@ class PgVectorStore(VectorStoreBase):
         logger.info(f"Deleted chunks for source: {source}")
 
     def delete_by_source_and_strategy(self, source: str, strategy: str) -> None:
+        """Delete rows matching both ``source`` and ``chunking_strategy`` via psycopg."""
         with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             conn.execute(
                 f"DELETE FROM {self._table_name} "
@@ -204,15 +213,18 @@ class PgVectorStore(VectorStoreBase):
             )
 
     def count(self) -> int:
+        """Return the total number of rows in the vector table."""
         with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             result = conn.execute(f"SELECT COUNT(*) FROM {self._table_name}").fetchone()
             return result[0] if result else 0
 
     def clear(self) -> None:
+        """Truncate all rows from the vector table."""
         with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             conn.execute(f"TRUNCATE {self._table_name}")
 
     def list_sources(self) -> list[str]:
+        """Return a sorted list of distinct source names from the metadata JSONB column."""
         with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             rows = conn.execute(
                 f"SELECT DISTINCT metadata->>'source' AS source "
@@ -221,6 +233,7 @@ class PgVectorStore(VectorStoreBase):
             return [row[0] for row in rows if row[0] is not None]
 
     def get_all(self) -> list[dict[str, Any]]:
+        """Return all rows as dicts with ``id``, ``content``, ``metadata`` keys."""
         with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             rows = conn.execute(
                 f"SELECT id, content, metadata FROM {self._table_name}"
@@ -231,6 +244,7 @@ class PgVectorStore(VectorStoreBase):
             ]
 
     def needs_reindex(self, source: str, checksum: str, strategy: str = "default") -> bool:
+        """Check whether ``source`` needs re-indexing by comparing stored checksum in JSONB."""
         with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             row = conn.execute(
                 f"SELECT metadata->>'document_checksum' FROM {self._table_name} "

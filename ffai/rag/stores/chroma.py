@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 
 
 def get_store_class() -> type[VectorStoreBase]:
+    """Return the ChromaDB store class.
+
+    Raises:
+        ImportError: If ``chromadb`` is not installed.
+    """
     if not CHROMADB_AVAILABLE:
         raise ImportError("chromadb is not installed. Install with: pip install chromadb")
     return ChromaVectorStore
@@ -81,6 +86,7 @@ class ChromaVectorStore(VectorStoreBase):
         embeddings: list[list[float]],
         metadatas: list[dict[str, Any]],
     ) -> int:
+        """Add documents with pre-computed embeddings to the ChromaDB collection."""
         self._collection.add(
             ids=ids,
             embeddings=embeddings,  # type: ignore[reportArgumentType]
@@ -96,6 +102,7 @@ class ChromaVectorStore(VectorStoreBase):
         top_k: int = 5,
         where: dict[str, Any] | None = None,
     ) -> list[SearchHit]:
+        """Search the collection by cosine similarity, converting distance to a 0–1 score."""
         results = self._collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
@@ -120,18 +127,22 @@ class ChromaVectorStore(VectorStoreBase):
         return hits
 
     def delete_by_source(self, source: str) -> None:
+        """Delete all chunks matching ``source`` from the ChromaDB collection."""
         self._collection.delete(where={"source": source})
         logger.info(f"Deleted chunks for source: {source}")
 
     def delete_by_source_and_strategy(self, source: str, strategy: str) -> None:
+        """Delete chunks matching both ``source`` and ``chunking_strategy`` via ChromaDB ``$and`` filter."""
         self._collection.delete(
             where={"$and": [{"source": source}, {"chunking_strategy": strategy}]}
         )
 
     def count(self) -> int:
+        """Return the total number of stored chunks in the collection."""
         return self._collection.count()
 
     def clear(self) -> None:
+        """Delete and recreate the ChromaDB collection."""
         self._client.delete_collection(self.collection_name)
         self._collection = self._client.get_or_create_collection(
             name=self.collection_name,
@@ -139,6 +150,7 @@ class ChromaVectorStore(VectorStoreBase):
         )
 
     def list_sources(self) -> list[str]:
+        """Return a sorted list of unique source names from collection metadata."""
         results = self._collection.get(include=["metadatas"])
         sources = set()
         if results["metadatas"]:
@@ -148,6 +160,7 @@ class ChromaVectorStore(VectorStoreBase):
         return sorted(sources)
 
     def get_all(self) -> list[dict[str, Any]]:
+        """Return all stored documents as dicts with ``id``, ``content``, ``metadata`` keys."""
         results = self._collection.get(include=["documents", "metadatas"])
         docs = []
         if results["ids"]:
@@ -160,6 +173,7 @@ class ChromaVectorStore(VectorStoreBase):
         return docs
 
     def needs_reindex(self, source: str, checksum: str, strategy: str = "default") -> bool:
+        """Check whether ``source`` needs re-indexing by comparing stored checksums."""
         results = self._collection.get(
             where={"$and": [{"source": source}, {"chunking_strategy": strategy}]},
             include=["metadatas"],

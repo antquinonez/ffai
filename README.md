@@ -34,6 +34,17 @@ RAG installs ChromaDB for persistent vector storage. OpenTelemetry installs OTLP
 
 > **Note:** Quotes are required around `ffai[rag]` in zsh and some other shells, since brackets are special characters. Bash does not require quotes.
 
+### Vector store backends
+
+FFAI supports multiple vector store backends. ChromaDB is included with `ffai[rag]`; others install separately:
+
+| Backend | Install | Mode |
+|---------|---------|------|
+| **ChromaDB** (default) | Included with `ffai[rag]` | Local files |
+| **Qdrant** | `pip install qdrant-client` | Local, in-memory, server, or cloud |
+| **pgvector** | `pip install psycopg asyncpg` + PostgreSQL with pgvector | Server (Docker) |
+| **SQLite-vss** | `pip install sqlite-vss` | Local files |
+
 ## Features
 
 - **Declarative context assembly** — reference earlier responses by name using `{{prompt_name.response}}` interpolation
@@ -158,6 +169,35 @@ store = VectorStore(collection_name="my_kb", dir="./chroma_db")
 
 rag = RAG(embed=embed, store=store, chunk_size=500, chunk_overlap=100)
 ```
+
+#### Switching vector store backends
+
+Use `get_store()` to pick a backend, or set `store_backend` in `config/main.yaml`:
+
+```python
+from ffai.rag.stores import get_store
+
+# Qdrant local mode (no server needed)
+store = get_store("qdrant", path="./qdrant_db", embedding_dim=1024)
+
+# ChromaDB (default)
+store = get_store("chroma", collection_name="my_kb", dir="./chroma_db")
+
+rag = RAG(embed=embed, store=store)
+```
+
+Or via config:
+
+```yaml
+# config/main.yaml
+rag:
+  store_backend: qdrant
+  store_config:
+    path: "./qdrant_db"
+    embedding_dim: 1024
+```
+
+All backends implement the same `VectorStoreBase` interface — swap backends without changing any other code.
 
 RAG supports BM25 hybrid search (`bm25_alpha`), result reranking (`reranker="diversity"`), query expansion via LLM (`query_expander`), hierarchical chunking with parent-context retrieval (`chunker="hierarchical"`), local embedding models (`local/` prefix via `sentence-transformers`), embedding caching, and custom prompt templates.
 
@@ -564,7 +604,14 @@ ffai/
   rag/
     rag.py                         # RAG class — index, index_many, chunk, search, query, delete, from_config
     embed.py                       # Embeddings (API + local/ models, LRU caching, cosine similarity)
-    store.py                       # VectorStore (ChromaDB, async-native, checksums, list_sources)
+    store.py                       # VectorStore backward-compat shim (re-exports ChromaVectorStore)
+    stores/
+      __init__.py                  # Registry, get_store(), list_stores(), list_available_stores()
+      base.py                      # VectorStoreBase ABC — 10 abstract methods
+      chroma.py                    # ChromaVectorStore — ChromaDB persistent client
+      qdrant.py                    # QdrantVectorStore — server, local, or cloud mode
+      pgvector.py                  # PgVectorStore — PostgreSQL + pgvector extension
+      sqlite_vss.py                # SQLiteVssStore — zero-infrastructure SQLite extension
     types.py                       # SearchHit (parent_content), QueryResult (usage/cost/duration), TextChunk
     format.py                      # format_hits() for prompt injection
     prompts.py                     # DEFAULT_RAG_PROMPT template
@@ -614,6 +661,7 @@ Runnable Jupyter notebooks in `examples/`:
 | `agent_tools_and_validation/` | Agentic tool-call loop with LLM-as-judge validation |
 | `conditional_execution/` | Condition-based branching and skip in prompt sequences |
 | `multi_turn_sequence/` | Multi-turn conversation with history and DataFrame export |
+| `vector_stores/` | Vector store backends: Qdrant (memory, local, server, cloud), ChromaDB vs Qdrant comparison |
 | `dag_validation/` | DAG topology validation, cycle detection, dependency analysis |
 | `message_stack.ipynb` | Conversation history stack inspection |
 | `message_stack_live.ipynb` | Live conversation history stack demo |
@@ -695,6 +743,8 @@ retry:
 ```yaml
 rag:
   enabled: true
+  store_backend: chroma
+  store_config: {}
   persist_dir: "./chroma_db"
   collection_name: "ffai_kb"
   embedding_model: "mistral/mistral-embed"
@@ -704,6 +754,8 @@ rag:
   bm25_alpha: 0.5
   reranker: "diversity"
 ```
+
+The `store_backend` field selects the vector store (`chroma`, `qdrant`, `pgvector`, `sqlite_vss`). Pass backend-specific constructor arguments via `store_config`. See [Vector Store Backends](#vector-store-backends) above.
 
 ```python
 from ffai.rag import RAG
@@ -799,6 +851,11 @@ With `pip install -e ".[rag]"`, additional RAG exports are available:
 |--------|--------|
 | `RAG` | `ffai.rag.rag` |
 | `Embeddings` | `ffai.rag.embed` |
+| `VectorStoreBase` | `ffai.rag.stores.base` |
+| `get_store` | `ffai.rag.stores` |
+| `list_stores` | `ffai.rag.stores` |
+| `list_available_stores` | `ffai.rag.stores` |
+| `is_store_available` | `ffai.rag.stores` |
 | `SearchHit` | `ffai.rag.types` |
 | `QueryResult` | `ffai.rag.types` |
 | `TextChunk` | `ffai.rag.splitters.base` |

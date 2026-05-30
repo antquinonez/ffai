@@ -9,8 +9,9 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from .base import VectorStoreBase
 from ffai.rag.types import SearchHit
+
+from .base import VectorStoreBase
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class SQLiteVssStore(VectorStoreBase):
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._db_path)
         conn.enable_load_extension(True)
-        sqlite_vss.load(conn)
+        sqlite_vss.load(conn)  # type: ignore[union-attr]
         conn.row_factory = sqlite3.Row
         return conn
 

@@ -6,8 +6,9 @@ import json
 import logging
 from typing import Any
 
-from .base import VectorStoreBase
 from ffai.rag.types import SearchHit
+
+from .base import VectorStoreBase
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class PgVectorStore(VectorStoreBase):
         self._setup_schema()
 
     def _setup_schema(self) -> None:
-        with psycopg.connect(self._connection_string) as conn:
+        with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
             conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self._table_name} (
@@ -101,7 +102,7 @@ class PgVectorStore(VectorStoreBase):
 
     async def _get_pool(self) -> Any:
         if self._pool is None:
-            self._pool = await asyncpg.create_pool(
+            self._pool = await asyncpg.create_pool(  # type: ignore[union-attr]
                 self._connection_string, min_size=2, max_size=10,
             )
         return self._pool
@@ -181,7 +182,7 @@ class PgVectorStore(VectorStoreBase):
         return f"WHERE {' AND '.join(conditions)}", params
 
     def delete_by_source(self, source: str) -> None:
-        with psycopg.connect(self._connection_string) as conn:
+        with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             conn.execute(
                 f"DELETE FROM {self._table_name} WHERE metadata->>'source' = %s",
                 (source,),
@@ -189,7 +190,7 @@ class PgVectorStore(VectorStoreBase):
         logger.info(f"Deleted chunks for source: {source}")
 
     def delete_by_source_and_strategy(self, source: str, strategy: str) -> None:
-        with psycopg.connect(self._connection_string) as conn:
+        with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             conn.execute(
                 f"DELETE FROM {self._table_name} "
                 f"WHERE metadata->>'source' = %s AND metadata->>'chunking_strategy' = %s",
@@ -197,16 +198,16 @@ class PgVectorStore(VectorStoreBase):
             )
 
     def count(self) -> int:
-        with psycopg.connect(self._connection_string) as conn:
+        with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             result = conn.execute(f"SELECT COUNT(*) FROM {self._table_name}").fetchone()
             return result[0] if result else 0
 
     def clear(self) -> None:
-        with psycopg.connect(self._connection_string) as conn:
+        with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             conn.execute(f"TRUNCATE {self._table_name}")
 
     def list_sources(self) -> list[str]:
-        with psycopg.connect(self._connection_string) as conn:
+        with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             rows = conn.execute(
                 f"SELECT DISTINCT metadata->>'source' AS source "
                 f"FROM {self._table_name} ORDER BY source"
@@ -214,7 +215,7 @@ class PgVectorStore(VectorStoreBase):
             return [row[0] for row in rows if row[0] is not None]
 
     def get_all(self) -> list[dict[str, Any]]:
-        with psycopg.connect(self._connection_string) as conn:
+        with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             rows = conn.execute(
                 f"SELECT id, content, metadata FROM {self._table_name}"
             ).fetchall()
@@ -224,7 +225,7 @@ class PgVectorStore(VectorStoreBase):
             ]
 
     def needs_reindex(self, source: str, checksum: str, strategy: str = "default") -> bool:
-        with psycopg.connect(self._connection_string) as conn:
+        with psycopg.connect(self._connection_string) as conn:  # type: ignore[union-attr]
             row = conn.execute(
                 f"SELECT metadata->>'document_checksum' FROM {self._table_name} "
                 f"WHERE metadata->>'source' = %s AND metadata->>'chunking_strategy' = %s LIMIT 1",

@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from .base import VectorStoreBase
 from ffai.rag.types import SearchHit
+
+from .base import VectorStoreBase
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +85,8 @@ class QdrantVectorStore(VectorStoreBase):
             client_kwargs["host"] = host
             client_kwargs["port"] = port
 
-        self._client: Any = QdrantClient(**client_kwargs)
-        self._async_client: Any = AsyncQdrantClient(**client_kwargs)
+        self._client: Any = QdrantClient(**client_kwargs)  # type: ignore[union-attr]
+        self._async_client: Any = AsyncQdrantClient(**client_kwargs)  # type: ignore[union-attr]
         self._ensure_collection()
 
     def _ensure_collection(self) -> None:

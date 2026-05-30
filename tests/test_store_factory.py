@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
 import pytest
 
 from ffai.rag.stores import (
@@ -67,7 +65,8 @@ class TestStoreRegistry:
     def test_registry_has_chroma_after_query(self):
         get_store("chroma", collection_name="test_col", dir="/tmp/test_stores")
         assert "chroma" in STORE_REGISTRY
-        assert STORE_REGISTRY["chroma"].name.fget(STORE_REGISTRY["chroma"]("test")) == "chroma" is not None
+        from ffai.rag.stores.chroma import ChromaVectorStore
+        assert STORE_REGISTRY["chroma"] is ChromaVectorStore
 
     def test_importing_stores_does_not_fail(self):
         import ffai.rag.stores

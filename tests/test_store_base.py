@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from ffai.rag.stores.base import VectorStoreBase
-from ffai.rag.types import SearchHit
 
 
 class TestVectorStoreBaseCannotInstantiate:

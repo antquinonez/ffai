@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import asyncio
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from ffai.rag.types import SearchHit
 
 
 def _make_mock_psycopg():

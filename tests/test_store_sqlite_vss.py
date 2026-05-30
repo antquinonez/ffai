@@ -6,8 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ffai.rag.types import SearchHit
-
 
 def _make_mock_sqlite_vss():
     mock_conn = MagicMock()

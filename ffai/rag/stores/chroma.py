@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from .base import VectorStoreBase
 from ffai.rag.types import SearchHit
+
+from .base import VectorStoreBase
 
 try:
     import chromadb  # type: ignore[reportMissingImports]

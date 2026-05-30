@@ -28,6 +28,14 @@ from .splitters import (
     get_chunker,
     list_chunkers,
 )
+from .stores import (
+    STORE_REGISTRY,
+    VectorStoreBase,
+    get_store,
+    is_store_available,
+    list_available_stores,
+    list_stores,
+)
 from .types import GenerationResult, QueryResult, SearchHit
 
 try:
@@ -61,14 +69,20 @@ __all__ = [
     "QueryResult",
     "RecursiveChunker",
     "RerankerBase",
+    "STORE_REGISTRY",
     "SearchHit",
     "TextChunk",
     "VectorStore",
+    "VectorStoreBase",
     "chunk_text",
     "format_hits",
     "fuse_search_results",
     "get_chunker",
     "get_reranker",
+    "get_store",
+    "is_store_available",
+    "list_available_stores",
     "list_chunkers",
+    "list_stores",
     "reciprocal_rank_fusion",
 ]

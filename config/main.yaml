@@ -24,3 +24,11 @@ observability:
     insecure: true
   token_tracking: true
   cost_tracking: true
+
+rag:
+  enabled: false
+  store_backend: chroma
+  embedding_model: "mistral/mistral-embed"
+  chunker: recursive
+  chunk_size: 1000
+  chunk_overlap: 200

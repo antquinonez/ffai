@@ -163,6 +163,12 @@ class PgVectorStore(VectorStoreBase):
             for row in rows
         ]
 
+    @staticmethod
+    def _safe_key(key: str) -> str:
+        if not key.replace("_", "").replace("-", "").replace(".", "").isalnum():
+            raise ValueError(f"Invalid metadata key: {key!r}")
+        return key
+
     def _build_where(self, where: dict[str, Any] | None) -> tuple[str, list[str]]:
         if not where:
             return "", []
@@ -171,13 +177,13 @@ class PgVectorStore(VectorStoreBase):
             params: list[str] = []
             for cond in where["$and"]:
                 for k, v in cond.items():
-                    conditions.append(f"metadata->>'{k}' = ${len(params) + 1}")
+                    conditions.append(f"metadata->>'{self._safe_key(k)}' = ${len(params) + 1}")
                     params.append(str(v))
             return f"WHERE {' AND '.join(conditions)}", params
         conditions = []
         params = []
         for k, v in where.items():
-            conditions.append(f"metadata->>'{k}' = ${len(params) + 1}")
+            conditions.append(f"metadata->>'{self._safe_key(k)}' = ${len(params) + 1}")
             params.append(str(v))
         return f"WHERE {' AND '.join(conditions)}", params
 

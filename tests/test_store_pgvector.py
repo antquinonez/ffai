@@ -204,3 +204,19 @@ class TestPgVectorBuildWhere:
         )
         assert "AND" in clause
         assert len(params) == 2
+
+    def test_sql_injection_in_key_raises(self):
+        from ffai.rag.stores.pgvector import PgVectorStore
+        mock_pg, mock_async, _ = _make_mock_psycopg()
+        with _patch_pg(mock_pg, mock_async):
+            store = PgVectorStore(connection_string="postgresql://x")
+        with pytest.raises(ValueError, match="Invalid metadata key"):
+            store._build_where({"'); DROP TABLE t; --": "value"})
+
+    def test_valid_keys_with_underscores_and_dots(self):
+        from ffai.rag.stores.pgvector import PgVectorStore
+        mock_pg, mock_async, _ = _make_mock_psycopg()
+        with _patch_pg(mock_pg, mock_async):
+            store = PgVectorStore(connection_string="postgresql://x")
+        clause, params = store._build_where({"chunking_strategy": "recursive"})
+        assert "metadata->>'chunking_strategy'" in clause

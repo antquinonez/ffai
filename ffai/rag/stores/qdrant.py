@@ -151,7 +151,7 @@ class QdrantVectorStore(VectorStoreBase):
         )
         hits = []
         for point in results.points:
-            payload = point.payload or {}
+            payload = dict(point.payload or {})
             hits.append(SearchHit(
                 id=str(point.id),
                 content=payload.pop("content", ""),
@@ -210,7 +210,7 @@ class QdrantVectorStore(VectorStoreBase):
         return [
             {
                 "id": str(p.id),
-                "content": (p.payload or {}).pop("content", ""),
+                "content": (dict(p.payload or {})).pop("content", ""),
                 "metadata": {k: v for k, v in (p.payload or {}).items() if k != "content"},
             }
             for p in results

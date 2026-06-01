@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -36,43 +37,44 @@ class FakeAsyncClient(AsyncFFAIClientBase):
         self._history = list(history)
 
 
+def _arun(coro):
+    return asyncio.run(coro)
+
+
 class TestExecuteWorkflow:
-    @pytest.mark.asyncio
-    async def test_execute_from_yaml_string(self):
+    def test_execute_from_yaml_string(self):
         client = FakeAsyncClient()
         ffai = FFAI(client)
 
-        result = await ffai.execute_workflow("""
+        result = _arun(ffai.execute_workflow("""
 workflow:
   name: basic
   prompts:
     - name: greet
       prompt: "Say hello"
-""")
+"""))
         assert result.success_count == 1
         assert result.spec_name == "basic"
         assert "greet" in result.results
         assert result.results["greet"].status == "success"
 
-    @pytest.mark.asyncio
-    async def test_execute_with_variables(self):
+    def test_execute_with_variables(self):
         client = FakeAsyncClient()
         ffai = FFAI(client)
 
-        result = await ffai.execute_workflow("""
+        result = _arun(ffai.execute_workflow("""
 workflow:
   name: var_test
   prompts:
     - name: q
       prompt: "Tell me about {topic}"
-""", variables={"topic": "quantum computing"})
+""", variables={"topic": "quantum computing"}))
 
         assert result.success_count == 1
         call_args = client._mock_generate.call_args
         assert "quantum computing" in call_args.kwargs.get("prompt", call_args[1].get("prompt", ""))
 
-    @pytest.mark.asyncio
-    async def test_execute_workflow_file(self, tmp_path):
+    def test_execute_workflow_file(self, tmp_path):
         client = FakeAsyncClient()
         ffai = FFAI(client)
 
@@ -84,42 +86,39 @@ workflow:
     - name: step1
       prompt: "Hello"
 """)
-        result = await ffai.execute_workflow_file(str(wf_file))
+        result = _arun(ffai.execute_workflow_file(str(wf_file)))
         assert result.success_count == 1
         assert result.spec_name == "file_test"
 
-    @pytest.mark.asyncio
-    async def test_execute_raises_on_non_async_client(self):
+    def test_execute_raises_on_non_async_client(self):
         sync_client = MagicMock(spec=["model", "generate_response"])
         sync_client.model = "sync-model"
         ffai = FFAI(sync_client)
 
         with pytest.raises(TypeError, match="async client"):
-            await ffai.execute_workflow("""
+            _arun(ffai.execute_workflow("""
 workflow:
   name: bad
   prompts:
     - name: s1
       prompt: "hi"
-""")
+"""))
 
-    @pytest.mark.asyncio
-    async def test_execute_file_not_found(self):
+    def test_execute_file_not_found(self):
         client = FakeAsyncClient()
         ffai = FFAI(client)
 
         with pytest.raises(FileNotFoundError):
-            await ffai.execute_workflow_file("/nonexistent/workflow.yaml")
+            _arun(ffai.execute_workflow_file("/nonexistent/workflow.yaml"))
 
-    @pytest.mark.asyncio
-    async def test_invalid_yaml_raises_validation_error(self):
+    def test_invalid_yaml_raises_validation_error(self):
         from ffai.workflow import WorkflowValidationError
 
         client = FakeAsyncClient()
         ffai = FFAI(client)
 
         with pytest.raises(WorkflowValidationError):
-            await ffai.execute_workflow("workflow:\n  prompts: []")
+            _arun(ffai.execute_workflow("workflow:\n  prompts: []"))
 
 
 class TestValidateWorkflow:

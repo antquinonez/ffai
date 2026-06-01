@@ -880,46 +880,6 @@ class FFAI:
         )
 
     # ===========================================================================
-    # Airtable Workflow Execution
-    # ===========================================================================
-
-    async def execute_workflow_airtable(
-        self,
-        base_id: str,
-        table_name: str,
-        *,
-        api_key: str | None = None,
-        api_key_env: str = "AIRTABLE_API_KEY",
-        view: str | None = None,
-        variables: dict[str, str] | None = None,
-        max_concurrency: int | None = None,
-        clients: dict[str, dict[str, Any] | str] | None = None,
-        defaults: dict[str, Any] | None = None,
-        tools: dict[str, dict[str, Any]] | None = None,
-        name: str = "unnamed",
-        description: str = "",
-    ) -> Any:
-        from .workflow.executor import WorkflowExecutor
-        from .workflow.tabular_airtable import load_workflow_airtable
-
-        spec = load_workflow_airtable(
-            base_id,
-            table_name,
-            api_key=api_key,
-            api_key_env=api_key_env,
-            view=view,
-            name=name,
-            description=description,
-            defaults=defaults,
-            clients=clients,
-            tools=tools,
-        )
-        executor = WorkflowExecutor(ffai=self, spec=spec)
-        return await executor.execute(
-            variables=variables, max_concurrency=max_concurrency
-        )
-
-    # ===========================================================================
     # Client conversation history access
     # ===========================================================================
 

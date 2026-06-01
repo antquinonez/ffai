@@ -698,6 +698,188 @@ class FFAI:
         return graph_result
 
     # ===========================================================================
+    # YAML Workflow execution
+    # ===========================================================================
+
+    async def execute_workflow(
+        self,
+        workflow: Any,
+        variables: dict[str, str] | None = None,
+        max_concurrency: int | None = None,
+    ) -> Any:
+        """Execute a YAML-defined workflow.
+
+        Each prompt step can specify its own LLM client. The system resolves
+        clients from the workflow YAML, ``config/clients.yaml``, or falls back
+        to this instance's current client.
+
+        Args:
+            workflow: A ``WorkflowSpec`` instance or a YAML string. Strings
+                are parsed via ``load_workflow()``.
+            variables: Values for ``{variable}`` placeholders in prompt
+                templates.
+            max_concurrency: Override max parallel prompts.
+
+        Returns:
+            ``WorkflowResult`` with per-step results and aggregate counts.
+
+        Raises:
+            WorkflowValidationError: If the YAML is invalid.
+            TypeError: If the FFAI client is not async.
+
+        """
+        from .workflow.executor import WorkflowExecutor
+        from .workflow.loader import load_workflow
+
+        spec = load_workflow(workflow) if isinstance(workflow, str) else workflow
+
+        executor = WorkflowExecutor(ffai=self, spec=spec)
+        return await executor.execute(
+            variables=variables,
+            max_concurrency=max_concurrency,
+        )
+
+    async def execute_workflow_file(
+        self,
+        path: str,
+        variables: dict[str, str] | None = None,
+        max_concurrency: int | None = None,
+    ) -> Any:
+        """Load and execute a workflow from a YAML file.
+
+        Args:
+            path: Path to the workflow YAML file.
+            variables: Values for ``{variable}`` placeholders.
+            max_concurrency: Override max parallel prompts.
+
+        Returns:
+            ``WorkflowResult`` with per-step results and aggregate counts.
+
+        """
+        from .workflow.loader import load_workflow_file
+
+        spec = load_workflow_file(path)
+        return await self.execute_workflow(
+            spec,
+            variables=variables,
+            max_concurrency=max_concurrency,
+        )
+
+    def validate_workflow(
+        self,
+        workflow: Any,
+    ) -> tuple[list[str], list[str]]:
+        """Validate a workflow without executing it.
+
+        Args:
+            workflow: A ``WorkflowSpec`` instance or a YAML string.
+
+        Returns:
+            Tuple of (errors, warnings).
+
+        """
+        from .workflow.executor import WorkflowExecutor
+        from .workflow.loader import WorkflowValidationError, load_workflow
+
+        if isinstance(workflow, str):
+            try:
+                spec = load_workflow(workflow)
+            except WorkflowValidationError as e:
+                return [str(e)], []
+        else:
+            spec = workflow
+
+        errors: list[str] = []
+        warnings: list[str] = []
+
+        executor = WorkflowExecutor(ffai=self, spec=spec)
+        try:
+            specs = executor._build_specs({})
+            _graph, graph_warnings = self.validate_graph(specs)
+            warnings.extend(graph_warnings)
+        except ValueError as e:
+            errors.append(str(e))
+
+        for step in spec.prompts:
+            if step.client is not None and step.client.is_named_ref:
+                name = step.client.name
+                if name and name not in spec.clients:
+                    config = get_config()
+                    if not config.clients.get_client_type(name):
+                        warnings.append(
+                            f"Client '{name}' referenced by step '{step.name}' "
+                            f"not found in workflow or config — will use default"
+                        )
+
+        return errors, warnings
+
+    # ===========================================================================
+    # CSV Workflow Execution
+    # ===========================================================================
+
+    async def execute_workflow_csv(
+        self,
+        csv_text: str,
+        *,
+        variables: dict[str, str] | None = None,
+        max_concurrency: int | None = None,
+        delimiter: str = ",",
+        clients: dict[str, dict[str, Any] | str] | None = None,
+        defaults: dict[str, Any] | None = None,
+        tools: dict[str, dict[str, Any]] | None = None,
+        name: str = "unnamed",
+        description: str = "",
+    ) -> Any:
+        from .workflow.executor import WorkflowExecutor
+        from .workflow.tabular_csv import load_workflow_csv
+
+        spec = load_workflow_csv(
+            csv_text,
+            name=name,
+            description=description,
+            defaults=defaults,
+            clients=clients,
+            tools=tools,
+            delimiter=delimiter,
+        )
+        executor = WorkflowExecutor(ffai=self, spec=spec)
+        return await executor.execute(
+            variables=variables, max_concurrency=max_concurrency
+        )
+
+    async def execute_workflow_csv_file(
+        self,
+        path: str,
+        *,
+        variables: dict[str, str] | None = None,
+        max_concurrency: int | None = None,
+        delimiter: str = ",",
+        encoding: str = "utf-8",
+        clients: dict[str, dict[str, Any] | str] | None = None,
+        defaults: dict[str, Any] | None = None,
+        tools: dict[str, dict[str, Any]] | None = None,
+        name: str = "unnamed",
+        description: str = "",
+    ) -> Any:
+        from .workflow.executor import WorkflowExecutor
+        from .workflow.tabular_csv import load_workflow_csv_file
+
+        spec = load_workflow_csv_file(
+            path,
+            name=name,
+            description=description,
+            defaults=defaults,
+            clients=clients,
+            tools=tools,
+            delimiter=delimiter,
+            encoding=encoding,
+        )
+        executor = WorkflowExecutor(ffai=self, spec=spec)
+        return await executor.execute(
+            variables=variables, max_concurrency=max_concurrency
+        )
+
+    # ===========================================================================
     # Client conversation history access
     # ===========================================================================
 

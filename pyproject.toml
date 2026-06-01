@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ffai"
-version = "0.1.3"
+version = "0.1.4"
 description = "Declarative multi-provider AI client with named-prompt context assembly, thread-safe parallel execution, and built-in cost/usage tracking"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -66,6 +66,7 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short -m 'not integration'"
 markers = [
     "integration: tests requiring real API keys",
+    "workflow: integration tests for YAML workflow execution",
     "chroma: tests exercising the ChromaDB vector store backend",
     "qdrant: tests exercising the Qdrant vector store backend",
     "pgvector: tests exercising the pgvector vector store backend",

@@ -17,7 +17,8 @@ output, broken imports, and figures that disappear in PDF export.
 
 ## Table of Contents
 
-- [Tool: nbformat, not manual JSON](#tool-nbformat-not-manual-json)
+- [Tool: nbformat with Helper Functions](#tool-nbformat-with-helper-functions)
+- [Generator Scripts](#generator-scripts)
 - [Write-Run-Describe Rule](#write-run-describe-rule)
 - [Full-Notebook Review After Edits](#full-notebook-review-after-edits)
 - [AI-Readable Output for Every Code Cell](#ai-readable-output-for-every-code-cell)
@@ -27,14 +28,21 @@ output, broken imports, and figures that disappear in PDF export.
 - [Structuring Notebooks](#structuring-notebooks)
 - [Data Sanity Checks Before Analysis](#data-sanity-checks-before-analysis)
 - [Import Robustness](#import-robustness)
+- [Linting Notebooks](#linting-notebooks)
 - [Exporting to HTML and PDF](#exporting-to-html-and-pdf)
 - [PDF Formatting](#pdf-formatting)
 - [Validation](#validation)
 
-## Tool: nbformat, not manual JSON
+## Tool: nbformat with Helper Functions
 
 Use the `nbformat` library to create/edit notebooks. Direct JSON editing is
 fragile due to escaping issues.
+
+### Use helper functions with triple-quoted strings
+
+The recommended pattern uses **named helper functions** and **triple-quoted
+strings** for cell content. This avoids quoting hell when cells contain
+f-strings, YAML, JSON, or nested quotes:
 
 ```python
 import nbformat as nbf
@@ -42,19 +50,194 @@ import nbformat as nbf
 nb = nbf.v4.new_notebook()
 nb.cells = []
 
-nb.cells.append(nbf.v4.new_markdown_cell("# Title\n\nDescription"))
+def code(s):
+    nb.cells.append(nbf.v4.new_code_cell(s))
 
-nb.cells.append(nbf.v4.new_code_cell(
-    "import pandas as pd\n"
-    "df = pd.read_csv('data.csv')\n"
-    "print(df.head(10).to_string(index=False))"
-))
+def md(s):
+    nb.cells.append(nbf.v4.new_markdown_cell(s))
+
+md("""\
+# Title
+
+Description of the notebook.
+""")
+
+code("""\
+import pandas as pd
+
+df = pd.read_csv('data.csv')
+print(df.head(10).to_string(index=False))
+""")
 
 with open('notebook.ipynb', 'w') as f:
     nbf.write(nb, f)
 ```
 
+### Why not implicit string concatenation?
+
+The naive approach concatenates strings:
+
+```python
+# FRAGILE -- breaks with f-strings, quotes, YAML, JSON
+nb.cells.append(nbf.v4.new_code_cell(
+    "import pandas as pd\n"
+    "df = pd.read_csv('data.csv')\n"
+    "print(df.head(10).to_string(index=False))"
+))
+```
+
+This fails when cell content contains:
+- **f-strings**: `'print(f"value: {x}")'` — the `{x}` is ambiguous
+- **Nested quotes**: `'print("it's a test")'` — quote escaping errors
+- **YAML blocks**: Multi-line YAML in concatenated strings requires `\\n`
+  at every line break, making the cell content unreadable
+- **Braces**: `'result = {"key": "value"}'` — `{` and `}` in single-quoted
+  Python strings conflict with f-string syntax in the surrounding code
+
+Triple-quoted strings avoid all of these: the cell source is a single
+multi-line string with no concatenation, no `\\n`, and no quote conflicts.
+
+### Why `def` instead of `lambda`?
+
+Use `def` for the helpers, not `lambda`:
+
+```python
+# Bad: ruff flags E731 (do not assign a lambda expression)
+code = lambda s: nb.cells.append(nbf.v4.new_code_cell(s))
+md = lambda s: nb.cells.append(nbf.v4.new_markdown_cell(s))
+
+# Good: named functions pass linting
+def code(s):
+    nb.cells.append(nbf.v4.new_code_cell(s))
+
+def md(s):
+    nb.cells.append(nbf.v4.new_markdown_cell(s))
+```
+
+### Embedding YAML, JSON, or other triple-quoted content in cells
+
+When a notebook cell itself contains triple-quoted strings (e.g., embedding
+YAML in a Python code cell), escape the inner triple quotes with `\"\"\"`:
+
+```python
+code("""\
+result = run_sync(ffai.execute_workflow(\"\"\"
+workflow:
+  name: hello
+  prompts:
+    - name: greet
+      prompt: "What is 2+2?"
+\"\"\"))
+
+print(result.results['greet'].response)
+""")
+```
+
+The outer `"""...\n"""` is the cell source. Inside it, `\"\"\"` becomes `"""`
+in the generated notebook cell, so the cell contains valid Python with its own
+triple-quoted string.
+
+### The backslash-trailing-newline trick
+
+End triple-quoted strings with `"""\` (backslash before closing `"""`) to
+suppress the leading newline:
+
+```python
+code("""\
+import pandas as pd
+df = pd.read_csv('data.csv')
+""")
+```
+
+Without the `\`, the cell source starts with a blank line.
+
 Ensure `nbformat` is available: `pip install nbformat`
+
+## Generator Scripts
+
+For notebooks that call real APIs, use a **generator script** — a `.py` file
+that defines the notebook structure with `nbformat`, then a separate execution
+step that populates the outputs. This separates "define structure" from
+"populate outputs".
+
+### Why generator scripts?
+
+- **Reproducibility**: Re-run the generator to refresh outputs after code changes
+- **Lintability**: Generator scripts are `.py` files — ruff and pyright check them
+- **No manual JSON**: The `.ipynb` is generated, never hand-edited
+- **Clean diffs**: Output changes show in git without touching the structure
+
+### Pattern
+
+```
+scripts/
+  _nb_my_notebook.py       # generator script
+examples/
+  my_notebook/
+    my_notebook.ipynb       # generated output
+```
+
+The generator script:
+
+```python
+# scripts/_nb_my_notebook.py
+import nbformat as nbf
+
+nb = nbf.v4.new_notebook()
+nb.cells = []
+
+def code(s):
+    nb.cells.append(nbf.v4.new_code_cell(s))
+
+def md(s):
+    nb.cells.append(nbf.v4.new_markdown_cell(s))
+
+md("# My Notebook\n")
+
+code("""\
+import sys
+from pathlib import Path
+
+_cwd = Path().resolve()
+_project_root = _cwd
+for _p in [_cwd, *list(_cwd.parents)]:
+    if (_p / 'pyproject.toml').is_file():
+        _project_root = _p
+        break
+
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+""")
+
+# ... more cells ...
+
+with open("examples/my_notebook/my_notebook.ipynb", "w") as f:
+    nbf.write(nb, f)
+
+print("Created my_notebook.ipynb")
+```
+
+### Workflow: generate, then execute
+
+```bash
+# Step 1: Generate the notebook (fast, no API calls)
+python scripts/_nb_my_notebook.py
+
+# Step 2: Execute to populate outputs (makes API calls)
+JUPYTER_CONFIG_DIR=/tmp/empty_jupyter_config \
+    jupyter nbconvert --to notebook --execute \
+    --ExecutePreprocessor.timeout=120 \
+    examples/my_notebook/my_notebook.ipynb \
+    --output my_notebook.ipynb
+```
+
+The `JUPYTER_CONFIG_DIR` bypass prevents broken global Jupyter configs from
+interfering (see [Broken global Jupyter config](#broken-global-jupyter-config)).
+
+### Naming convention
+
+- Generator scripts: `scripts/_nb_<name>.py` (underscore prefix signals "tool")
+- Output notebooks: `examples/<name>/<name>.ipynb`
 
 ## Write-Run-Describe Rule
 
@@ -351,12 +534,12 @@ isolated validation.
 - **Print output is cell output**: In the validation script, `print()` goes to
   stdout which the script captures. Use `print()` for values you want to appear
   as output. Use markdown cells for narrative.
-- **asyncio.run() fails inside Jupyter**: Jupyter notebooks run inside an
+- **`asyncio.run()` fails inside Jupyter**: Jupyter notebooks run inside an
   async event loop. Calling `asyncio.run()` raises
   `RuntimeError: asyncio.run() cannot be called from a running event loop`.
-  Use a helper that detects the context instead. If the project has a
-  `run_sync()` utility (e.g. `ffai.rag._async.run_sync`), use it. Otherwise,
-  use this pattern:
+  **Before adding your own `run_sync` helper, check if the project already
+  provides one** (e.g. search for `def run_sync` in the codebase). If it does,
+  import and use it. If not, use this pattern:
 
   ```python
   import asyncio
@@ -500,6 +683,34 @@ print('All code cells executed successfully (CWD = notebook dir)')
 | `ModuleNotFoundError` for deep package path | Missing `__init__.py` in ancestor dirs | Import sibling modules directly via `sys.path` |
 | Import works in validation but fails in Jupyter | Validation CWD differs from Jupyter CWD | Walk up to find project root |
 | Notebook works on one machine but not another | Hardcoded relative path assumed specific CWD | Project root discovery from CWD |
+
+## Linting Notebooks
+
+`ruff check` lints `.ipynb` files natively. Every notebook cell must satisfy
+the same lint rules as `.py` files. Common issues:
+
+| Ruff rule | Typical cause in notebooks |
+|-----------|---------------------------|
+| `F401` unused import | Imported a symbol "for later" but never used it |
+| `I001` unsorted imports | `# noqa: E402` imports not grouped with other `noqa` imports |
+| `F541` f-string without placeholders | `f"literal string"` with no `{}` variables |
+| `E731` lambda assignment | Generator script uses `lambda` instead of `def` |
+
+### Workflow
+
+```bash
+# Lint notebooks alongside source code
+ruff check examples/ ffai/ tests/
+```
+
+Fix any errors before committing. The same `ruff` configuration from
+`pyproject.toml` applies to notebook cells.
+
+### Generator scripts are lintable too
+
+Generator scripts (`.py` files) are fully lintable. The `def` helper pattern
+(see [Tool: nbformat with Helper Functions](#tool-nbformat-with-helper-functions))
+exists partly because `ruff` flags `E731` for lambda assignments.
 
 ## Exporting to HTML and PDF
 
@@ -675,6 +886,8 @@ JUPYTER_CONFIG_DIR=/tmp/empty_jupyter_config jupyter nbconvert --to webpdf \
     --no-input --execute --ExecutePreprocessor.timeout=180 notebook.ipynb
 ```
 
+Always use this bypass for `nbconvert` commands in scripts and CI.
+
 ### Wide table handling
 
 Tables with 6+ columns overflow PDF page width. Solutions:
@@ -685,10 +898,40 @@ Tables with 6+ columns overflow PDF page width. Solutions:
 
 ## Validation
 
-After creating or modifying notebooks, validate they execute correctly:
+After creating or modifying notebooks, validate they execute correctly using
+**both** methods below. A notebook that passes `exec()` validation can still
+fail under `nbconvert --execute` because the two contexts have different
+semantics.
+
+### Companion scripts
+
+The skill directory includes reusable validation and execution scripts:
+
+| Script | Purpose |
+|--------|---------|
+| `nb_validate.py` | `exec()` validation with optional `--cwd` flag |
+| `nb_execute.py` | `nbconvert --execute` with config bypass |
+| `nb_template.py` | Minimal generator script to copy and adapt |
+
+Usage:
 
 ```bash
-# Single notebook
+# Quick validation (fast, no kernel)
+python nb_validate.py path/to/notebook.ipynb
+
+# Validate with CWD set to notebook's directory
+python nb_validate.py path/to/notebook.ipynb --cwd path/to/
+
+# Full execution with output embedding (slow, real kernel)
+python nb_execute.py path/to/notebook.ipynb --timeout 120
+```
+
+### Method 1: `exec()` validation (fast, no kernel)
+
+Runs code cells in a plain Python `exec()` context. No event loop, no IPython
+kernel. Best for quick iteration during development.
+
+```bash
 python -c "
 import nbformat, sys
 from pathlib import Path
@@ -706,8 +949,37 @@ print('All code cells executed successfully')
 "
 ```
 
-Then also validate with CWD set to the notebook's directory (see Import
+Also validate with CWD set to the notebook's directory (see Import
 Robustness Rule 3).
+
+### Method 2: `nbconvert --execute` (slow, real kernel)
+
+Runs cells inside a real IPython kernel via nbconvert. This is the **only**
+way to verify notebooks that use async code (Jupyter kernels have an active
+event loop; `exec()` does not).
+
+```bash
+JUPYTER_CONFIG_DIR=/tmp/empty_jupyter_config \
+    jupyter nbconvert --to notebook --execute \
+    --ExecutePreprocessor.timeout=120 \
+    path/to/notebook.ipynb \
+    --output notebook.ipynb
+```
+
+This also writes the executed outputs back into the `.ipynb` file, making it
+self-contained with embedded results.
+
+### Key differences between the two methods
+
+| Aspect | `exec()` | `nbconvert --execute` |
+|--------|----------|-----------------------|
+| Event loop | None | Active IPython kernel |
+| `asyncio.run()` | Works | Raises `RuntimeError` |
+| `run_sync()` pattern | Works | Works (uses thread fallback) |
+| IPython display | No frontend | Full frontend |
+| Speed | Fast | Slow (kernel startup) |
+| Output embedding | No | Yes (writes to file) |
+| Config sensitivity | None | Affected by `~/.jupyter/` config |
 
 **Critical**: Notebook cells share state. Syntax errors in one cell may not
 appear until a dependent cell executes. Always run the full notebook after

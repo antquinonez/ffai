@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -281,8 +282,7 @@ class TestWorkflowResult:
 
 
 class TestWorkflowExecutorExecute:
-    @pytest.mark.asyncio
-    async def test_requires_async_client(self):
+    def test_requires_async_client(self):
         sync_client = MagicMock(spec=["model", "generate_response"])
         sync_client.model = "sync-model"
         ffai = _make_ffai(sync_client)
@@ -297,4 +297,4 @@ workflow:
         executor = WorkflowExecutor(ffai=ffai, spec=spec)
 
         with pytest.raises(TypeError, match="async client"):
-            await executor.execute()
+            asyncio.run(executor.execute())

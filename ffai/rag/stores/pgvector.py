@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 from ffai.rag.types import SearchHit
@@ -64,7 +65,7 @@ class PgVectorStore(VectorStoreBase):
         port: int = 5432,
         database: str = "ffai_test",
         user: str = "ffai",
-        password: str = "ffai_dev",
+        password: str = "",
     ) -> None:
         if not PGVECTOR_AVAILABLE:
             raise ImportError(
@@ -73,7 +74,7 @@ class PgVectorStore(VectorStoreBase):
             )
 
         self._connection_string = connection_string or (
-            f"postgresql://{user}:{password}@{host}:{port}/{database}"
+            f"postgresql://{user}:{password or os.environ.get('PGPASSWORD', 'dev')}@{host}:{port}/{database}"
         )
         self._table_name = table_name
         self._embedding_dim = embedding_dim

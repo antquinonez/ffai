@@ -190,7 +190,7 @@ vector_stores:
   #     port: 5432
   #     database: "ffai_test"
   #     user: "ffai"
-  #     password: "ffai_dev"
+  #     password: ""  # uses $PGPASSWORD or "dev"
 
   # sqlite_vss:
   #   enabled: false

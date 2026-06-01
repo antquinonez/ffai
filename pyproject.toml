@@ -66,6 +66,7 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short -m 'not integration'"
 markers = [
     "integration: tests requiring real API keys",
+    "workflow: integration tests for YAML workflow execution",
     "chroma: tests exercising the ChromaDB vector store backend",
     "qdrant: tests exercising the Qdrant vector store backend",
     "pgvector: tests exercising the pgvector vector store backend",

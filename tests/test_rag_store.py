@@ -8,6 +8,8 @@ import pytest
 
 from ffai.rag.types import SearchHit
 
+pytestmark = pytest.mark.chroma
+
 
 def _make_mock_chromadb():
     mock_collection = MagicMock()
@@ -24,9 +26,9 @@ def _make_mock_chromadb():
 @contextmanager
 def _patch_store(mock_chromadb):
     with (
-        patch("ffai.rag.store.CHROMADB_AVAILABLE", True),
-        patch("ffai.rag.store.chromadb", mock_chromadb),
-        patch("ffai.rag.store.Settings", mock_chromadb.config.Settings),
+        patch("ffai.rag.stores.chroma.CHROMADB_AVAILABLE", True),
+        patch("ffai.rag.stores.chroma.chromadb", mock_chromadb),
+        patch("ffai.rag.stores.chroma.Settings", mock_chromadb.config.Settings),
     ):
         yield
 
@@ -42,7 +44,7 @@ class TestVectorStoreInit:
 
     def test_raises_when_chromadb_unavailable(self):
         from ffai.rag.store import VectorStore
-        with patch("ffai.rag.store.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.stores.chroma.CHROMADB_AVAILABLE", False):
             with pytest.raises(ImportError, match="chromadb"):
                 VectorStore("test")
 

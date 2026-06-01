@@ -3,6 +3,8 @@
 # Contact: antquinonez@farfiner.com
 
 import os
+import socket
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -25,6 +27,14 @@ _enabled = {
     for name, cfg in _config.get("clients", {}).items()
     if cfg.get("enabled", False)
 }
+
+_vector_stores = {
+    name: cfg
+    for name, cfg in _config.get("vector_stores", {}).items()
+    if cfg.get("enabled", False)
+}
+
+_COMPOSE_FILE = str(Path(__file__).parent.parent.parent / "docker-compose.dev.yaml")
 
 
 def _build_client(name: str, cfg: dict):
@@ -60,3 +70,90 @@ def ffmistralsmall_client():
 @pytest.fixture
 def fflitellm_client():
     return _first_of_class("FFLiteLLMClient")
+
+
+# ──────────────────────────────────────────────
+# pytest hooks for --qdrant-server flag
+# ──────────────────────────────────────────────
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--qdrant-server",
+        action="store_true",
+        default=False,
+        help="Auto-start Qdrant Docker container for server-mode tests",
+    )
+
+
+def _qdrant_is_running(host="localhost", port=6333):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(2)
+    try:
+        sock.connect((host, port))
+        sock.close()
+    except (ConnectionRefusedError, OSError):
+        sock.close()
+        return False
+    try:
+        from qdrant_client import QdrantClient  # type: ignore[importMissing]
+
+        c = QdrantClient(host=host, port=port, timeout=5)
+        c.get_collections()
+        c.close()
+        return True
+    except Exception:
+        return False
+
+
+@pytest.fixture(scope="session")
+def qdrant_server_available(request):
+    opt_in = request.config.getoption("--qdrant-server", default=False)
+
+    if _qdrant_is_running():
+        yield True
+        return
+
+    if not opt_in:
+        yield False
+        return
+
+    compose_path = Path(_COMPOSE_FILE)
+    if not compose_path.exists():
+        yield False
+        return
+
+    subprocess.run(
+        ["docker", "compose", "-f", _COMPOSE_FILE, "up", "-d", "qdrant"],
+        check=True,
+        capture_output=True,
+    )
+
+    import time
+
+    for _ in range(60):
+        if _qdrant_is_running():
+            yield True
+            break
+        time.sleep(1)
+    else:
+        yield False
+        return
+
+    subprocess.run(
+        ["docker", "compose", "-f", _COMPOSE_FILE, "down"],
+        check=True,
+        capture_output=True,
+    )
+
+
+@pytest.fixture(scope="session")
+def qdrant_cloud_config():
+    url = os.getenv("QDRANT_CLUSTER_ENDPOINT")
+    api_key = os.getenv("QDRANT_KEY")
+    if not url or not api_key:
+        pytest.skip(
+            "QDRANT_CLUSTER_ENDPOINT and QDRANT_KEY not set. "
+            "Set these to run Qdrant cloud mode tests."
+        )
+    return {"url": url, "api_key": api_key}

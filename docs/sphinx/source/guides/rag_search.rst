@@ -8,7 +8,8 @@ search with reciprocal rank fusion, rerankers, and query expansion.
 Vector search (default)
 -----------------------
 
-By default, ``RAG.search()`` uses vector similarity via ChromaDB:
+By default, ``RAG.search()`` uses vector similarity via the configured store
+backend (ChromaDB by default):
 
 .. code-block:: python
 
@@ -18,7 +19,8 @@ By default, ``RAG.search()`` uses vector similarity via ChromaDB:
        print(f"[{hit.score:.2f}] {hit.content[:80]}")
 
 Vector search finds semantically similar chunks, even when the query uses
-different wording than the source text.
+different wording than the source text. See :doc:`vector_stores` for available
+backends.
 
 BM25 keyword search
 -------------------

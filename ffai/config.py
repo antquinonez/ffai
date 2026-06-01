@@ -187,6 +187,9 @@ class RAGConfig(BaseSettings):
 
     Attributes:
         enabled: Whether RAG is active.
+        store_backend: Vector store backend name (``"chroma"``,
+            ``"pgvector"``, ``"qdrant"``, ``"sqlite_vss"``).
+        store_config: Backend-specific constructor kwargs.
         persist_dir: Directory for the ChromaDB vector store.
         collection_name: ChromaDB collection name.
         embedding_model: LiteLLM-style embedding model identifier.
@@ -199,6 +202,8 @@ class RAGConfig(BaseSettings):
     """
 
     enabled: bool = False
+    store_backend: str = "chroma"
+    store_config: dict[str, Any] = Field(default_factory=dict)
     persist_dir: str = "./chroma_db"
     collection_name: str = "ffai_kb"
     embedding_model: str = "mistral/mistral-embed"

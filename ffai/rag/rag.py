@@ -18,7 +18,7 @@ from .search.hybrid import reciprocal_rank_fusion
 from .search.query_expansion import fuse_search_results
 from .search.rerankers import RerankerBase
 from .splitters import HierarchicalTextChunk, TextChunk, get_chunker
-from .store import CHROMADB_AVAILABLE, VectorStore
+from .store import VectorStore
 from .types import GenerationResult, QueryResult, SearchHit
 
 logger = logging.getLogger(__name__)
@@ -136,14 +136,23 @@ class RAG:
         }
         kwargs.update(overrides)
 
-        if "store" not in kwargs and not bm25_only and CHROMADB_AVAILABLE:
-            store = VectorStore(
-                collection_name=cfg.collection_name,
-                dir=cfg.persist_dir,
-            )
-            kwargs["store"] = store
+        if "store" not in kwargs and not bm25_only:
+            try:
+                from .stores import get_store
 
-        if kwargs.get("bm25_alpha") is None and (bm25_only or not CHROMADB_AVAILABLE):
+                store_kwargs: dict[str, Any] = dict(cfg.store_config)
+                store_kwargs["collection_name"] = cfg.collection_name
+                if cfg.store_backend == "chroma":
+                    store_kwargs["dir"] = cfg.persist_dir
+                store = get_store(backend=cfg.store_backend, **store_kwargs)
+                kwargs["store"] = store
+            except ImportError:
+                logger.warning(
+                    f"Vector store backend '{cfg.store_backend}' not available, "
+                    "falling back to BM25-only mode"
+                )
+
+        if kwargs.get("bm25_alpha") is None and "store" not in kwargs:
             kwargs["bm25_alpha"] = 0.6
 
         return cls(**kwargs)

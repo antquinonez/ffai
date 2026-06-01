@@ -46,12 +46,21 @@ For full control over each component, you can construct them manually:
 .. code-block:: python
 
    from ffai.rag.embed import Embeddings
-   from ffai.rag.store import VectorStore
+   from ffai.rag.stores import get_store
 
    embed = Embeddings(model="mistral/mistral-embed", api_key=os.environ["MISTRAL_API_KEY"])
-   store = VectorStore(collection_name="tutorial_kb", dir="./tutorial_db")
+   store = get_store("chroma", collection_name="tutorial_kb", dir="./tutorial_db")
    rag = RAG(embed=embed, store=store, chunk_size=500, chunk_overlap=100)
    ffai = FFAI(client, rag=rag)
+
+You can also use a different backend, such as Qdrant:
+
+.. code-block:: python
+
+   store = get_store("qdrant", path="./tutorial_qdrant", embedding_dim=1024)
+
+See :doc:`../guides/vector_stores` for all available backends and their
+configuration options.
 
 Step 2: Index documents
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -269,5 +278,6 @@ Next steps
 ----------
 
 - :doc:`../guides/rag_search` — BM25 hybrid search, rerankers, query expansion
+- :doc:`../guides/vector_stores` — vector store backends (ChromaDB, Qdrant, pgvector, SQLite-vss)
 - :doc:`../guides/chunking` — chunking strategies and when to use each
 - :doc:`dag_execution` — multi-step RAG pipelines with DAG execution

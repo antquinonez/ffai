@@ -51,3 +51,4 @@ docs/api/
 docs/sphinx/build/
 docs/sphinx/source/api/
 docs/sphinx/source/api.rst
+ideas/*

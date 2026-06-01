@@ -351,6 +351,30 @@ isolated validation.
 - **Print output is cell output**: In the validation script, `print()` goes to
   stdout which the script captures. Use `print()` for values you want to appear
   as output. Use markdown cells for narrative.
+- **asyncio.run() fails inside Jupyter**: Jupyter notebooks run inside an
+  async event loop. Calling `asyncio.run()` raises
+  `RuntimeError: asyncio.run() cannot be called from a running event loop`.
+  Use a helper that detects the context instead. If the project has a
+  `run_sync()` utility (e.g. `ffai.rag._async.run_sync`), use it. Otherwise,
+  use this pattern:
+
+  ```python
+  import asyncio
+  import concurrent.futures
+
+  def run_sync(coro):
+      try:
+          asyncio.get_running_loop()
+      except RuntimeError:
+          return asyncio.run(coro)
+      with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+          return pool.submit(asyncio.run, coro).result()
+  ```
+
+  This delegates to `asyncio.run()` when no loop is running (plain Python
+  scripts, `exec()` validation), and runs the coroutine in a background thread
+  when a loop is already running (Jupyter, IPython). Never use `asyncio.run()`
+  directly in notebook code.
 
 ## Data Sanity Checks Before Analysis
 
@@ -412,7 +436,7 @@ from pathlib import Path
 
 _cwd = Path().resolve()
 _project_root = _cwd
-for _p in [_cwd] + list(_cwd.parents):
+for _p in [_cwd, *list(_cwd.parents)]:
     if (_p / 'pyproject.toml').is_file():   # or setup.cfg, .git, etc.
         _project_root = _p
         break

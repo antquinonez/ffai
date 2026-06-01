@@ -565,24 +565,23 @@ class TestRAGBM25OnlySearch:
 
 class TestRAGFromConfig:
     def test_from_config_creates_bm25_only_by_default(self):
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.stores.get_store", side_effect=ImportError("no backend")):
             rag = RAG.from_config()
         assert rag._store is None
         assert rag._bm25 is not None
 
     def test_from_config_uses_config_values(self):
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.stores.get_store", side_effect=ImportError("no backend")):
             rag = RAG.from_config(bm25_alpha=0.8)
         assert rag._bm25_alpha == 0.8
 
     def test_from_config_bm25_only_skips_store(self):
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", True):
-            rag = RAG.from_config(bm25_only=True)
+        rag = RAG.from_config(bm25_only=True)
         assert rag._store is None
         assert rag._bm25 is not None
 
     def test_from_config_overrides_take_precedence(self):
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.stores.get_store", side_effect=ImportError("no backend")):
             rag = RAG.from_config(chunk_size=200, chunk_overlap=20)
         assert rag._chunker_name == "recursive"
         sample = "word " * 300
@@ -593,37 +592,37 @@ class TestRAGFromConfig:
 
 class TestRAGFromConfigZeroArgs:
     def test_zero_args_auto_creates_embeddings(self):
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.stores.get_store", side_effect=ImportError("no backend")):
             rag = RAG.from_config()
         assert rag._embed is not None
         from ffai.rag.embed import Embeddings
         assert isinstance(rag._embed, Embeddings)
 
     def test_zero_args_uses_config_embedding_model(self):
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.stores.get_store", side_effect=ImportError("no backend")):
             rag = RAG.from_config()
         assert rag._embed.model == "mistral/mistral-embed"
 
     def test_api_key_forwarded_to_embeddings(self):
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.stores.get_store", side_effect=ImportError("no backend")):
             rag = RAG.from_config(api_key="test-key-123")
         assert rag._embed.api_key == "test-key-123"
 
     def test_api_key_none_reads_from_env(self):
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.stores.get_store", side_effect=ImportError("no backend")):
             with patch.dict("os.environ", {"MISTRAL_API_KEY": "env-key-456"}):
                 rag = RAG.from_config()
         assert rag._embed.api_key == "env-key-456"
 
     def test_explicit_embed_overrides_auto_creation(self):
         mock_embed = _make_mock_embed()
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.stores.get_store", side_effect=ImportError("no backend")):
             rag = RAG.from_config(embed=mock_embed)
         assert rag._embed is mock_embed
 
     def test_explicit_embed_ignores_api_key(self):
         mock_embed = _make_mock_embed()
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.stores.get_store", side_effect=ImportError("no backend")):
             rag = RAG.from_config(embed=mock_embed, api_key="should-be-ignored")
         assert rag._embed is mock_embed
 
@@ -632,18 +631,16 @@ class TestRAGFromConfigZeroArgs:
         reason="chromadb not installed",
     )
     def test_zero_args_with_chromadb_creates_store(self):
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", True):
-            rag = RAG.from_config()
+        rag = RAG.from_config()
         assert rag._store is not None
 
     def test_zero_args_bm25_only_no_store(self):
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", True):
-            rag = RAG.from_config(bm25_only=True)
+        rag = RAG.from_config(bm25_only=True)
         assert rag._store is None
         assert rag._bm25 is not None
 
     def test_zero_args_configures_chunker_from_yaml(self):
-        with patch("ffai.rag.rag.CHROMADB_AVAILABLE", False):
+        with patch("ffai.rag.stores.get_store", side_effect=ImportError("no backend")):
             rag = RAG.from_config()
         assert rag._chunker_name == "recursive"
 

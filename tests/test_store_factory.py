@@ -21,23 +21,31 @@ class TestListStores:
 class TestListAvailableStores:
     def test_returns_only_backends_with_deps_installed(self):
         available = list_available_stores()
-        assert "chroma" in available
         for name in available:
             assert is_store_available(name)
 
+    def test_chroma_available_when_installed(self):
+        if is_store_available("chroma"):
+            assert "chroma" in list_available_stores()
+
 
 class TestIsStoreAvailable:
+    @pytest.mark.skipif(not is_store_available("chroma"), reason="chromadb not installed")
     def test_chroma_is_available(self):
         assert is_store_available("chroma") is True
 
     def test_pgvector_is_not_available_without_deps(self):
+        if is_store_available("pgvector"):
+            pytest.skip("pgvector deps installed")
         assert is_store_available("pgvector") is False
 
+    @pytest.mark.skipif(not is_store_available("chroma"), reason="chromadb not installed")
     def test_case_insensitive(self):
         assert is_store_available("Chroma") is True
 
 
 class TestGetStore:
+    @pytest.mark.skipif(not is_store_available("chroma"), reason="chromadb not installed")
     def test_returns_chroma_vector_store(self):
         from ffai.rag.stores.chroma import ChromaVectorStore
 
@@ -51,9 +59,12 @@ class TestGetStore:
             get_store("nonexistent")
 
     def test_known_but_unavailable_raises_importerror(self):
+        if is_store_available("pgvector"):
+            pytest.skip("pgvector deps installed")
         with pytest.raises(ImportError, match="known but its dependency is not installed"):
             get_store("pgvector")
 
+    @pytest.mark.skipif(not is_store_available("chroma"), reason="chromadb not installed")
     def test_case_insensitive_backend_name(self):
         from ffai.rag.stores.chroma import ChromaVectorStore
 
@@ -62,6 +73,7 @@ class TestGetStore:
 
 
 class TestStoreRegistry:
+    @pytest.mark.skipif(not is_store_available("chroma"), reason="chromadb not installed")
     def test_registry_has_chroma_after_query(self):
         get_store("chroma", collection_name="test_col", dir="/tmp/test_stores")
         assert "chroma" in STORE_REGISTRY

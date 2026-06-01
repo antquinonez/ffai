@@ -16,7 +16,7 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: ffai
-      POSTGRES_PASSWORD: ffai
+      POSTGRES_PASSWORD: ffai_dev
       POSTGRES_DB: ffai_test
     volumes:
       - pgdata:/var/lib/postgresql/data

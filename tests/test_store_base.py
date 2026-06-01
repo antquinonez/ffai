@@ -8,7 +8,7 @@ from ffai.rag.stores.base import VectorStoreBase
 class TestVectorStoreBaseCannotInstantiate:
     def test_raises_typeerror(self):
         with pytest.raises(TypeError):
-            VectorStoreBase()
+            VectorStoreBase()  # type: ignore[reportAbstractUsage]
 
 
 class TestIncompleteSubclass:
@@ -17,7 +17,7 @@ class TestIncompleteSubclass:
             pass
 
         with pytest.raises(TypeError):
-            Incomplete()
+            Incomplete()  # type: ignore[reportAbstractUsage]
 
 
 class TestCompleteSubclass:

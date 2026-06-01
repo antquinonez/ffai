@@ -96,7 +96,7 @@ def _qdrant_is_running(host="localhost", port=6333):
         sock.close()
         return False
     try:
-        from qdrant_client import QdrantClient
+        from qdrant_client import QdrantClient  # type: ignore[importMissing]
 
         c = QdrantClient(host=host, port=port, timeout=5)
         c.get_collections()

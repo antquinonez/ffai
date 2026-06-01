@@ -797,4 +797,4 @@ class TestQdrantFactoryIntegration:
         )
         assert store.name == "qdrant"
         assert store.count() == 0
-        store._client.delete_collection(col_name)
+        store._client.delete_collection(col_name)  # type: ignore[reportAttributeAccessIssue]

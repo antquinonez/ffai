@@ -64,7 +64,7 @@ class PgVectorStore(VectorStoreBase):
         port: int = 5432,
         database: str = "ffai_test",
         user: str = "ffai",
-        password: str = "ffai",
+        password: str = "ffai_dev",
     ) -> None:
         if not PGVECTOR_AVAILABLE:
             raise ImportError(

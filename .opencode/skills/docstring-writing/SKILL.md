@@ -203,11 +203,15 @@ whether they require an existing event loop.
 
 ## DS-3: Mechanical Insertion
 
-### Single docstring — direct edit
+### Prefer the script over direct edits
 
-For one-off additions, use the `edit` tool to insert the docstring as the
-first statement of the function/class body. Match the indentation of the
-existing body.
+Use `scripts/add_docstrings.py` for all insertions when possible. The script
+uses AST-based insertion which is safer than text-based editing — it finds
+exact insertion points and validates syntax after every write.
+
+Direct edits with the `edit` tool should be reserved for complex multi-line
+docstrings where the script's JSON escaping becomes unwieldy, or when the
+script is unavailable.
 
 ### Audit coverage
 
@@ -255,6 +259,28 @@ For docstrings with Args/Returns sections, use a JSON file:
 
 You can combine `--map` and `--map-file` in the same invocation.
 
+### Direct edits — for complex multi-line docstrings only
+
+When using the `edit` tool to insert a docstring directly, match the
+indentation of the existing body. Insert the docstring as the first
+statement of the function/class body.
+
+**Hazard: classes with leading attribute assignments.** When a class body
+starts with an assignment (e.g., `model_config = SettingsConfigDict(...)`),
+the `edit` tool's `oldString` matching can accidentally consume that line.
+Always verify with `ast.parse` after a direct edit:
+
+```bash
+.venv/bin/python -c "import ast; ast.parse(open('ffai/<file>.py').read()); print('OK')"
+```
+
+### Module docstring — insert before `from __future__`
+
+For module docstrings, insert the triple-quoted string as the very first
+line of the file, before any `from __future__` imports. The script handles
+this automatically. For manual edits, see the example in "Module docstrings"
+above.
+
 ### Programmatic API
 
 For complex multi-line docstrings from within another script:
@@ -275,15 +301,29 @@ apply_docstrings({
 })
 ```
 
+### Batch workflow
+
+When adding docstrings to multiple symbols in one session:
+
+1. Start with module docstrings (Layer 1) — use `--map`, fastest approach
+2. Move to public classes (Layer 2) — direct edits for Args/Returns
+3. Then methods (Layer 3) — use `--map` for one-liners, direct edits for complex
+4. Finally supporting internals (Layer 4) — mix of `--map` and direct edits
+5. Run `ruff check ffai/ tests/` and `pyright ffai/ tests/` after each layer
+6. Run `ast.parse` on any file that received a direct edit
+
 ## DS-4: Validation Workflow
 
 After adding or modifying docstrings, run these checks in order:
 
-1. **Syntax** — `ast.parse` (the script does this automatically for batch
-   inserts; for direct edits, the linter will catch it)
-2. **Lint** — `ruff check src/ tests/` (catches D-series docstring violations
+1. **Syntax** — For direct edits, verify with `ast.parse` immediately:
+   ```bash
+   .venv/bin/python -c "import ast; ast.parse(open('ffai/<file>.py').read()); print('OK')"
+   ```
+   The `add_docstrings.py` script does this automatically for batch inserts.
+2. **Lint** — `ruff check ffai/ tests/` (catches D-series docstring violations
    if enabled, plus general issues)
-3. **Type check** — `pyright src/ tests/` (ensures edits didn't break types)
+3. **Type check** — `pyright ffai/ tests/` (ensures edits didn't break types)
 4. **Tests** — `pytest tests/ -x -q` (ensures no runtime regressions)
 5. **Doc build** — `/update-docs` or `scripts/generate_api_docs.py` (verifies
    docstrings render correctly in Sphinx)
@@ -301,6 +341,7 @@ missing blank line), fix the docstring formatting — not the Sphinx config.
 | Summary in third person | `Returns the count` | `Return the count` (imperative) |
 | Closing triple-quote misaligned | `"""text\n  """` at wrong indent | Match body indentation exactly |
 | Sphinx-incompatible formatting | Markdown headers, ``**bold**`` in docstrings | Use reStructuredText or plain text only |
+| Direct edit eats next line | Class with `model_config = ...` as first body statement | Use `add_docstrings.py` or verify with `ast.parse` after edit |
 
 ## DS-6: Interaction with Other Skills
 

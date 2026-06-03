@@ -304,7 +304,8 @@ class ConditionEvaluator:
             return True, None
 
         try:
-            resolved = self._resolve_variables(condition)
+            rewritten = self._rewrite_keywords(condition)
+            resolved = self._resolve_variables(rewritten)
             logger.debug(f"Resolved condition: '{condition}' -> '{resolved}'")
 
             if not resolved.strip():
@@ -347,14 +348,15 @@ class ConditionEvaluator:
 
         resolved = None
         try:
-            resolved = self._resolve_variables(condition)
+            rewritten = self._rewrite_keywords(condition)
+            resolved = self._resolve_variables(rewritten)
             if not resolved.strip():
                 return True, None, None
 
             tree = ast.parse(resolved, mode="eval")
             result = self._eval_node(tree.body)
 
-            trace = self._resolve_display_trace(condition)
+            trace = self._resolve_display_trace(rewritten)
             return bool(result), None, trace
 
         except SyntaxError as e:
@@ -363,6 +365,37 @@ class ConditionEvaluator:
         except Exception as e:
             error_msg = str(e)
             return False, error_msg, resolved
+
+    @staticmethod
+    def _rewrite_keywords(text: str) -> str:
+        """Rewrite non-Python keywords to valid Python operators.
+
+        Transforms documented syntax to valid Python before AST parsing:
+            X contains "Y"        ->  "Y" in X
+            X not contains "Y"    ->  "Y" not in X
+            X matches "regex"     ->  X % "regex"
+        """
+        _VAR = r"\{\{[^}]+\}\}"
+        _METHOD_CHAIN = r"(?:\.\w+(?:\([^)]*\))?)"
+        _LEFT = "(" + _VAR + _METHOD_CHAIN + "*)"
+        _RIGHT = '("[^"]*"|' + r"'[^']*'" + "|" + _VAR + ")"
+
+        text = re.sub(
+            _LEFT + r"\s+not\s+contains\s+" + _RIGHT,
+            r"\2 not in \1",
+            text,
+        )
+        text = re.sub(
+            _LEFT + r"\s+contains\s+" + _RIGHT,
+            r"\2 in \1",
+            text,
+        )
+        text = re.sub(
+            _LEFT + r"\s+matches\s+" + _RIGHT,
+            r"\1 % \2",
+            text,
+        )
+        return text
 
     def _resolve_variables(self, text: str) -> str:
         """Replace {{name.property}} with actual values.
@@ -749,7 +782,8 @@ class ConditionEvaluator:
             try:
                 evaluator = cls(dummy_results)
 
-                resolved = evaluator._resolve_variables(condition)
+                rewritten = evaluator._rewrite_keywords(condition)
+                resolved = evaluator._resolve_variables(rewritten)
                 try:
                     ast.parse(resolved, mode="eval")
                 except SyntaxError as e:

@@ -284,6 +284,149 @@ class TestConditionEvaluatorNotIn:
         assert result is False
 
 
+class TestConditionEvaluatorContains:
+    def test_contains_match(self):
+        evaluator = ConditionEvaluator({
+            "s": {"status": "success", "response": "hello world", "attempts": 1, "error": "", "has_response": True}
+        })
+        result, error = evaluator.evaluate('{{s.response}} contains "hello"')
+        assert result is True
+        assert error is None
+
+    def test_contains_no_match(self):
+        evaluator = ConditionEvaluator({
+            "s": {"status": "success", "response": "hello world", "attempts": 1, "error": "", "has_response": True}
+        })
+        result, error = evaluator.evaluate('{{s.response}} contains "goodbye"')
+        assert result is False
+        assert error is None
+
+    def test_not_contains_match(self):
+        evaluator = ConditionEvaluator({
+            "s": {"status": "success", "response": "hello world", "attempts": 1, "error": "", "has_response": True}
+        })
+        result, error = evaluator.evaluate('{{s.response}} not contains "goodbye"')
+        assert result is True
+        assert error is None
+
+    def test_not_contains_no_match(self):
+        evaluator = ConditionEvaluator({
+            "s": {"status": "success", "response": "hello world", "attempts": 1, "error": "", "has_response": True}
+        })
+        result, error = evaluator.evaluate('{{s.response}} not contains "hello"')
+        assert result is False
+        assert error is None
+
+    def test_contains_with_method_chain(self):
+        evaluator = ConditionEvaluator({
+            "s": {"status": "success", "response": "HELLO WORLD", "attempts": 1, "error": "", "has_response": True}
+        })
+        result, error = evaluator.evaluate('{{s.response}}.lower() contains "hello"')
+        assert result is True
+        assert error is None
+
+    def test_contains_in_compound_and(self):
+        evaluator = ConditionEvaluator({
+            "a": {"status": "success", "response": "hello world", "attempts": 1, "error": "", "has_response": True},
+            "b": {"status": "success", "response": "goodbye moon", "attempts": 1, "error": "", "has_response": True},
+        })
+        result, error = evaluator.evaluate('{{a.status}} == "success" and {{b.response}} contains "moon"')
+        assert result is True
+        assert error is None
+
+    def test_contains_with_trace(self):
+        evaluator = ConditionEvaluator({
+            "s": {"status": "success", "response": "hello world", "attempts": 1, "error": "", "has_response": True}
+        })
+        result, error, trace = evaluator.evaluate_with_trace('{{s.response}} contains "hello"')
+        assert result is True
+        assert error is None
+        assert trace is not None
+        assert '"hello" in' in trace
+
+    def test_contains_validate_syntax(self):
+        valid, error = ConditionEvaluator.validate_syntax('{{s.response}} contains "hello"')
+        assert valid is True
+        assert error is None
+
+    def test_not_contains_validate_syntax(self):
+        valid, error = ConditionEvaluator.validate_syntax('{{s.response}} not contains "hello"')
+        assert valid is True
+        assert error is None
+
+    def test_contains_repro_issue_bug1(self):
+        evaluator = ConditionEvaluator({
+            "s": {
+                "status": "success",
+                "response": "hello world",
+                "attempts": 1,
+                "error": "",
+                "has_response": True,
+            }
+        })
+        result, error, trace = evaluator.evaluate_with_trace('{{s.response}} contains "hello"')
+        assert result is True
+        assert error is None
+        assert trace is not None
+
+
+class TestConditionEvaluatorMatches:
+    def test_matches_true(self):
+        evaluator = ConditionEvaluator({
+            "s": {"status": "success", "response": "score: 85", "attempts": 1, "error": "", "has_response": True}
+        })
+        result, error = evaluator.evaluate(r'{{s.response}} matches "score: \\d+"')
+        assert result is True
+        assert error is None
+
+    def test_matches_false(self):
+        evaluator = ConditionEvaluator({
+            "s": {"status": "success", "response": "grade: A", "attempts": 1, "error": "", "has_response": True}
+        })
+        result, error = evaluator.evaluate(r'{{s.response}} matches "score: \\d+"')
+        assert result is False
+        assert error is None
+
+    def test_matches_with_method_chain(self):
+        evaluator = ConditionEvaluator({
+            "s": {"status": "success", "response": "SCORE: 85", "attempts": 1, "error": "", "has_response": True}
+        })
+        result, error = evaluator.evaluate(r'{{s.response}}.lower() matches "score: \\d+"')
+        assert result is True
+        assert error is None
+
+    def test_matches_in_compound(self):
+        evaluator = ConditionEvaluator({
+            "a": {"status": "success", "response": "score: 85", "attempts": 1, "error": "", "has_response": True},
+        })
+        result, error = evaluator.evaluate(r'{{a.status}} == "success" and {{a.response}} matches "score: \\d+"')
+        assert result is True
+        assert error is None
+
+    def test_matches_with_trace(self):
+        evaluator = ConditionEvaluator({
+            "s": {"status": "success", "response": "score: 85", "attempts": 1, "error": "", "has_response": True}
+        })
+        result, error, trace = evaluator.evaluate_with_trace(r'{{s.response}} matches "score: \\d+"')
+        assert result is True
+        assert error is None
+        assert trace is not None
+        assert "%" in trace
+
+    def test_matches_validate_syntax(self):
+        valid, error = ConditionEvaluator.validate_syntax(r'{{s.response}} matches "score: \\d+"')
+        assert valid is True
+        assert error is None
+
+    def test_percent_operator_still_works(self):
+        evaluator = ConditionEvaluator({
+            "s": {"status": "success", "response": "score: 85", "attempts": 1, "error": "", "has_response": True}
+        })
+        result, error = evaluator.evaluate(r'{{s.response}} % "score: \\d+"')
+        assert result is True
+        assert error is None
+
+
 class TestConditionEvaluatorTernary:
     def test_true_branch(self):
         evaluator = ConditionEvaluator({"step": {"status": "success", "response": "ok", "attempts": 1, "error": "", "has_response": True}})

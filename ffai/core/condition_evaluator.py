@@ -151,6 +151,14 @@ class ConditionEvaluator:
         - attempts: Number of retry attempts (int)
         - error: Error message if failed (str)
         - has_response: True if response exists and non-empty (bool)
+
+    Note:
+        For JSON responses, use ``json_has()``, ``json_get()``, or
+        ``"key" in json_keys(...)`` to query structure. The ``contains`` and
+        ``in`` operators always perform substring matching on the stringified
+        response text, which can produce false matches against dict/list repr
+        strings (e.g. ``"True" in {{s.response}}`` matches ``"{'pass': True}"``
+        because the four characters appear in the repr, not because of a value).
     """
 
     ALLOWED_OPERATORS = {

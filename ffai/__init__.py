@@ -54,4 +54,5 @@ with contextlib.suppress(ImportError):
         RAG,
         SearchHit,
         TextChunk,
+        litellm_generate_fn,
     )

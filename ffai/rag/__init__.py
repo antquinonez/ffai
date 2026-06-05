@@ -2,6 +2,7 @@ from .client_adapter import ClientAdapter
 from .embed import Embeddings
 from .format import format_hits
 from .indexing import BM25Index, ChunkDeduplicator, ContextualEmbeddings, HierarchicalIndex
+from .litellm_generate import litellm_generate_fn
 from .prompts import DEFAULT_RAG_PROMPT
 from .rag import RAG
 from .search import (
@@ -84,5 +85,6 @@ __all__ = [
     "list_available_stores",
     "list_chunkers",
     "list_stores",
+    "litellm_generate_fn",
     "reciprocal_rank_fusion",
 ]

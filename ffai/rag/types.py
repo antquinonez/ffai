@@ -30,9 +30,13 @@ class SearchHit:
 class GenerationResult:
     """Result of a RAG generation call.
 
+    Return this from ``generate_fn`` to preserve token usage, cost, and
+    timing metadata.  Returning a plain string silently discards these
+    metrics and emits a warning.
+
     Attributes:
         text: Generated answer text.
-        usage: Provider-specific token usage object.
+        usage: Provider-specific token usage object (e.g. ``TokenUsage``).
         cost_usd: Estimated cost in USD.
         duration_ms: Wall-clock generation duration in milliseconds.
 

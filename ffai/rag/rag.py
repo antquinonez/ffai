@@ -51,6 +51,19 @@ class RAG:
             ``aquery()``. Takes a prompt string, returns an answer
             string or ``GenerationResult``.
 
+    Example:
+        Using litellm for generation::
+
+            from ffai.rag import RAG, litellm_generate_fn
+
+            rag = RAG(embed="mistral/mistral-embed")
+            fn = litellm_generate_fn(
+                model="mistral/mistral-small-latest", api_key=key,
+            )
+            result = rag.query("What is Python?", generate_fn=fn)
+            print(result.usage.input_tokens)
+            print(result.cost_usd)
+
     """
 
     def __init__(
@@ -511,6 +524,11 @@ class RAG:
             gen_usage = None
             gen_cost = 0.0
             gen_duration = None
+            logger.warning(
+                "generate_fn returned str instead of GenerationResult — "
+                "usage, cost, and duration metadata discarded. "
+                "Return GenerationResult to preserve metrics."
+            )
         sources = list(dict.fromkeys(h.source for h in hits if h.source))
         return QueryResult(
             answer=answer, hits=hits, sources=sources, prompt=prompt,

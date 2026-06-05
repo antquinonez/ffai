@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from ffai.rag.indexing.bm25 import BM25Index
-from ffai.rag.indexing.contextual import ContextualEmbeddings
+from ffai.rag.indexing.contextual import ContextualEmbeddings, LateChunkingEmbeddings
 from ffai.rag.indexing.deduplication import ChunkDeduplicator
 from ffai.rag.indexing.hierarchical import HierarchicalIndex
 
@@ -461,6 +461,27 @@ class TestContextualEmbeddingsTruncation:
         result = ce._truncate("a " * 100, 20)
         assert len(result) <= 23
         assert result.endswith("...")
+
+
+class TestLateChunkingEmbeddings:
+    def test_init_default(self):
+        lc = LateChunkingEmbeddings()
+        assert lc.embedding_model is None
+
+    def test_init_with_model(self):
+        lc = LateChunkingEmbeddings(embedding_model="test-model")
+        assert lc.embedding_model == "test-model"
+
+    def test_embed_document_returns_empty_list(self):
+        lc = LateChunkingEmbeddings()
+        result = lc.embed_document_with_tokens("doc1", "some content", [(0, 4), (5, 12)])
+        assert result == []
+
+    def test_embed_document_logs_warning(self, caplog):
+        lc = LateChunkingEmbeddings()
+        with caplog.at_level("WARNING"):
+            lc.embed_document_with_tokens("doc1", "content", [(0, 7)])
+        assert "placeholder" in caplog.text.lower()
 
 
 class TestChunkDeduplicatorExact:

@@ -240,6 +240,29 @@ class TestEmbeddingsLocalFastembedFallback:
                 Embeddings("local/all-MiniLM-L6-v2")
 
 
+class TestEmbeddingsLocalFallback:
+    def test_prefers_sentence_transformers_over_fastembed(self):
+        st_mock = MagicMock()
+        fe_mock = MagicMock()
+        with patch.dict("sys.modules", {"sentence_transformers": st_mock, "fastembed": fe_mock}):
+            emb = Embeddings("local/test-model")
+            assert emb._local_backend == "sentence-transformers"
+            st_mock.SentenceTransformer.assert_called_once()
+            fe_mock.TextEmbedding.assert_not_called()
+
+    def test_falls_back_to_fastembed_when_st_unavailable(self):
+        fe_mock = MagicMock()
+        with patch.dict("sys.modules", {"sentence_transformers": None, "fastembed": fe_mock}):
+            emb = Embeddings("local/test-model")
+            assert emb._local_backend == "fastembed"
+            fe_mock.TextEmbedding.assert_called_once()
+
+    def test_raises_when_no_backend_available(self):
+        with patch.dict("sys.modules", {"sentence_transformers": None, "fastembed": None}):
+            with pytest.raises(ImportError, match="No local embedding backend found"):
+                Embeddings("local/test-model")
+
+
 class TestEmbeddingsSync:
     def test_embed_returns_vectors(self):
         emb = Embeddings("mistral/mistral-embed", api_key="key")

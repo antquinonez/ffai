@@ -45,25 +45,31 @@ Create an untracked `designs/` directory. Add it to `.gitignore`.
 
 ```
 designs/
-  00-overview.md          # Architecture, layer summary, dependency order
-  01-L1-<name>.md         # Layer 1 design
-  02-L2-<name>.md         # Layer 2 design
+  00-overview-<feature-slug>.md  # Architecture, layer summary, dependency order
+  01-L1-<name>.md                # Layer 1 design
+  02-L2-<name>.md                # Layer 2 design
   ...
-  NN-LN-<name>.md         # Layer N design
+  NN-LN-<name>.md                # Layer N design
 ```
 
-### Overview document (00-overview.md)
+Use a `<feature-slug>` suffix to avoid collisions when the `designs/`
+directory already has other work. For example: `00-overview-litellm-generate.md`.
+
+### Overview document (00-overview-<feature-slug>.md)
 
 Must include:
 
 - **Objective** -- what the feature does in 1-2 sentences
-- **Source material** -- what code is being ported or adapted, with line counts
+- **Source material** -- for ports: what code is being ported, with file paths
+  and line counts. For new features: reference patterns, prior art, issue
+  documents, or RFC sketches that inform the design.
 - **Layer summary** -- table with layer number, what it adds, files
-  created/modified, whether it ships independently
+  created/modified, backward-compatibility note (e.g. "Yes — new exports only")
 - **Dependency order** -- explicit ordering with dependency edges. If L2
   depends on L3, say so and split L2 into sub-layers
 - **Key design principles** -- 3-5 rules governing the design
-- **Adaptation notes** -- what changes from source to target
+- **Adaptation notes** -- for ports: what changes from source to target.
+  For new features: key decisions vs. any prior sketch or issue description.
 - **Exports strategy** -- what `__init__.py` files need updating per layer
 - **Testing strategy** -- how each layer is tested
 
@@ -72,9 +78,13 @@ Must include:
 Each layer document must include:
 
 - **Goal** -- one sentence
-- **Source** -- what file(s) are being ported or modified, with line counts
+- **Source** -- for ports: what file(s) are being ported, with file paths and
+  line counts. For new features: reference patterns or existing modules that
+  set the convention.
 - **Destination** -- target file paths
-- **Changes from source** -- every adaptation from the original, with rationale
+- **Changes from source** -- for ports: every adaptation from the original,
+  with rationale. For new features: key design decisions vs. any prior sketch
+  or issue description, in a table with rationale.
 - **Public API** -- code examples showing how the new module is used
 - **Integration points** -- how this layer connects to existing code (or future
   layers)
@@ -84,8 +94,11 @@ Each layer document must include:
 
 ### Writing rules
 
-1. **Layers are additive.** L1-L(N-1) add new files only. Only LN modifies
-   existing files. This lets early layers ship independently.
+1. **Modifications must be safe.** Any layer may modify existing files as
+   long as the change is backward-compatible: new classes with defaults,
+   new config fields, new exports, additive docstring changes. Refactoring
+   or breaking changes to existing code are restricted to LN only. The test
+   for safety: "does every existing test still pass after this layer?"
 2. **Port, don't wrap.** Copy code with minimal adaptation rather than
    creating adapter layers.
 3. **Show actual code.** Every design must include the actual function
@@ -94,6 +107,16 @@ Each layer document must include:
 4. **Specify import paths exactly.** Write `from ffai.core.graph import ...`
    not `import the graph module`.
 5. **Address `__init__.py`** in each layer.
+6. **Co-locate prerequisite changes.** If a layer depends on a config
+   class or helper function, add those changes in the same layer document
+   under "Files modified" — do not defer them to a later layer. The
+   overview's dependency order must reflect these intra-layer
+   prerequisites.
+7. **Split layers at verifiability boundaries.** A layer should be the
+   smallest unit that can be implemented and verified independently: its
+   acceptance criteria must be runnable without implementing a later layer.
+   If two concerns share the same acceptance criteria, merge them. If one
+   can be tested before the other exists, they can be separate layers.
 
 ## Phase 3: Review
 
@@ -112,6 +135,14 @@ and ALL referenced source files. Check for:
 7. **`__init__.py` changes** -- are new modules properly exported?
 8. **Undefined references** -- are all function/class names used in code
    snippets actually defined somewhere?
+9. **Test infrastructure propagation** -- if a layer introduces test-only
+   mechanisms (recorders, spies, fixtures, ContextVars), verify that
+   downstream layers can access them through nested call chains without
+   adding test parameters to production APIs. If `L1.adapter_span()`
+   accepts `_recorder` but `L3.ResilientCaller.call()` also calls
+   `adapter_span()` internally, the recorder must propagate via context
+   (e.g., `ContextVar`), not via parameter threading. Check every layer
+   that calls a lower layer's instrumented functions.
 
 ### Issue severity levels
 
@@ -119,9 +150,19 @@ and ALL referenced source files. Check for:
 |-------|---------|
 | HIGH | Will cause runtime error or incorrect behavior |
 | MEDIUM | Will cause import failure, type error, or test failure |
-| LOW | Style inconsistency, documentation gap |
+| LOW | Missing code snippets, implicit knowledge not written down,
+         style inconsistency, documentation gap |
 
-### Fix all HIGH and MEDIUM issues before proceeding to implementation.
+### Fix all issues before proceeding to implementation.
+
+LOW issues are often cheaper to fix in the design than to discover
+during implementation. A missing import path or an underspecified
+config change that seems obvious now won't be obvious to the
+implementer — or to you in three days.
+
+After fixing, re-verify that changes to one layer document don't
+invalidate references in others. This is a targeted sanity check
+on cross-document references, not a full re-review.
 
 ## Phase 4: Implement
 

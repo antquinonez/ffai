@@ -20,4 +20,4 @@ with patch("ffai.FFAI.get_config", return_value=mock_config):
     ffai = FFAI(mock_client)
 
 print(f"FFAI initialized (mocked client, model={mock_client.model})")
-print(f"History: {len(ffai.history)} entries")
+print(f"History: {len(ffai.history.raw)} entries")

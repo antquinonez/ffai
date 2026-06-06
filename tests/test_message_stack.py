@@ -92,7 +92,7 @@ class TestMessageStackPlain:
 
         ffai = FFAI(client)
         for i in range(1, 11):
-            ffai.generate_response(f"Turn {i}", prompt_name=f"turn_{i}")
+            ffai.workflow.generate_response(f"Turn {i}", prompt_name=f"turn_{i}")
 
         assert len(captured) == 10
         for i, cap in enumerate(captured):
@@ -122,7 +122,7 @@ class TestMessageStackPlain:
         client._prepare_generate_params = traced
 
         ffai = FFAI(client)
-        ffai.generate_response("Hello", prompt_name="turn_1")
+        ffai.workflow.generate_response("Hello", prompt_name="turn_1")
 
         assert len(captured) == 1
         msgs = captured[0]["messages"]
@@ -152,9 +152,9 @@ class TestMessageStackPlain:
         client._prepare_generate_params = traced
 
         ffai = FFAI(client)
-        ffai.generate_response("Q1", prompt_name="turn_1")
-        ffai.generate_response("Q2", prompt_name="turn_2")
-        ffai.generate_response("Q3", prompt_name="turn_3")
+        ffai.workflow.generate_response("Q1", prompt_name="turn_1")
+        ffai.workflow.generate_response("Q2", prompt_name="turn_2")
+        ffai.workflow.generate_response("Q3", prompt_name="turn_3")
 
         msgs = captured[2]["messages"]
         assert len(msgs) == 6
@@ -175,7 +175,7 @@ class TestMessageStackPlain:
         ffai = FFAI(client)
 
         for i in range(5):
-            ffai.generate_response(f"Turn {i+1}", prompt_name=f"turn_{i+1}")
+            ffai.workflow.generate_response(f"Turn {i+1}", prompt_name=f"turn_{i+1}")
 
         assert len(client.conversation_history) == 10
 
@@ -207,10 +207,10 @@ class TestMessageStackHistory:
         client._prepare_generate_params = traced
 
         ffai = FFAI(client)
-        ffai.generate_response("I like cats.", prompt_name="turn_1")
+        ffai.workflow.generate_response("I like cats.", prompt_name="turn_1")
 
         for i in range(2, 11):
-            ffai.generate_response(
+            ffai.workflow.generate_response(
                 f"Turn {i}: What animal do I like?",
                 prompt_name=f"turn_{i}",
                 history=[f"turn_{i-1}"],
@@ -242,8 +242,8 @@ class TestMessageStackHistory:
         client._prepare_generate_params = traced
 
         ffai = FFAI(client)
-        ffai.generate_response("I like cats.", prompt_name="turn_1")
-        ffai.generate_response(
+        ffai.workflow.generate_response("I like cats.", prompt_name="turn_1")
+        ffai.workflow.generate_response(
             "What animal?",
             prompt_name="turn_2",
             history=["turn_1"],
@@ -275,7 +275,7 @@ class TestMessageStackHistory:
         client._prepare_generate_params = traced
 
         ffai = FFAI(client)
-        ffai.generate_response("Hello", prompt_name="turn_1")
+        ffai.workflow.generate_response("Hello", prompt_name="turn_1")
 
         user_content = captured[0]["messages"][1]["content"]
         assert "<conversation_history>" not in user_content
@@ -300,9 +300,9 @@ class TestMessageStackHistory:
         client._prepare_generate_params = traced
 
         ffai = FFAI(client)
-        ffai.generate_response("Cats", prompt_name="a")
-        ffai.generate_response("Dogs", prompt_name="b")
-        ffai.generate_response("Both?", prompt_name="c", history=["a", "b"])
+        ffai.workflow.generate_response("Cats", prompt_name="a")
+        ffai.workflow.generate_response("Dogs", prompt_name="b")
+        ffai.workflow.generate_response("Both?", prompt_name="c", history=["a", "b"])
 
         msgs = captured[2]["messages"]
         user_content = msgs[1]["content"]
@@ -316,9 +316,9 @@ class TestMessageStackHistory:
         client = FFLiteLLMClient(model_string="openai/gpt-4")
         ffai = FFAI(client)
 
-        ffai.generate_response("Q1", prompt_name="turn_1")
-        ffai.generate_response("Q2", prompt_name="turn_2", history=["turn_1"])
-        ffai.generate_response("Q3", prompt_name="turn_3", history=["turn_2"])
+        ffai.workflow.generate_response("Q1", prompt_name="turn_1")
+        ffai.workflow.generate_response("Q2", prompt_name="turn_2", history=["turn_1"])
+        ffai.workflow.generate_response("Q3", prompt_name="turn_3", history=["turn_2"])
 
         assert len(client.conversation_history) == 6
 
@@ -350,11 +350,11 @@ class TestMessageStackInterpolation:
         client._prepare_generate_params = traced
 
         ffai = FFAI(client)
-        ffai.generate_response("I like cats.", prompt_name="turn_1")
+        ffai.workflow.generate_response("I like cats.", prompt_name="turn_1")
 
         for i in range(2, 11):
             prompt = "You said: {{turn_" + str(i-1) + ".response}} Repeat it."
-            ffai.generate_response(prompt, prompt_name=f"turn_{i}")
+            ffai.workflow.generate_response(prompt, prompt_name=f"turn_{i}")
 
         assert len(captured) == 10
         for i, cap in enumerate(captured):
@@ -382,8 +382,8 @@ class TestMessageStackInterpolation:
         client._prepare_generate_params = traced
 
         ffai = FFAI(client)
-        ffai.generate_response("I like cats.", prompt_name="turn_1")
-        ffai.generate_response(
+        ffai.workflow.generate_response("I like cats.", prompt_name="turn_1")
+        ffai.workflow.generate_response(
             "Recall: {{turn_1.response}} What was that?",
             prompt_name="turn_2",
         )
@@ -412,8 +412,8 @@ class TestMessageStackInterpolation:
         client._prepare_generate_params = traced
 
         ffai = FFAI(client)
-        ffai.generate_response("Hello", prompt_name="t1")
-        ffai.generate_response("You said: {{t1.response}}", prompt_name="t2")
+        ffai.workflow.generate_response("Hello", prompt_name="t1")
+        ffai.workflow.generate_response("You said: {{t1.response}}", prompt_name="t2")
 
         user_content = captured[1]["messages"][1]["content"]
         assert "<conversation_history>" not in user_content
@@ -424,9 +424,9 @@ class TestMessageStackInterpolation:
         client = FFLiteLLMClient(model_string="openai/gpt-4")
         ffai = FFAI(client)
 
-        ffai.generate_response("Q1", prompt_name="t1")
-        ffai.generate_response("You said: {{t1.response}}", prompt_name="t2")
-        ffai.generate_response("You said: {{t2.response}}", prompt_name="t3")
+        ffai.workflow.generate_response("Q1", prompt_name="t1")
+        ffai.workflow.generate_response("You said: {{t1.response}}", prompt_name="t2")
+        ffai.workflow.generate_response("You said: {{t2.response}}", prompt_name="t3")
 
         assert len(client.conversation_history) == 6
 
@@ -466,16 +466,16 @@ class TestMessageStackMixedScenarios:
 
         ffai = FFAI(client)
 
-        ffai.generate_response("P1", prompt_name="p1")
+        ffai.workflow.generate_response("P1", prompt_name="p1")
         assert len(captured[-1]["messages"]) == 2
 
-        ffai.generate_response("P2", prompt_name="p2")
+        ffai.workflow.generate_response("P2", prompt_name="p2")
         assert len(captured[-1]["messages"]) == 4
 
-        ffai.generate_response("H1", prompt_name="h1", history=["p2"])
+        ffai.workflow.generate_response("H1", prompt_name="h1", history=["p2"])
         assert len(captured[-1]["messages"]) == 2
 
-        ffai.generate_response("P3", prompt_name="p3")
+        ffai.workflow.generate_response("P3", prompt_name="p3")
         assert len(captured[-1]["messages"]) == 8
 
         assert len(client.conversation_history) == 8
@@ -501,13 +501,13 @@ class TestMessageStackMixedScenarios:
 
         ffai = FFAI(client)
 
-        ffai.generate_response("P1", prompt_name="p1")
+        ffai.workflow.generate_response("P1", prompt_name="p1")
         assert len(captured[-1]["messages"]) == 2
 
-        ffai.generate_response("You said: {{p1.response}}", prompt_name="i1")
+        ffai.workflow.generate_response("You said: {{p1.response}}", prompt_name="i1")
         assert len(captured[-1]["messages"]) == 2
 
-        ffai.generate_response("P3", prompt_name="p3")
+        ffai.workflow.generate_response("P3", prompt_name="p3")
         assert len(captured[-1]["messages"]) == 6
 
         assert len(client.conversation_history) == 6
@@ -530,20 +530,20 @@ class TestMessageStackMixedScenarios:
 
             if scenario == "A":
                 for i in range(1, 11):
-                    ffai.generate_response(f"Turn {i}", prompt_name=f"turn_{i}")
+                    ffai.workflow.generate_response(f"Turn {i}", prompt_name=f"turn_{i}")
             elif scenario == "B":
-                ffai.generate_response("Color is blue.", prompt_name="turn_1")
+                ffai.workflow.generate_response("Color is blue.", prompt_name="turn_1")
                 for i in range(2, 11):
-                    ffai.generate_response(
+                    ffai.workflow.generate_response(
                         f"Turn {i}",
                         prompt_name=f"turn_{i}",
                         history=[f"turn_{i-1}"],
                     )
             else:
-                ffai.generate_response("Color is blue.", prompt_name="turn_1")
+                ffai.workflow.generate_response("Color is blue.", prompt_name="turn_1")
                 for i in range(2, 11):
                     prompt = "You said: {{turn_" + str(i-1) + ".response}}"
-                    ffai.generate_response(prompt, prompt_name=f"turn_{i}")
+                    ffai.workflow.generate_response(prompt, prompt_name=f"turn_{i}")
 
             results[scenario] = cap_list
 

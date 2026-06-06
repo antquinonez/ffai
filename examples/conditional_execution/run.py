@@ -82,7 +82,7 @@ def main() -> None:
         },
     ]
 
-    graph, warnings = ffai.validate_graph(workflow)
+    graph, warnings = ffai.workflow.validate_graph(workflow)
     print(f"  Nodes:   {len(graph.nodes)}")
     print(f"  Edges:   {len(graph.edges)}")
     print(f"  Warnings:{len(warnings)}")
@@ -93,7 +93,7 @@ def main() -> None:
     # Step 2: Execute fetch (no condition, always runs)
     # ------------------------------------------------------------------
     print_section("Step 2: Fetch data (unconditional)")
-    r1 = ffai.generate_response(
+    r1 = ffai.workflow.generate_response(
         "List 3 facts about renewable energy adoption in 2024.",
         prompt_name="fetch",
     )
@@ -103,7 +103,7 @@ def main() -> None:
     # Step 3: Execute analyze (condition: fetch succeeded)
     # ------------------------------------------------------------------
     print_section("Step 3: Analyze (condition: fetch succeeded)")
-    r2 = ffai.generate_response(
+    r2 = ffai.workflow.generate_response(
         "Based on the facts above, which renewable source has the most growth potential?",
         prompt_name="analyze",
         options=ResponseOptions(
@@ -117,7 +117,7 @@ def main() -> None:
     # Step 4: Skip a prompt (condition is literal False)
     # ------------------------------------------------------------------
     print_section("Step 4: Skip (condition: False)")
-    r3 = ffai.generate_response(
+    r3 = ffai.workflow.generate_response(
         "This prompt should never execute.",
         prompt_name="skip_me",
         options=ResponseOptions(condition="False"),
@@ -128,7 +128,7 @@ def main() -> None:
     # Step 5: Error case (unknown reference)
     # ------------------------------------------------------------------
     print_section("Step 5: Error (unknown reference)")
-    r4 = ffai.generate_response(
+    r4 = ffai.workflow.generate_response(
         "This references a prompt that doesn't exist.",
         prompt_name="bad_ref",
         options=ResponseOptions(condition='{{nonexistent.status}} == "success"'),
@@ -140,7 +140,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     print_section("Step 6: History audit")
 
-    conv_df = ffai.history_to_dataframe()
+    conv_df = ffai.history.history_to_dataframe()
     if not conv_df.is_empty():
         cols = [c for c in ["prompt_name", "status", "response", "model"] if c in conv_df.columns]
         print(conv_df.select(cols))

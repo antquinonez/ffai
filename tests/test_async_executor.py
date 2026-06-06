@@ -299,7 +299,7 @@ class TestFFAIExecuteGraph:
             {"sequence": 1, "prompt_name": "b", "prompt": "prompt B", "history": ["a"]},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert "a" in result.results
         assert "b" in result.results
         assert result.results["a"].status == "success"
@@ -312,7 +312,7 @@ class TestFFAIExecuteGraph:
         prompts = [{"sequence": 0, "prompt_name": "x", "prompt": "test"}]
 
         with pytest.raises(TypeError, match="async client"):
-            asyncio.run(ffai.execute_graph(prompts))
+            asyncio.run(ffai.workflow.execute_graph(prompts))
 
     def test_execute_graph_records_to_context(self):
         from ffai.FFAI import FFAI
@@ -324,10 +324,10 @@ class TestFFAIExecuteGraph:
             {"sequence": 0, "prompt_name": "greet", "prompt": "say hello"},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.success_count == 1
 
-        pah = ffai.prompt_attr_history
+        pah = ffai.history.prompt_attr_history
         assert any(e.get("prompt_name") == "greet" for e in pah)
 
     def test_execute_graph_concurrent_nodes(self):
@@ -342,7 +342,7 @@ class TestFFAIExecuteGraph:
             {"sequence": 2, "prompt_name": "z", "prompt": "z", "history": ["x", "y"]},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.success_count == 3
         assert result.results["z"].status == "success"
 
@@ -379,7 +379,7 @@ class TestFFAIExecuteGraph:
             {"sequence": 0, "prompt_name": "p", "prompt": "think then answer"},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.results["p"].status == "success"
         assert "<think" not in result.results["p"].response
 
@@ -389,7 +389,7 @@ class TestFFAIExecuteGraph:
         client = _MockAsyncClient()
         ffai = FFAI(client)
 
-        result = asyncio.run(ffai.execute_graph([]))
+        result = asyncio.run(ffai.workflow.execute_graph([]))
         assert result.results == {}
         assert result.success_count == 0
 
@@ -638,7 +638,7 @@ class TestFFAIExecuteGraphEnhanced:
             },
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.success_count == 2
         assert "Artificial Intelligence" in result.results["followup"].resolved_prompt
 
@@ -652,15 +652,15 @@ class TestFFAIExecuteGraphEnhanced:
             {"sequence": 0, "prompt_name": "greet", "prompt": "say hello"},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.success_count == 1
 
-        assert len(ffai.history) == 1
-        assert ffai.history[0]["prompt_name"] == "greet"
-        assert len(ffai.clean_history) == 1
-        assert len(ffai.prompt_attr_history) >= 1
-        assert len(ffai.ordered_history.get_all_interactions()) == 1
-        assert len(ffai.permanent_history.get_turns_since(0)) >= 1
+        assert len(ffai.history.raw) == 1
+        assert ffai.history.raw[0]["prompt_name"] == "greet"
+        assert len(ffai.history.clean) == 1
+        assert len(ffai.history.prompt_attr_history) >= 1
+        assert len(ffai.history.ordered.get_all_interactions()) == 1
+        assert len(ffai.history.permanent.get_turns_since(0)) >= 1
 
     def test_execute_graph_failure_propagation(self):
         from ffai.FFAI import FFAI
@@ -682,10 +682,10 @@ class TestFFAIExecuteGraphEnhanced:
             {"sequence": 1, "prompt_name": "b", "prompt": "depends on a", "history": ["a"]},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.results["a"].status == "failed"
         assert result.results["b"].status == "skipped"
-        assert len(ffai.history) == 0
+        assert len(ffai.history.raw) == 0
 
     def test_execute_graph_abort_cascades(self):
         from ffai.FFAI import FFAI
@@ -710,7 +710,7 @@ class TestFFAIExecuteGraphEnhanced:
             },
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.aborted is True
         assert result.results["c"].status == "skipped"
 
@@ -726,7 +726,7 @@ class TestFFAIExecuteGraphAutoSequence:
             {"prompt_name": "a", "prompt": "say hello"},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.results["a"].status == "success"
         assert result.success_count == 1
 
@@ -742,7 +742,7 @@ class TestFFAIExecuteGraphAutoSequence:
             {"prompt_name": "article", "prompt": "Article based on {{outline.response}}", "history": ["outline"]},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.success_count == 3
         assert result.results["topic"].status == "success"
         assert result.results["outline"].status == "success"
@@ -761,7 +761,7 @@ class TestFFAIExecuteGraphAutoSequence:
             {"prompt_name": "merge", "prompt": "merge branches", "history": ["left", "right"]},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.success_count == 4
         assert all(r.status == "success" for r in result.results.values())
 
@@ -776,7 +776,7 @@ class TestFFAIExecuteGraphAutoSequence:
             {"sequence": 10, "prompt_name": "b", "prompt": "second", "history": ["a"]},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.success_count == 2
         assert result.results["b"].status == "success"
 
@@ -792,7 +792,7 @@ class TestFFAIExecuteGraphAutoSequence:
             {"prompt_name": "c", "prompt": "also auto", "history": ["b"]},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.success_count == 3
         assert result.results["c"].status == "success"
 
@@ -802,7 +802,7 @@ class TestFFAIExecuteGraphAutoSequence:
         client = _MockAsyncClient()
         ffai = FFAI(client)
 
-        result = asyncio.run(ffai.execute_graph([]))
+        result = asyncio.run(ffai.workflow.execute_graph([]))
         assert result.results == {}
         assert result.success_count == 0
 
@@ -817,7 +817,7 @@ class TestFFAIExecuteGraphAutoSequence:
             {"prompt_name": "describe", "prompt": "Describe {{capital.response}}", "history": ["capital"]},
         ]
 
-        result = asyncio.run(ffai.execute_graph(prompts))
+        result = asyncio.run(ffai.workflow.execute_graph(prompts))
         assert result.success_count == 2
         assert "Paris" in result.results["describe"].resolved_prompt
 
@@ -835,7 +835,7 @@ class TestValidateGraphAutoSequence:
             {"prompt_name": "article", "prompt": "Article based on {{outline.response}}", "history": ["outline"]},
         ]
 
-        graph, warnings = ffai.validate_graph(prompts)
+        graph, warnings = ffai.workflow.validate_graph(prompts)
         assert len(graph.nodes) == 3
         assert len(graph.edges) == 2
 
@@ -852,7 +852,7 @@ class TestValidateGraphAutoSequence:
             {"prompt_name": "merge", "prompt": "merge", "history": ["left", "right"]},
         ]
 
-        graph, warnings = ffai.validate_graph(prompts)
+        graph, warnings = ffai.workflow.validate_graph(prompts)
         assert len(graph.nodes) == 4
         assert len(graph.edges) == 4
 

@@ -47,7 +47,7 @@ class TestWorkflowDefaultClientOnly:
 
     @pytest.mark.asyncio
     async def test_single_step_succeeds(self):
-        result = await self.ffai.execute_workflow("""
+        result = await self.ffai.workflow.execute_workflow( """
 workflow:
   name: single
   prompts:
@@ -60,7 +60,7 @@ workflow:
 
     @pytest.mark.asyncio
     async def test_sequential_chain_with_interpolation(self):
-        result = await self.ffai.execute_workflow("""
+        result = await self.ffai.workflow.execute_workflow( """
 workflow:
   name: chain
   prompts:
@@ -77,7 +77,7 @@ workflow:
 
     @pytest.mark.asyncio
     async def test_variable_substitution(self):
-        result = await self.ffai.execute_workflow("""
+        result = await self.ffai.workflow.execute_workflow( """
 workflow:
   name: vars
   prompts:
@@ -90,20 +90,20 @@ workflow:
 
     @pytest.mark.asyncio
     async def test_results_recorded_in_history(self):
-        await self.ffai.execute_workflow("""
+        await self.ffai.workflow.execute_workflow( """
 workflow:
   name: history_check
   prompts:
     - name: wf_hist
       prompt: "Say the word: workflow_history_test"
 """)
-        latest = self.ffai.get_latest_interaction_by_prompt_name("wf_hist")
+        latest = self.ffai.history.get_latest_interaction_by_prompt_name("wf_hist")
         assert latest is not None
         assert "workflow_history_test" in latest["response"].lower()
 
     @pytest.mark.asyncio
     async def test_usage_tracked_per_step(self):
-        result = await self.ffai.execute_workflow("""
+        result = await self.ffai.workflow.execute_workflow( """
 workflow:
   name: usage
   prompts:
@@ -132,7 +132,7 @@ class TestWorkflowPerStepClient:
 
     @pytest.mark.asyncio
     async def test_default_mistral_override_openai(self):
-        result = await self.ffai.execute_workflow("""
+        result = await self.ffai.workflow.execute_workflow( """
 workflow:
   name: multi_client
   defaults:
@@ -156,7 +156,7 @@ workflow:
 
     @pytest.mark.asyncio
     async def test_different_clients_with_interpolation(self):
-        result = await self.ffai.execute_workflow("""
+        result = await self.ffai.workflow.execute_workflow( """
 workflow:
   name: cross_client_chain
   clients:
@@ -181,7 +181,7 @@ workflow:
 
     @pytest.mark.asyncio
     async def test_three_steps_two_clients(self):
-        result = await self.ffai.execute_workflow("""
+        result = await self.ffai.workflow.execute_workflow( """
 workflow:
   name: three_two
   clients:
@@ -213,7 +213,7 @@ class TestWorkflowConditionalExecution:
 
     @pytest.mark.asyncio
     async def test_condition_true_executes_step(self):
-        result = await self.ffai.execute_workflow("""
+        result = await self.ffai.workflow.execute_workflow( """
 workflow:
   name: cond_true
   prompts:
@@ -228,7 +228,7 @@ workflow:
 
     @pytest.mark.asyncio
     async def test_condition_false_skips_step(self):
-        result = await self.ffai.execute_workflow("""
+        result = await self.ffai.workflow.execute_workflow( """
 workflow:
   name: cond_false
   prompts:
@@ -243,7 +243,7 @@ workflow:
 
     @pytest.mark.asyncio
     async def test_parallel_steps_with_different_conditions(self):
-        result = await self.ffai.execute_workflow("""
+        result = await self.ffai.workflow.execute_workflow( """
 workflow:
   name: parallel_cond
   prompts:
@@ -276,7 +276,7 @@ workflow:
     - name: from_file
       prompt: "What is the capital of Japan? One word."
 """)
-        result = await self.ffai.execute_workflow_file(str(wf))
+        result = await self.ffai.workflow.execute_workflow_file( str(wf))
         assert result.spec_name == "file_pipeline"
         assert result.success_count == 1
         assert "tokyo" in result.results["from_file"].response.lower()
@@ -291,7 +291,7 @@ workflow:
     - name: ask
       prompt: "What color is a {color}? One word."
 """)
-        result = await self.ffai.execute_workflow_file(
+        result = await self.ffai.workflow.execute_workflow_file(
             str(wf), variables={"color": "banana"}
         )
         assert result.success_count == 1
@@ -304,7 +304,7 @@ class TestWorkflowValidationLive:
         self.ffai = FFAI(_make_async_mistral())
 
     def test_valid_workflow_no_errors(self):
-        errors, warnings = self.ffai.validate_workflow("""
+        errors, warnings = self.ffai.workflow.validate_workflow( """
 workflow:
   name: valid
   prompts:
@@ -317,7 +317,7 @@ workflow:
         assert errors == []
 
     def test_cycle_detected(self):
-        errors, warnings = self.ffai.validate_workflow("""
+        errors, warnings = self.ffai.workflow.validate_workflow( """
 workflow:
   name: cyclic
   prompts:

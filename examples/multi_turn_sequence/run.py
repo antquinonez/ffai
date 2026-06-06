@@ -60,7 +60,7 @@ def main() -> None:
     # Turn 1: Seed the conversation with a topic
     # ------------------------------------------------------------------
     print_section("Turn 1: Seed topic")
-    r1 = ffai.generate_response(
+    r1 = ffai.workflow.generate_response(
         prompt="Name exactly three programming languages and one sentence about each.",
         prompt_name="languages",
     )
@@ -70,7 +70,7 @@ def main() -> None:
     # Turn 2: Reference Turn 1 via {{languages.response}} interpolation
     # ------------------------------------------------------------------
     print_section("Turn 2: Build on Turn 1 via interpolation")
-    r2 = ffai.generate_response(
+    r2 = ffai.workflow.generate_response(
         prompt="Which of {{languages.response}} is best suited for data science, and why?",
         prompt_name="recommendation",
     )
@@ -80,7 +80,7 @@ def main() -> None:
     # Turn 3: Multi-dependency -- interpolate two prior prompts
     # ------------------------------------------------------------------
     print_section("Turn 3: Multi-dependency interpolation")
-    r3 = ffai.generate_response(
+    r3 = ffai.workflow.generate_response(
         prompt=(
             "Given {{languages.response}}, and the recommendation that "
             "{{recommendation.response}}, write a one-paragraph learning plan "
@@ -94,7 +94,7 @@ def main() -> None:
     # Turn 4: Use history= parameter to inject prior turns as context
     # ------------------------------------------------------------------
     print_section("Turn 4: History-based context (declarative)")
-    r4 = ffai.generate_response(
+    r4 = ffai.workflow.generate_response(
         "Summarize everything discussed so far in two sentences.",
         prompt_name="summary",
         history=["languages", "recommendation", "learning_plan"],
@@ -106,7 +106,7 @@ def main() -> None:
     # ==================================================================
     print_section("Conversation History (raw)")
 
-    conv_df = ffai.history_to_dataframe()
+    conv_df = ffai.history.history_to_dataframe()
     if conv_df.is_empty():
         print("  (empty)")
     else:
@@ -115,7 +115,7 @@ def main() -> None:
 
     print_section("Ordered Prompt History")
 
-    ordered_df = ffai.ordered_history_to_dataframe()
+    ordered_df = ffai.history.ordered_history_to_dataframe()
     if ordered_df.is_empty():
         print("  (empty)")
     else:
@@ -128,7 +128,7 @@ def main() -> None:
 
     print_section("Prompt Name Usage Stats")
 
-    stats_df = ffai.get_prompt_name_stats_df()
+    stats_df = ffai.history.get_prompt_name_stats_df()
     print(stats_df)
 
     print()

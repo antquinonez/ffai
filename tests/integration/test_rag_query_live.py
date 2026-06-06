@@ -184,7 +184,7 @@ class TestFFAIQueryLive:
         self.ffai.rag.index(DOCUMENTS["python"], source="python")
         self.ffai.rag.index(DOCUMENTS["rust"], source="rust")
 
-        result = self.ffai.query("What is Python?")
+        result = self.ffai.rag.query("What is Python?")
         assert isinstance(result, QueryResult)
         assert len(result.answer) > 0
         assert len(result.hits) >= 1
@@ -194,14 +194,14 @@ class TestFFAIQueryLive:
         from tests.conftest import ConcreteClient
 
         ffai = FFAI(client=ConcreteClient())
-        with pytest.raises(ValueError, match="RAG is not configured"):
-            ffai.query("test")
+        with pytest.raises((ValueError, AttributeError)):
+            ffai.rag.query("test")  # type: ignore[union-attr]
 
     def test_ffai_query_answer_references_context(self):
         assert self.ffai.rag is not None
         self.ffai.rag.index(DOCUMENTS["cooking"], source="cooking")
 
-        result = self.ffai.query("What is Italian cuisine known for?")
+        result = self.ffai.rag.query("What is Italian cuisine known for?")
         assert len(result.answer) > 0
         assert "cooking" in result.sources
         assert "prompt" in result.prompt.lower() or "italian" in result.answer.lower()
@@ -227,7 +227,7 @@ class TestFFAIQueryLive:
         rag.index(DOCUMENTS["rust"], source="rust")
         rag.index(DOCUMENTS["cooking"], source="cooking")
 
-        result = self.ffai.query("Which language focuses on memory safety?")
+        result = self.ffai.rag.query("Which language focuses on memory safety?")
         assert isinstance(result, QueryResult)
         assert len(result.hits) >= 1
         assert len(result.sources) >= 1
@@ -237,7 +237,7 @@ class TestFFAIQueryLive:
         self.ffai.rag.index(DOCUMENTS["rust"], source="rust")
 
         template = "FACTS:\n{context}\n\nASK: {question}\n\nRESPOND:"
-        result = self.ffai.query(
+        result = self.ffai.rag.query(
             "What is Rust?",
             prompt_template=template,
         )
@@ -249,7 +249,7 @@ class TestFFAIQueryLive:
         assert self.ffai.rag is not None
         self.ffai.rag.index(DOCUMENTS["python"], source="python")
 
-        result = self.ffai.query("What is Python?")
+        result = self.ffai.rag.query("What is Python?")
         assert isinstance(result, QueryResult)
         assert len(result.answer) > 0
         assert result.usage is not None
@@ -263,7 +263,7 @@ class TestFFAIQueryLive:
         assert self.ffai.rag is not None
         self.ffai.rag.index(DOCUMENTS["rust"], source="rust")
 
-        result = asyncio.run(self.ffai.aquery("What is Rust?"))
+        result = asyncio.run(self.ffai.rag.aquery("What is Rust?"))
         assert isinstance(result, QueryResult)
         assert len(result.answer) > 0
         assert result.usage is not None
@@ -455,7 +455,7 @@ class TestFFAIAutoWireLive:
         self.ffai.rag.index(DOCUMENTS["python"], source="python")
         self.ffai.rag.index(DOCUMENTS["rust"], source="rust")
 
-        result = self.ffai.query("What is Python?")
+        result = self.ffai.rag.query("What is Python?")
         assert isinstance(result, QueryResult)
         assert len(result.answer) > 0
         assert len(result.hits) >= 1
@@ -465,7 +465,7 @@ class TestFFAIAutoWireLive:
         assert self.ffai.rag is not None
         self.ffai.rag.index(DOCUMENTS["rust"], source="rust")
 
-        result = self.ffai.query("What is Rust?")
+        result = self.ffai.rag.query("What is Rust?")
         assert result.usage is not None
         assert result.cost_usd > 0
         assert result.duration_ms is not None
@@ -495,7 +495,7 @@ class TestFFAIAutoWireLive:
         rag.index(DOCUMENTS["rust"], source="rust")
         rag.index(DOCUMENTS["cooking"], source="cooking")
 
-        result = self.ffai.query("Which language uses a borrow checker?")
+        result = self.ffai.rag.query("Which language uses a borrow checker?")
         assert isinstance(result, QueryResult)
         assert len(result.answer) > 0
         assert result.usage is not None
@@ -536,26 +536,30 @@ class TestFFAIFacadeLive:
         self.ffai = FFAI(client=client, rag=rag)
 
     def test_facade_index_and_count(self):
-        n = self.ffai.index(DOCUMENTS["python"], source="python")
+        assert self.ffai.rag is not None
+        n = self.ffai.rag.index(DOCUMENTS["python"], source="python")
         assert n > 0
-        assert self.ffai.count() == n
+        assert self.ffai.rag.count() == n
 
     def test_facade_search_returns_hits(self):
-        self.ffai.index(DOCUMENTS["rust"], source="rust")
-        hits = self.ffai.search("memory safety")
+        assert self.ffai.rag is not None
+        self.ffai.rag.index(DOCUMENTS["rust"], source="rust")
+        hits = self.ffai.rag.search("memory safety")
         assert len(hits) >= 1
         assert any(h.source == "rust" for h in hits)
 
     def test_facade_delete_and_verify(self):
-        self.ffai.index(DOCUMENTS["python"], source="python")
-        self.ffai.index(DOCUMENTS["rust"], source="rust")
-        count_before = self.ffai.count()
-        self.ffai.delete("python")
-        assert self.ffai.count() < count_before
+        assert self.ffai.rag is not None
+        self.ffai.rag.index(DOCUMENTS["python"], source="python")
+        self.ffai.rag.index(DOCUMENTS["rust"], source="rust")
+        count_before = self.ffai.rag.count()
+        self.ffai.rag.delete("python")
+        assert self.ffai.rag.count() < count_before
 
     def test_facade_query_after_index(self):
-        self.ffai.index(DOCUMENTS["python"], source="python")
-        result = self.ffai.query("What is Python?")
+        assert self.ffai.rag is not None
+        self.ffai.rag.index(DOCUMENTS["python"], source="python")
+        result = self.ffai.rag.query("What is Python?")
         assert isinstance(result, QueryResult)
         assert len(result.answer) > 0
         assert "python" in result.sources

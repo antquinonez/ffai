@@ -48,13 +48,13 @@ class FakeAsyncClient(AsyncFFAIClientBase):
         self._history = list(history)
 
 
-def _make_ffai(client=None):
-    ffai = MagicMock()
-    ffai.client = client or FakeAsyncClient()
-    ffai._clean_response = lambda x: x
-    ffai._recorder = MagicMock()
-    ffai._executor = MagicMock()
-    return ffai
+def _make_engine(client=None):
+    engine = MagicMock()
+    engine.client = client or FakeAsyncClient()
+    engine.clean_response_fn = lambda x: x
+    engine.recorder = MagicMock()
+    engine.executor = MagicMock()
+    return engine
 
 
 class TestClientFactory:
@@ -160,13 +160,13 @@ workflow:
       history: [step1]
       condition: '{{step1.status}} == "success"'
 """)
-        ffai = _make_ffai()
-        executor = WorkflowExecutor(ffai=ffai, spec=spec)
+        engine = _make_engine()
+        executor = WorkflowExecutor(engine=engine, spec=spec)
 
         with patch.object(
             type(executor._client_factory),
             "resolve",
-            return_value=ffai.client,
+            return_value=engine.client,
         ):
             specs = executor._build_specs({"name": "World"})
 
@@ -190,13 +190,13 @@ workflow:
     - name: step1
       prompt: "Hello"
 """)
-        ffai = _make_ffai()
-        executor = WorkflowExecutor(ffai=ffai, spec=spec)
+        engine = _make_engine()
+        executor = WorkflowExecutor(engine=engine, spec=spec)
 
         with patch.object(
             type(executor._client_factory),
             "resolve",
-            return_value=ffai.client,
+            return_value=engine.client,
         ):
             specs = executor._build_specs({})
 
@@ -217,13 +217,13 @@ workflow:
       system_instructions: "Custom"
       temperature: 0.3
 """)
-        ffai = _make_ffai()
-        executor = WorkflowExecutor(ffai=ffai, spec=spec)
+        engine = _make_engine()
+        executor = WorkflowExecutor(engine=engine, spec=spec)
 
         with patch.object(
             type(executor._client_factory),
             "resolve",
-            return_value=ffai.client,
+            return_value=engine.client,
         ):
             specs = executor._build_specs({})
 
@@ -248,13 +248,13 @@ workflow:
       tools: ["search"]
       tool_choice: "auto"
 """)
-        ffai = _make_ffai()
-        executor = WorkflowExecutor(ffai=ffai, spec=spec)
+        engine = _make_engine()
+        executor = WorkflowExecutor(engine=engine, spec=spec)
 
         with patch.object(
             type(executor._client_factory),
             "resolve",
-            return_value=ffai.client,
+            return_value=engine.client,
         ):
             specs = executor._build_specs({})
 
@@ -285,7 +285,7 @@ class TestWorkflowExecutorExecute:
     def test_requires_async_client(self):
         sync_client = MagicMock(spec=["model", "generate_response"])
         sync_client.model = "sync-model"
-        ffai = _make_ffai(sync_client)
+        engine = _make_engine(sync_client)
 
         spec = _make_spec("""
 workflow:
@@ -294,7 +294,7 @@ workflow:
     - name: s1
       prompt: "hi"
 """)
-        executor = WorkflowExecutor(ffai=ffai, spec=spec)
+        executor = WorkflowExecutor(engine=engine, spec=spec)
 
         with pytest.raises(TypeError, match="async client"):
             asyncio.run(executor.execute())

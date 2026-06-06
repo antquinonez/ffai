@@ -12,8 +12,8 @@ from ffai.rag.types import QueryResult, SearchHit
 class TestFFAIQuery:
     def test_raises_without_rag(self, concrete_client):
         ffai = FFAI(client=concrete_client)
-        with pytest.raises(ValueError, match="RAG is not configured"):
-            ffai.query("test")
+        with pytest.raises(AttributeError):
+            ffai.rag.query("test")  # type: ignore[union-attr]
 
     def test_delegates_to_rag_query(self, concrete_client):
         mock_rag = MagicMock()
@@ -25,7 +25,7 @@ class TestFFAIQuery:
         )
         mock_rag.query.return_value = expected
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        result = ffai.query("capital of France?")
+        result = ffai.rag.query("capital of France?")  # type: ignore[union-attr]
         assert result.answer == "Paris"
         assert result.sources == ["geo.txt"]
         mock_rag.query.assert_called_once()
@@ -34,7 +34,7 @@ class TestFFAIQuery:
         mock_rag = MagicMock()
         mock_rag.query.return_value = QueryResult(answer="a", hits=[], sources=[], prompt="p")
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        ffai.query("q?", top_k=10)
+        ffai.rag.query("q?", top_k=10)  # type: ignore[union-attr]
         call_kwargs = mock_rag.query.call_args
         assert call_kwargs[1]["top_k"] == 10
 
@@ -43,7 +43,7 @@ class TestFFAIQuery:
         mock_rag.query.return_value = QueryResult(answer="a", hits=[], sources=[], prompt="p")
         ffai = FFAI(client=concrete_client, rag=mock_rag)
         template = "Custom: {context}\n{question}"
-        ffai.query("q?", prompt_template=template)
+        ffai.rag.query("q?", prompt_template=template)  # type: ignore[union-attr]
         call_kwargs = mock_rag.query.call_args
         assert call_kwargs[1]["prompt_template"] == template
 
@@ -60,7 +60,7 @@ class TestFFAIQuery:
 
         mock_rag.query.side_effect = capture_query
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        result = ffai.query("q?")
+        result = ffai.rag.query("q?")  # type: ignore[union-attr]
         assert result.answer == "reply to: test promp"
 
     def test_no_rag_param_stores_none(self, concrete_client):
@@ -76,29 +76,29 @@ class TestFFAIQuery:
         mock_rag = MagicMock()
         mock_rag.query.return_value = QueryResult(answer="a", hits=[], sources=[], prompt="p")
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        ffai.query("q?", source="doc1")
+        ffai.rag.query("q?", source="doc1")  # type: ignore[union-attr]
         call_kwargs = mock_rag.query.call_args
         assert call_kwargs[1]["source"] == "doc1"
 
     def test_existing_tests_unaffected(self, concrete_client):
         ffai = FFAI(client=concrete_client)
-        assert hasattr(ffai, "generate_response")
+        assert hasattr(ffai, "workflow")
         assert hasattr(ffai, "history")
 
     def test_query_returns_query_result_instance(self, concrete_client):
         mock_rag = MagicMock()
         mock_rag.query.return_value = QueryResult(answer="a", hits=[], sources=[], prompt="p")
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        result = ffai.query("q?")
+        result = ffai.rag.query("q?")  # type: ignore[union-attr]
         assert isinstance(result, QueryResult)
         assert result.answer == "a"
 
-    def test_query_raises_if_rag_returns_wrong_type(self, concrete_client):
+    def test_query_returns_what_rag_returns(self, concrete_client):
         mock_rag = MagicMock()
         mock_rag.query.return_value = "not a QueryResult"
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        with pytest.raises(TypeError, match="Expected QueryResult"):
-            ffai.query("q?")
+        result = ffai.rag.query("q?")  # type: ignore[union-attr]
+        assert result == "not a QueryResult"  # type: ignore[union-attr]
 
     def test_sets_generate_fn_on_rag(self, concrete_client):
         mock_rag = MagicMock()
@@ -149,8 +149,8 @@ class TestFFAIQuery:
 class TestFFAIAQuery:
     def test_aquery_raises_without_rag(self, concrete_client):
         ffai = FFAI(client=concrete_client)
-        with pytest.raises(ValueError, match="RAG is not configured"):
-            asyncio.run(ffai.aquery("test"))
+        with pytest.raises(AttributeError):
+            asyncio.run(ffai.rag.aquery("test"))  # type: ignore[union-attr]
 
     def test_aquery_delegates_to_rag_aquery(self, concrete_client):
         mock_rag = MagicMock()
@@ -162,7 +162,7 @@ class TestFFAIAQuery:
         )
         mock_rag.aquery = AsyncMock(return_value=expected)
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        result = asyncio.run(ffai.aquery("capital of France?"))
+        result = asyncio.run(ffai.rag.aquery("capital of France?"))  # type: ignore[union-attr]
         assert result.answer == "Paris"
         assert result.sources == ["geo.txt"]
         mock_rag.aquery.assert_called_once()
@@ -171,7 +171,7 @@ class TestFFAIAQuery:
         mock_rag = MagicMock()
         mock_rag.aquery = AsyncMock(return_value=QueryResult(answer="a", hits=[], sources=[], prompt="p"))
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        asyncio.run(ffai.aquery("q?", top_k=10))
+        asyncio.run(ffai.rag.aquery("q?", top_k=10))  # type: ignore[union-attr]
         call_kwargs = mock_rag.aquery.call_args
         assert call_kwargs[1]["top_k"] == 10
 
@@ -188,7 +188,7 @@ class TestFFAIAQuery:
 
         mock_rag.aquery = AsyncMock(side_effect=capture_aquery)
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        result = asyncio.run(ffai.aquery("q?"))
+        result = asyncio.run(ffai.rag.aquery("q?"))  # type: ignore[union-attr]
         assert result.answer == "reply to: test promp"
 
     def test_aquery_passes_custom_template(self, concrete_client):
@@ -196,7 +196,7 @@ class TestFFAIAQuery:
         mock_rag.aquery = AsyncMock(return_value=QueryResult(answer="a", hits=[], sources=[], prompt="p"))
         ffai = FFAI(client=concrete_client, rag=mock_rag)
         template = "Custom: {context}\n{question}"
-        asyncio.run(ffai.aquery("q?", prompt_template=template))
+        asyncio.run(ffai.rag.aquery("q?", prompt_template=template))  # type: ignore[union-attr]
         call_kwargs = mock_rag.aquery.call_args
         assert call_kwargs[1]["prompt_template"] == template
 
@@ -204,7 +204,7 @@ class TestFFAIAQuery:
         mock_rag = MagicMock()
         mock_rag.aquery = AsyncMock(return_value=QueryResult(answer="a", hits=[], sources=[], prompt="p"))
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        result = asyncio.run(ffai.aquery("q?"))
+        result = asyncio.run(ffai.rag.aquery("q?"))  # type: ignore[union-attr]
         assert isinstance(result, QueryResult)
         assert result.answer == "a"
 
@@ -214,15 +214,15 @@ class TestFFAIFacade:
         mock_rag = MagicMock()
         mock_rag.index.return_value = 5
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        result = ffai.index("some text", source="doc")
+        result = ffai.rag.index("some text", source="doc")  # type: ignore[union-attr]
         assert result == 5
-        mock_rag.index.assert_called_once_with("some text", source="doc", checksum=None)
+        mock_rag.index.assert_called_once_with("some text", source="doc")
 
     def test_index_with_checksum(self, concrete_client):
         mock_rag = MagicMock()
         mock_rag.index.return_value = 3
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        result = ffai.index("text", source="doc", checksum="abc123")
+        result = ffai.rag.index("text", source="doc", checksum="abc123")  # type: ignore[union-attr]
         assert result == 3
         mock_rag.index.assert_called_once_with("text", source="doc", checksum="abc123")
 
@@ -230,7 +230,7 @@ class TestFFAIFacade:
         mock_rag = MagicMock()
         mock_rag.search.return_value = [SearchHit(content="hit", score=0.9, source="s1")]
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        hits = ffai.search("query", top_k=3)
+        hits = ffai.rag.search("query", top_k=3)  # type: ignore[union-attr]
         assert len(hits) == 1
         assert hits[0].content == "hit"
         mock_rag.search.assert_called_once_with("query", top_k=3)
@@ -238,51 +238,51 @@ class TestFFAIFacade:
     def test_delete_delegates_to_rag(self, concrete_client):
         mock_rag = MagicMock()
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        ffai.delete("doc1")
+        ffai.rag.delete("doc1")  # type: ignore[union-attr]
         mock_rag.delete.assert_called_once_with("doc1")
 
     def test_count_delegates_to_rag(self, concrete_client):
         mock_rag = MagicMock()
         mock_rag.count.return_value = 42
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        assert ffai.count() == 42
+        assert ffai.rag.count() == 42  # type: ignore[union-attr]
 
     def test_aindex_delegates_to_rag(self, concrete_client):
         mock_rag = MagicMock()
         mock_rag.aindex = AsyncMock(return_value=7)
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        result = asyncio.run(ffai.aindex("text", source="doc"))
+        result = asyncio.run(ffai.rag.aindex("text", source="doc"))  # type: ignore[union-attr]
         assert result == 7
-        mock_rag.aindex.assert_called_once_with("text", source="doc", checksum=None)
+        mock_rag.aindex.assert_called_once_with("text", source="doc")
 
     def test_asearch_delegates_to_rag(self, concrete_client):
         mock_rag = MagicMock()
         mock_rag.asearch = AsyncMock(return_value=[SearchHit(content="hit", score=0.9, source="s1")])
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        hits = asyncio.run(ffai.asearch("query", top_k=2))
+        hits = asyncio.run(ffai.rag.asearch("query", top_k=2))  # type: ignore[union-attr]
         assert len(hits) == 1
         mock_rag.asearch.assert_called_once_with("query", top_k=2)
 
     def test_facade_raises_without_rag(self, concrete_client):
         ffai = FFAI(client=concrete_client)
-        with pytest.raises(ValueError, match="RAG is not configured"):
-            ffai.index("text")
-        with pytest.raises(ValueError, match="RAG is not configured"):
-            ffai.search("q")
-        with pytest.raises(ValueError, match="RAG is not configured"):
-            ffai.delete("doc")
-        with pytest.raises(ValueError, match="RAG is not configured"):
-            ffai.count()
-        with pytest.raises(ValueError, match="RAG is not configured"):
-            asyncio.run(ffai.aindex("text"))
-        with pytest.raises(ValueError, match="RAG is not configured"):
-            asyncio.run(ffai.asearch("q"))
+        with pytest.raises(AttributeError):
+            ffai.rag.index("text")  # type: ignore[union-attr]
+        with pytest.raises(AttributeError):
+            ffai.rag.search("q")  # type: ignore[union-attr]
+        with pytest.raises(AttributeError):
+            ffai.rag.delete("doc")  # type: ignore[union-attr]
+        with pytest.raises(AttributeError):
+            ffai.rag.count()  # type: ignore[union-attr]
+        with pytest.raises(AttributeError):
+            asyncio.run(ffai.rag.aindex("text"))  # type: ignore[union-attr]
+        with pytest.raises(AttributeError):
+            asyncio.run(ffai.rag.asearch("q"))  # type: ignore[union-attr]
 
     def test_query_passes_allow_llm_on_empty(self, concrete_client):
         mock_rag = MagicMock()
         mock_rag.query.return_value = QueryResult(answer="", hits=[], sources=[], prompt="")
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        ffai.query("q?", allow_llm_on_empty=False)
+        ffai.rag.query("q?", allow_llm_on_empty=False)  # type: ignore[union-attr]
         call_kwargs = mock_rag.query.call_args
         assert call_kwargs[1]["allow_llm_on_empty"] is False
 
@@ -290,7 +290,7 @@ class TestFFAIFacade:
         mock_rag = MagicMock()
         mock_rag.query.return_value = QueryResult(answer="a", hits=[], sources=[], prompt="p")
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        ffai.query("q?", generate_timeout=30.0)
+        ffai.rag.query("q?", generate_timeout=30.0)  # type: ignore[union-attr]
         call_kwargs = mock_rag.query.call_args
         assert call_kwargs[1]["generate_timeout"] == 30.0
 
@@ -298,7 +298,7 @@ class TestFFAIFacade:
         mock_rag = MagicMock()
         mock_rag.aquery = AsyncMock(return_value=QueryResult(answer="a", hits=[], sources=[], prompt="p"))
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        asyncio.run(ffai.aquery("q?", generate_timeout=15.0))
+        asyncio.run(ffai.rag.aquery("q?", generate_timeout=15.0))  # type: ignore[union-attr]
         call_kwargs = mock_rag.aquery.call_args
         assert call_kwargs[1]["generate_timeout"] == 15.0
 
@@ -306,6 +306,6 @@ class TestFFAIFacade:
         mock_rag = MagicMock()
         mock_rag.aquery = AsyncMock(return_value=QueryResult(answer="", hits=[], sources=[], prompt=""))
         ffai = FFAI(client=concrete_client, rag=mock_rag)
-        asyncio.run(ffai.aquery("q?", allow_llm_on_empty=False))
+        asyncio.run(ffai.rag.aquery("q?", allow_llm_on_empty=False))  # type: ignore[union-attr]
         call_kwargs = mock_rag.aquery.call_args
         assert call_kwargs[1]["allow_llm_on_empty"] is False

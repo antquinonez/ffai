@@ -42,7 +42,7 @@ class TestStructuredOutputLiteLLM:
 
     def test_sentiment_analysis(self, integration_client):
         ffai = FFAI(integration_client)
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "The food was absolutely amazing and the service was terrible!",
             options=ResponseOptions(response_model=Sentiment),
         )
@@ -53,7 +53,7 @@ class TestStructuredOutputLiteLLM:
 
     def test_numeric_score(self, integration_client):
         ffai = FFAI(integration_client)
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "Rate the movie 'The Matrix' on a scale of 0-100.",
             options=ResponseOptions(response_model=Score),
         )
@@ -64,7 +64,7 @@ class TestStructuredOutputLiteLLM:
 
     def test_item_extraction(self, integration_client):
         ffai = FFAI(integration_client)
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "Extract the product: a wireless mouse that costs $29.99.",
             options=ResponseOptions(response_model=Item),
         )
@@ -75,7 +75,7 @@ class TestStructuredOutputLiteLLM:
 
     def test_raw_response_contains_structured_data(self, integration_client):
         ffai = FFAI(integration_client)
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "Is the sky blue?",
             options=ResponseOptions(response_model=Sentiment),
         )
@@ -90,7 +90,7 @@ class TestStructuredOutputLiteLLM:
 
     def test_parsing_errors_none_on_success(self, integration_client):
         ffai = FFAI(integration_client)
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "Is water wet?",
             options=ResponseOptions(response_model=Sentiment),
         )
@@ -100,7 +100,7 @@ class TestStructuredOutputLiteLLM:
     def test_custom_response_format_preserved(self, integration_client):
         ffai = FFAI(integration_client)
         custom_fmt = {"type": "json_object"}
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "Name a fruit and its color.",
             options=ResponseOptions(response_model=Item, response_format=custom_fmt),
         )
@@ -113,7 +113,7 @@ class TestStructuredOutputFFMistralSmall:
 
     def test_sentiment_analysis(self, ffmistralsmall_client):
         ffai = FFAI(ffmistralsmall_client)
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "The concert was incredible, best night of my life!",
             options=ResponseOptions(response_model=Sentiment),
         )
@@ -124,7 +124,7 @@ class TestStructuredOutputFFMistralSmall:
 
     def test_numeric_score(self, ffmistralsmall_client):
         ffai = FFAI(ffmistralsmall_client)
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "Rate Python as a programming language from 0-100.",
             options=ResponseOptions(response_model=Score),
         )

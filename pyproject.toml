@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ffai"
 version = "0.1.5"
-description = "Declarative multi-provider AI client with named-prompt context assembly, thread-safe parallel execution, and built-in cost/usage tracking"
+description = "Declarative LLM workflow orchestration with DAG-based parallel execution, safe conditional branching, and built-in cost tracking"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-keywords = ["ai", "llm", "multi-provider", "rag", "agent", "orchestration"]
+keywords = ["ai", "llm", "workflow", "dag", "orchestration", "cost-tracking"]
 
 dependencies = [
     "mistralai>=1.12.4,<2.0.0",

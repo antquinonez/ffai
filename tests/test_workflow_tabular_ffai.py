@@ -47,7 +47,7 @@ class TestExecuteWorkflowCsv:
         client = FakeAsyncClient()
         ffai = FFAI(client)
         csv_text = "name,prompt\ngreet,What is 2+2? Answer with just the number."
-        result = _arun(ffai.execute_workflow_csv(csv_text))
+        result = _arun(ffai.workflow.execute_workflow_csv(csv_text))
         assert result.success_count == 1
         assert "greet" in result.results
 
@@ -56,7 +56,7 @@ class TestExecuteWorkflowCsv:
         ffai = FFAI(client)
         csv_text = "name,prompt\nstep,Name a {animal}."
         result = _arun(
-            ffai.execute_workflow_csv(csv_text, variables={"animal": "color"})
+            ffai.workflow.execute_workflow_csv(csv_text, variables={"animal": "color"})
         )
         assert result.success_count == 1
         call_args = client._mock_generate.call_args
@@ -67,7 +67,7 @@ class TestExecuteWorkflowCsv:
         ffai = FFAI(client)
         csv_text = "name,prompt\nstep,What is 3+4?"
         result = _arun(
-            ffai.execute_workflow_csv(csv_text, defaults={"temperature": 0})
+            ffai.workflow.execute_workflow_csv(csv_text, defaults={"temperature": 0})
         )
         assert result.success_count == 1
 
@@ -75,7 +75,7 @@ class TestExecuteWorkflowCsv:
         client = FakeAsyncClient()
         ffai = FFAI(client)
         with pytest.raises(Exception, match="missing required"):
-            _arun(ffai.execute_workflow_csv("name\nstep"))
+            _arun(ffai.workflow.execute_workflow_csv("name\nstep"))
 
 
 class TestExecuteWorkflowCsvFile:
@@ -87,7 +87,7 @@ class TestExecuteWorkflowCsvFile:
         ) as f:
             f.write("name,prompt\nstep,What is 5+6?\n")
             f.flush()
-            result = _arun(ffai.execute_workflow_csv_file(f.name))
+            result = _arun(ffai.workflow.execute_workflow_csv_file(f.name))
             assert result.success_count == 1
             assert "step" in result.results
 
@@ -95,4 +95,4 @@ class TestExecuteWorkflowCsvFile:
         client = FakeAsyncClient()
         ffai = FFAI(client)
         with pytest.raises(FileNotFoundError):
-            _arun(ffai.execute_workflow_csv_file("/nonexistent.csv"))
+            _arun(ffai.workflow.execute_workflow_csv_file("/nonexistent.csv"))

@@ -4,7 +4,7 @@ import importlib
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..core.async_client_base import AsyncFFAIClientBase
 from ..core.async_executor import AsyncGraphExecutor, GraphResult
@@ -14,6 +14,9 @@ from ..core.response_result import ResponseResult
 from ..tools.tool_registry import ToolDefinition, ToolRegistry
 from .client_factory import ClientFactory
 from .spec import WorkflowSpec
+
+if TYPE_CHECKING:
+    from ..core.workflow_engine import WorkflowEngine
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +49,18 @@ class WorkflowResult:
 class WorkflowExecutor:
     def __init__(
         self,
-        ffai: Any,
+        engine: WorkflowEngine,
         spec: WorkflowSpec,
         client_factory: ClientFactory | None = None,
     ) -> None:
-        self._ffai = ffai
+        self._engine = engine
         self._spec = spec
 
         if client_factory is not None:
             self._client_factory = client_factory
         else:
             self._client_factory = ClientFactory(
-                ffai_client=ffai.client,
+                ffai_client=engine.client,
                 workflow_clients=spec.clients,
                 async_mode=True,
             )
@@ -69,7 +72,7 @@ class WorkflowExecutor:
         variables: dict[str, str] | None = None,
         max_concurrency: int | None = None,
     ) -> WorkflowResult:
-        if not isinstance(self._ffai.client, AsyncFFAIClientBase):
+        if not isinstance(self._engine.client, AsyncFFAIClientBase):
             raise TypeError(
                 "Workflow execution requires an async client. "
                 "Use AsyncFFLiteLLMClient."
@@ -83,7 +86,7 @@ class WorkflowExecutor:
 
         async def run_step(**spec: Any) -> ResponseResult:
             step_name = spec.get("prompt_name", "")
-            client = step_clients.get(step_name, self._ffai.client)
+            client = step_clients.get(step_name, self._engine.client)
 
             if not isinstance(client, AsyncFFAIClientBase):
                 raise TypeError(
@@ -123,7 +126,7 @@ class WorkflowExecutor:
                 return await original_generate(prompt=prompt, **merged)
 
             try:
-                exec_result = await self._ffai._executor.execute_async(
+                exec_result = await self._engine.executor.execute_async(
                     generate_fn=generate_with_kwargs,
                     prompt=spec.get("prompt", ""),
                     prompt_name=spec.get("prompt_name"),
@@ -138,7 +141,7 @@ class WorkflowExecutor:
             cost_usd = getattr(cloned, "last_cost_usd", 0.0)
 
             return ResponseResult(
-                response=self._ffai._clean_response(exec_result.response),
+                response=self._engine.clean_response_fn(exec_result.response),
                 resolved_prompt=exec_result.resolved_prompt,
                 model=used_model,
                 status=exec_result.status,
@@ -159,7 +162,7 @@ class WorkflowExecutor:
 
         for name, result in graph_result.results.items():
             if result.status == "success" and result.response is not None:
-                self._ffai._recorder.record(
+                self._engine.recorder.record(
                     prompt=result.resolved_prompt,
                     response=result.response,
                     model=result.model,

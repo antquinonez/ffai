@@ -42,11 +42,11 @@ class TestConditionalExecution:
     def test_condition_true_executes(self, ffai, mock_client):
         mock_client.generate_response.return_value = "executed"
 
-        ffai.history = [
+        ffai.history.raw = [
             {"prompt": "go", "response": "ok", "prompt_name": "fetch", "status": "success"}
         ]
 
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "process",
             prompt_name="process",
             options=ResponseOptions(condition='{{fetch.status}} == "success"'),
@@ -56,11 +56,11 @@ class TestConditionalExecution:
         mock_client.generate_response.assert_called_once()
 
     def test_condition_false_skips(self, ffai, mock_client):
-        ffai.history = [
+        ffai.history.raw = [
             {"prompt": "go", "response": "", "prompt_name": "fetch", "status": "failed"}
         ]
 
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "process",
             prompt_name="process",
             options=ResponseOptions(condition='{{fetch.status}} == "success"'),
@@ -70,11 +70,11 @@ class TestConditionalExecution:
         mock_client.generate_response.assert_not_called()
 
     def test_condition_trace_on_skip(self, ffai, mock_client):
-        ffai.history = [
+        ffai.history.raw = [
             {"prompt": "go", "response": "ok", "prompt_name": "fetch", "status": "failed"}
         ]
 
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "process",
             prompt_name="process",
             options=ResponseOptions(condition='{{fetch.status}} == "success"'),
@@ -83,7 +83,7 @@ class TestConditionalExecution:
         assert "failed" in result.condition_trace
 
     def test_unknown_prompt_name_returns_failed(self, ffai, mock_client):
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             "process",
             prompt_name="process",
             options=ResponseOptions(condition='{{nonexistent.status}} == "success"'),
@@ -94,7 +94,7 @@ class TestConditionalExecution:
     def test_no_condition_executes_normally(self, ffai, mock_client):
         mock_client.generate_response.return_value = "result"
 
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             prompt="hello",
             prompt_name="test",
         )
@@ -104,34 +104,34 @@ class TestConditionalExecution:
 
 class TestBuildResultsByName:
     def test_builds_from_history(self, ffai):
-        ffai.history = [
+        ffai.history.raw = [
             {"prompt": "go", "response": "ok", "prompt_name": "step1", "status": "success"},
             {"prompt": "go2", "response": "ok2", "prompt_name": "step2", "status": "success"},
         ]
-        results = ffai._build_results_by_name()
+        results = ffai.workflow._build_results_by_name()
         assert "step1" in results
         assert "step2" in results
         assert results["step1"]["status"] == "success"
 
     def test_preserves_dict_response_name(self, ffai):
-        ffai.history = [
+        ffai.history.raw = [
             {"prompt": "analyze", "response": {"score": 8}, "prompt_name": "analysis", "status": "success"},
         ]
-        results = ffai._build_results_by_name()
+        results = ffai.workflow._build_results_by_name()
         assert "analysis" in results
         assert results["analysis"]["response"] == "{'score': 8}"
 
     def test_reads_actual_status(self, ffai):
-        ffai.history = [
+        ffai.history.raw = [
             {"prompt": "go", "response": None, "prompt_name": "step1", "status": "skipped"},
         ]
-        results = ffai._build_results_by_name()
+        results = ffai.workflow._build_results_by_name()
         assert results["step1"]["status"] == "skipped"
 
 
 class TestValidateGraph:
     def test_valid_graph_no_warnings(self, ffai):
-        graph, warnings = ffai.validate_graph([
+        graph, warnings = ffai.workflow.validate_graph([
             {"prompt_name": "a", "prompt": "first"},
             {"prompt_name": "b", "prompt": "second", "history": ["a"]},
         ])
@@ -140,13 +140,13 @@ class TestValidateGraph:
 
     def test_cycle_raises(self, ffai):
         with pytest.raises(ValueError, match="Dependency cycle"):
-            ffai.validate_graph([
+            ffai.workflow.validate_graph([
                 {"prompt_name": "a", "prompt": "first", "history": ["b"]},
                 {"prompt_name": "b", "prompt": "second", "history": ["a"]},
             ])
 
     def test_undeclared_condition_warns(self, ffai):
-        graph, warnings = ffai.validate_graph([
+        graph, warnings = ffai.workflow.validate_graph([
             {"prompt_name": "fetch", "prompt": "get data"},
             {"prompt_name": "process", "prompt": "process data", "condition": '{{fetch.status}} == "success"'},
         ])
@@ -154,7 +154,7 @@ class TestValidateGraph:
         assert "Undeclared dependency" in warnings[0]
 
     def test_declared_condition_no_warning(self, ffai):
-        graph, warnings = ffai.validate_graph([
+        graph, warnings = ffai.workflow.validate_graph([
             {"prompt_name": "fetch", "prompt": "get data"},
             {"prompt_name": "process", "prompt": "process data", "history": ["fetch"], "condition": '{{fetch.status}} == "success"'},
         ])
@@ -164,7 +164,7 @@ class TestValidateGraph:
 class TestStrictMode:
     def test_strict_raises_on_unknown_reference(self, ffai, mock_client):
         with pytest.raises(ValueError, match="Unknown prompt reference"):
-            ffai.generate_response(
+            ffai.workflow.generate_response(
                 "Based on {{nonexistent.response}}, elaborate",
                 prompt_name="test",
                 options=ResponseOptions(strict=True),
@@ -173,7 +173,7 @@ class TestStrictMode:
     def test_non_strict_silently_replaces(self, ffai, mock_client):
         mock_client.generate_response.return_value = "result"
 
-        result = ffai.generate_response(
+        result = ffai.workflow.generate_response(
             prompt="Based on {{nonexistent.response}}, elaborate",
             prompt_name="test",
         )

@@ -46,7 +46,7 @@ class TestExecuteWorkflow:
         client = FakeAsyncClient()
         ffai = FFAI(client)
 
-        result = _arun(ffai.execute_workflow("""
+        result = _arun(ffai.workflow.execute_workflow("""
 workflow:
   name: basic
   prompts:
@@ -62,7 +62,7 @@ workflow:
         client = FakeAsyncClient()
         ffai = FFAI(client)
 
-        result = _arun(ffai.execute_workflow("""
+        result = _arun(ffai.workflow.execute_workflow("""
 workflow:
   name: var_test
   prompts:
@@ -86,7 +86,7 @@ workflow:
     - name: step1
       prompt: "Hello"
 """)
-        result = _arun(ffai.execute_workflow_file(str(wf_file)))
+        result = _arun(ffai.workflow.execute_workflow_file(str(wf_file)))
         assert result.success_count == 1
         assert result.spec_name == "file_test"
 
@@ -96,7 +96,7 @@ workflow:
         ffai = FFAI(sync_client)
 
         with pytest.raises(TypeError, match="async client"):
-            _arun(ffai.execute_workflow("""
+            _arun(ffai.workflow.execute_workflow("""
 workflow:
   name: bad
   prompts:
@@ -109,7 +109,7 @@ workflow:
         ffai = FFAI(client)
 
         with pytest.raises(FileNotFoundError):
-            _arun(ffai.execute_workflow_file("/nonexistent/workflow.yaml"))
+            _arun(ffai.workflow.execute_workflow_file("/nonexistent/workflow.yaml"))
 
     def test_invalid_yaml_raises_validation_error(self):
         from ffai.workflow import WorkflowValidationError
@@ -118,7 +118,7 @@ workflow:
         ffai = FFAI(client)
 
         with pytest.raises(WorkflowValidationError):
-            _arun(ffai.execute_workflow("workflow:\n  prompts: []"))
+            _arun(ffai.workflow.execute_workflow("workflow:\n  prompts: []"))
 
 
 class TestValidateWorkflow:
@@ -126,7 +126,7 @@ class TestValidateWorkflow:
         client = FakeAsyncClient()
         ffai = FFAI(client)
 
-        errors, warnings = ffai.validate_workflow("""
+        errors, warnings = ffai.workflow.validate_workflow("""
 workflow:
   name: valid
   prompts:
@@ -143,7 +143,7 @@ workflow:
         client = FakeAsyncClient()
         ffai = FFAI(client)
 
-        errors, warnings = ffai.validate_workflow("""
+        errors, warnings = ffai.workflow.validate_workflow("""
 workflow:
   name: cyclic
   prompts:
@@ -161,14 +161,14 @@ workflow:
         client = FakeAsyncClient()
         ffai = FFAI(client)
 
-        errors, warnings = ffai.validate_workflow("workflow:\n  prompts: []")
+        errors, warnings = ffai.workflow.validate_workflow("workflow:\n  prompts: []")
         assert len(errors) > 0
 
     def test_unknown_client_produces_warning(self):
         client = FakeAsyncClient()
         ffai = FFAI(client)
 
-        errors, warnings = ffai.validate_workflow("""
+        errors, warnings = ffai.workflow.validate_workflow("""
 workflow:
   name: warn_test
   prompts:

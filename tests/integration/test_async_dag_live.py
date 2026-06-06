@@ -33,7 +33,7 @@ class TestAsyncDAGBasicExecution:
 
     @pytest.mark.asyncio
     async def test_sequential_prompts_execute(self):
-        result = await self.ffai.execute_graph([
+        result = await self.ffai.workflow.execute_graph([
             {"prompt_name": "q1", "prompt": "What is 2+2? Answer with just the number."},
             {"prompt_name": "q2", "prompt": "What is 3+3? Answer with just the number."},
         ])
@@ -46,7 +46,7 @@ class TestAsyncDAGBasicExecution:
 
     @pytest.mark.asyncio
     async def test_dag_with_interpolation(self):
-        result = await self.ffai.execute_graph([
+        result = await self.ffai.workflow.execute_graph([
             {"prompt_name": "language", "prompt": "Name one programming language."},
             {
                 "prompt_name": "use_case",
@@ -61,7 +61,7 @@ class TestAsyncDAGBasicExecution:
 
     @pytest.mark.asyncio
     async def test_fan_out_parallel_execution(self):
-        result = await self.ffai.execute_graph([
+        result = await self.ffai.workflow.execute_graph([
             {"prompt_name": "base", "prompt": "Name a color."},
             {
                 "prompt_name": "shade",
@@ -80,7 +80,7 @@ class TestAsyncDAGBasicExecution:
 
     @pytest.mark.asyncio
     async def test_diamond_dependency(self):
-        result = await self.ffai.execute_graph([
+        result = await self.ffai.workflow.execute_graph([
             {"prompt_name": "root", "prompt": "Name a fruit."},
             {
                 "prompt_name": "color",
@@ -111,7 +111,7 @@ class TestAsyncDAGConditionExecution:
 
     @pytest.mark.asyncio
     async def test_condition_true_executes(self):
-        result = await self.ffai.execute_graph([
+        result = await self.ffai.workflow.execute_graph([
             {"prompt_name": "check", "prompt": "Say the word: yes"},
             {
                 "prompt_name": "follow_up",
@@ -125,7 +125,7 @@ class TestAsyncDAGConditionExecution:
 
     @pytest.mark.asyncio
     async def test_condition_false_skips(self):
-        result = await self.ffai.execute_graph([
+        result = await self.ffai.workflow.execute_graph([
             {"prompt_name": "check", "prompt": "Say the word: yes"},
             {
                 "prompt_name": "skip_me",
@@ -139,7 +139,7 @@ class TestAsyncDAGConditionExecution:
 
     @pytest.mark.asyncio
     async def test_abort_condition_stops_later_nodes(self):
-        result = await self.ffai.execute_graph([
+        result = await self.ffai.workflow.execute_graph([
             {"prompt_name": "trigger", "prompt": "Say: abort"},
             {
                 "prompt_name": "after_abort",
@@ -156,7 +156,7 @@ class TestAsyncDAGUsageTracking:
 
     @pytest.mark.asyncio
     async def test_each_node_tracks_usage(self):
-        result = await self.ffai.execute_graph([
+        result = await self.ffai.workflow.execute_graph([
             {"prompt_name": "q1", "prompt": "Say: hello"},
             {"prompt_name": "q2", "prompt": "Say: world"},
         ])
@@ -168,10 +168,10 @@ class TestAsyncDAGUsageTracking:
 
     @pytest.mark.asyncio
     async def test_results_recorded_in_history(self):
-        await self.ffai.execute_graph([
+        await self.ffai.workflow.execute_graph([
             {"prompt_name": "g1", "prompt": "Say: dag_test"},
         ])
-        latest = self.ffai.get_latest_interaction_by_prompt_name("g1")
+        latest = self.ffai.history.get_latest_interaction_by_prompt_name("g1")
         assert latest is not None
         assert "dag_test" in latest.get("response", "").lower()
 
@@ -182,7 +182,7 @@ class TestAsyncDAGValidation:
         self.ffai = FFAI(_make_async_client())
 
     def test_validate_graph_no_cycle(self):
-        graph, warnings = self.ffai.validate_graph([
+        graph, warnings = self.ffai.workflow.validate_graph([
             {"prompt_name": "a", "prompt": "prompt a"},
             {"prompt_name": "b", "prompt": "prompt b", "history": ["a"]},
         ])
@@ -190,7 +190,7 @@ class TestAsyncDAGValidation:
 
     def test_validate_graph_detects_cycle(self):
         with pytest.raises(ValueError, match="[Cc]ycle"):
-            self.ffai.validate_graph([
+            self.ffai.workflow.validate_graph([
                 {"prompt_name": "a", "prompt": "prompt a", "history": ["b"]},
                 {"prompt_name": "b", "prompt": "prompt b", "history": ["a"]},
             ])
@@ -205,4 +205,4 @@ class TestAsyncDAGValidation:
         ffai = FFAI(sync_client)
         with pytest.raises(TypeError, match="async client"):
             import asyncio
-            asyncio.run(ffai.execute_graph([{"prompt_name": "x", "prompt": "test"}]))
+            asyncio.run(ffai.workflow.execute_graph([{"prompt_name": "x", "prompt": "test"}]))

@@ -46,13 +46,13 @@ class TestHistoryRestoreWithCopyReturningClient:
         ffai = FFAI(client)
 
         # Build up client history with normal calls
-        ffai.generate_response("Question A", prompt_name="q1")
-        ffai.generate_response("Question B", prompt_name="q2")
+        ffai.workflow.generate_response("Question A", prompt_name="q1")
+        ffai.workflow.generate_response("Question B", prompt_name="q2")
         pre_history_len = len(client.conversation_history)
         assert pre_history_len == 4  # 2 user + 2 assistant
 
         # Use declarative context -- triggers suspend/restore
-        ffai.generate_response("Question C", prompt_name="q3", history=["q1", "q2"])
+        ffai.workflow.generate_response("Question C", prompt_name="q3", history=["q1", "q2"])
 
         # After restore: original 4 + 2 new (user + assistant)
         assert len(client.conversation_history) == 6
@@ -72,10 +72,10 @@ class TestHistoryRestoreWithCopyReturningClient:
         client = FFLiteLLMClient(model_string="openai/gpt-4")
         ffai = FFAI(client)
 
-        ffai.generate_response("First", prompt_name="q1")
+        ffai.workflow.generate_response("First", prompt_name="q1")
         original = client.get_conversation_history().copy()
 
-        ffai.generate_response("Second", prompt_name="q2", history=["q1"])
+        ffai.workflow.generate_response("Second", prompt_name="q2", history=["q1"])
 
         # First 2 messages should be the originals
         assert client.conversation_history[0] == original[0]
@@ -94,10 +94,10 @@ class TestHistoryRestoreWithCopyReturningClient:
         client = FFLiteLLMClient(model_string="openai/gpt-4")
         ffai = FFAI(client)
 
-        ffai.generate_response("What is Python?", prompt_name="python_q")
+        ffai.workflow.generate_response("What is Python?", prompt_name="python_q")
         assert len(client.conversation_history) == 2
 
-        ffai.generate_response(
+        ffai.workflow.generate_response(
             "Tell me more about {{python_q.response}}",
             prompt_name="followup",
         )
@@ -130,16 +130,16 @@ class TestHistoryRestoreWithCopyReturningClient:
         client = FFLiteLLMClient(model_string="openai/gpt-4")
         ffai = FFAI(client)
 
-        ffai.generate_response("N1", prompt_name="n1")
+        ffai.workflow.generate_response("N1", prompt_name="n1")
         assert len(client.conversation_history) == 2
 
-        ffai.generate_response("D1", prompt_name="d1", history=["n1"])
+        ffai.workflow.generate_response("D1", prompt_name="d1", history=["n1"])
         assert len(client.conversation_history) == 4
 
-        ffai.generate_response("N2", prompt_name="n2")
+        ffai.workflow.generate_response("N2", prompt_name="n2")
         assert len(client.conversation_history) == 6
 
-        ffai.generate_response("D2", prompt_name="d2", history=["n2"])
+        ffai.workflow.generate_response("D2", prompt_name="d2", history=["n2"])
         assert len(client.conversation_history) == 8
 
         # All 8 messages should be in order

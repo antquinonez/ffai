@@ -173,7 +173,7 @@ def main() -> None:
         },
     ]
 
-    graph4, warnings = ffai.validate_graph(workflow)
+    graph4, warnings = ffai.workflow.validate_graph(workflow)
 
     print(f"  Nodes:    {len(graph4.nodes)}")
     print(f"  Max level:{graph4.max_level}")
@@ -196,7 +196,7 @@ def main() -> None:
         },
     ]
 
-    graph5, warnings2 = ffai.validate_graph(clean_workflow)
+    graph5, warnings2 = ffai.workflow.validate_graph(clean_workflow)
     print(f"  Nodes:    {len(graph5.nodes)}")
     print(f"  Max level:{graph5.max_level}")
     print(f"  Warnings: {len(warnings2)}")
@@ -212,7 +212,7 @@ def main() -> None:
     ]
 
     try:
-        ffai.validate_graph(circular_workflow)
+        ffai.workflow.validate_graph(circular_workflow)
         print("    No error raised (unexpected)")
     except ValueError as e:
         print(f"    Cycle detected: {e}")

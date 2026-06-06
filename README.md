@@ -74,7 +74,7 @@ client = FFLiteLLMClient(
 
 ffai = FFAI(client)
 
-result = ffai.generate_response(
+result = ffai.workflow.generate_response(
     prompt="What is 2+2?",
     prompt_name="math_question"
 )
@@ -88,12 +88,12 @@ print(result.duration_ms)    # 842.3
 ### Named prompt references
 
 ```python
-ffai.generate_response(
+ffai.workflow.generate_response(
     prompt="What is the capital of France?",
     prompt_name="geography"
 )
 
-result = ffai.generate_response(
+result = ffai.workflow.generate_response(
     prompt="Write a poem about {{geography.response}}",
     prompt_name="poem"
 )
@@ -110,12 +110,12 @@ print(result.response)
 ```python
 from ffai import ResponseOptions
 
-ffai.generate_response(
+ffai.workflow.generate_response(
     prompt="List three programming languages",
     prompt_name="languages"
 )
 
-result = ffai.generate_response(
+result = ffai.workflow.generate_response(
     "Which of {{languages.response}} is best for beginners?",
     prompt_name="recommendation",
     options=ResponseOptions(dependencies=["languages"]),
@@ -204,14 +204,14 @@ RAG supports BM25 hybrid search (`bm25_alpha`), result reranking (`reranker="div
 You can also manage the RAG lifecycle directly through FFAI:
 
 ```python
-ffai.index(text, source="doc1")               # index a document -> int
-ffai.index(text, source="doc2", checksum="a") # skip if checksum unchanged -> int
-count = ffai.count()                           # get chunk count
+ffai.rag.index(text, source="doc1")               # index a document -> int
+ffai.rag.index(text, source="doc2", checksum="a") # skip if checksum unchanged -> int
+count = ffai.rag.count()                           # get chunk count
 print(f"Indexed {count} chunks")               # "Indexed 3 chunks"
-hits = ffai.search("query", top_k=5)           # raw search without generation
+hits = ffai.rag.search("query", top_k=5)           # raw search without generation
 print(f"Found {len(hits)} hits")               # "Found 2 hits"
-ffai.delete("doc1")                            # remove by source
-result = ffai.query("question",                # retrieval-augmented answer
+ffai.rag.delete("doc1")                            # remove by source
+result = ffai.rag.query("question",                # retrieval-augmented answer
     top_k=5,
     max_context_chars=4000,
     allow_llm_on_empty=False,
@@ -229,7 +229,7 @@ Use `ResponseOptions` for model overrides, conditions, and history injection:
 ```python
 from ffai import ResponseOptions
 
-result = ffai.generate_response(
+result = ffai.workflow.generate_response(
     "Translate to French: Hello",
     prompt_name="translate",
     options=ResponseOptions(model="mistral/mistral-large-latest"),
@@ -254,7 +254,7 @@ class Sentiment(BaseModel):
     label: str = Field(description="positive, negative, or neutral")
     confidence: float = Field(ge=0.0, le=1.0)
 
-result = ffai.generate_response(
+result = ffai.workflow.generate_response(
     "The food was amazing but service was slow.",
     options=ResponseOptions(response_model=Sentiment),
 )
@@ -272,9 +272,9 @@ Use `condition` and `abort_condition` in `ResponseOptions` to skip or abort prom
 ```python
 from ffai import ResponseOptions
 
-ffai.generate_response("List three languages", prompt_name="languages")
+ffai.workflow.generate_response("List three languages", prompt_name="languages")
 
-result = ffai.generate_response(
+result = ffai.workflow.generate_response(
     "Which is easiest?",
     prompt_name="recommendation",
     options=ResponseOptions(
@@ -336,13 +336,13 @@ async_client = AsyncFFLiteLLMClient(
 ffai = FFAI(async_client, rag=rag)
 
 # Async RAG
-result = await ffai.aquery("What is Python?")
+result = await ffai.rag.aquery("What is Python?")
 print(result.answer)
 # Python is a high-level programming language known for its readability
-hits = await ffai.asearch("query", top_k=5)
+hits = await ffai.rag.asearch("query", top_k=5)
 print(f"Found {len(hits)} hits")
 # Found 2 hits
-count = await ffai.aindex(text, source="doc1")
+count = await ffai.rag.aindex(text, source="doc1")
 print(f"Indexed {count} chunks")
 # Indexed 1 chunks
 
@@ -354,7 +354,7 @@ prompts = [
     {"prompt_name": "article", "prompt": "Write an article based on:\n{{outline.response}}",
      "history": ["outline"]},
 ]
-graph_result = await ffai.execute_graph(prompts, max_concurrency=10)
+graph_result = await ffai.workflow.execute_graph(prompts, max_concurrency=10)
 for name, r in graph_result.results.items():
     print(f"{name}: {r.status} ({r.duration_ms:.0f}ms)")
 # topic: success (842ms)
@@ -423,44 +423,44 @@ FFAI maintains four parallel history stores:
 
 | Store | Access | Description |
 |-------|--------|-------------|
-| `history` | `ffai.history` | Raw interaction list |
-| `clean_history` | `ffai.clean_history` | Cleaned interaction list |
-| `ordered_history` | `ffai.ordered_history` | OrderedPromptHistory with sequence numbers |
-| `permanent_history` | `ffai.permanent_history` | PermanentHistory with timestamps, incremental retrieval |
+| `history` | `ffai.history.raw` | Raw interaction list |
+| `clean_history` | `ffai.history.clean` | Cleaned interaction list |
+| `ordered_history` | `ffai.history.ordered` | OrderedPromptHistory with sequence numbers |
+| `permanent_history` | `ffai.history.permanent` | PermanentHistory with timestamps, incremental retrieval |
 
 ### Query methods
 
 ```python
-ffai.get_all_interactions()                              # list[dict]
-ffai.get_latest_interaction()                             # dict | None
-ffai.get_latest_interaction_by_prompt_name("analysis")   # dict | None
-ffai.get_last_n_interactions(5)                           # list[dict]
-ffai.get_interaction(sequence_number=3)                   # dict | None
-ffai.get_model_interactions("mistral-small-latest")       # list[dict]
-ffai.get_interactions_by_prompt_name("summary")           # list[dict]
-ffai.get_prompt_history()                                 # list[str]
-ffai.get_response_history()                               # list[str]
-ffai.get_model_usage_stats()                              # dict[str, int]
+ffai.history.get_all_interactions()                              # list[dict]
+ffai.history.get_latest_interaction()                             # dict | None
+ffai.history.get_latest_interaction_by_prompt_name("analysis")   # dict | None
+ffai.history.get_last_n_interactions(5)                           # list[dict]
+ffai.history.get_interaction(sequence_number=3)                   # dict | None
+ffai.history.get_model_interactions("mistral-small-latest")       # list[dict]
+ffai.history.get_interactions_by_prompt_name("summary")           # list[dict]
+ffai.history.get_prompt_history()                                 # list[str]
+ffai.history.get_response_history()                               # list[str]
+ffai.history.get_model_usage_stats()                              # dict[str, int]
 # {"mistral-small-latest": 3}
-ffai.get_prompt_name_usage_stats()                        # dict[str, int]
+ffai.history.get_prompt_name_usage_stats()                        # dict[str, int]
 # {"math_question": 1, "geography": 1, "languages": 1}
-ffai.get_prompt_dict()                                    # dict[str, list[dict]]
-ffai.get_latest_responses_by_prompt_names(["a", "b"])     # dict
+ffai.history.get_prompt_dict()                                    # dict[str, list[dict]]
+ffai.history.get_latest_responses_by_prompt_names(["a", "b"])     # dict
 # {"a": {"prompt": "...", "response": "..."}, "b": {...}}
-ffai.get_formatted_responses(["analysis", "summary"])     # str
+ffai.history.get_formatted_responses(["analysis", "summary"])     # str
 ```
 
 ### DataFrame export
 
 ```python
-df = ffai.history_to_dataframe()
-df = ffai.clean_history_to_dataframe()
-df = ffai.ordered_history_to_dataframe()
-df = ffai.search_history(text="error", model="gpt-4o")
-df = ffai.get_model_stats_df()
-df = ffai.get_prompt_name_stats_df()
-df = ffai.get_response_length_stats()
-df = ffai.interaction_counts_by_date()
+df = ffai.history.history_to_dataframe()
+df = ffai.history.clean_history_to_dataframe()
+df = ffai.history.ordered_history_to_dataframe()
+df = ffai.history.search_history(text="error", model="gpt-4o")
+df = ffai.history.get_model_stats_df()
+df = ffai.history.get_prompt_name_stats_df()
+df = ffai.history.get_response_length_stats()
+df = ffai.history.interaction_counts_by_date()
 print(df.head())
 # shape: (3, 8)
 # ┌──────────┬──────────┬──────────┬──────────┬──────────┬─────────┬─────────┬──────────┐
@@ -472,7 +472,7 @@ print(df.head())
 # │ What is… ┆ 2 + 2    ┆ math_qu… ┆ 1.78e9   ┆ mistral… ┆ null    ┆ success ┆ 2026-05… │
 # │ …        ┆ …        ┆ …        ┆ …        ┆ …        ┆ …       ┆ …       ┆ …        │
 # └──────────┴──────────┴──────────┴──────────┴──────────┴─────────┴─────────┴──────────┘
-ffai.persist_all_histories()  # write Parquet to configured directory
+ffai.history.persist_all_histories()  # write Parquet to configured directory
 ```
 
 ### Client conversation history
@@ -498,7 +498,7 @@ prompts = [
      "history": ["outline"]},
 ]
 
-graph, warnings = ffai.validate_graph(prompts)  # validate without executing
+graph, warnings = ffai.workflow.validate_graph(prompts)  # validate without executing
 print(f"Graph has {len(graph.nodes)} nodes, {len(graph.edges)} edges")
 # Graph has 3 nodes, 2 edges
 if warnings:
@@ -553,7 +553,7 @@ print(result.critique)  # None if passed, reason if failed
 
 if not result.passed:
     # Re-execute with rejection feedback
-    new_result = ffai.generate_response(
+    new_result = ffai.workflow.generate_response(
         f"Previous attempt was rejected: {result.critique}\n\nOriginal prompt: Write a summary",
     )
 ```

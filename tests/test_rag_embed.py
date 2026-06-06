@@ -17,7 +17,7 @@ class TestEmbeddingsInit:
         assert emb.provider == "mistral"
 
     def test_local_model_detected(self):
-        with patch.dict("sys.modules", {"fastembed": None}):
+        with patch.dict("sys.modules", {"sentence_transformers": None, "fastembed": None}):
             with pytest.raises(ImportError, match="No local embedding backend found"):
                 Embeddings("local/all-MiniLM-L6-v2")
 

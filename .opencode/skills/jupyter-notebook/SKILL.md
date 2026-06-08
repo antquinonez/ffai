@@ -224,15 +224,12 @@ print("Created my_notebook.ipynb")
 python scripts/_nb_my_notebook.py
 
 # Step 2: Execute to populate outputs (makes API calls)
-JUPYTER_CONFIG_DIR=/tmp/empty_jupyter_config \
-    jupyter nbconvert --to notebook --execute \
-    --ExecutePreprocessor.timeout=120 \
-    examples/my_notebook/my_notebook.ipynb \
-    --output my_notebook.ipynb
+python nb_execute.py examples/my_notebook/my_notebook.ipynb --timeout 120
 ```
 
-The `JUPYTER_CONFIG_DIR` bypass prevents broken global Jupyter configs from
-interfering (see [Broken global Jupyter config](#broken-global-jupyter-config)).
+The `nb_execute.py` script uses **papermill** under the hood, which auto-detects
+kernels and ignores broken `~/.jupyter/` config (no `JUPYTER_CONFIG_DIR` bypass
+needed).
 
 ### Naming convention
 
@@ -314,10 +311,10 @@ end of a cell produces nothing the agent can read.
 ### Scalar results: formatted `print()`
 
 ```python
-print(f"Components: {result.component_count}")
-print(f"Modularity: {result.modularity:.3f}")
-for group in result.groups[:3]:
-    print(f"  Group {group.id}: {group.size} members")
+print(f"Steps: {len(result.results)}")
+print(f"Status: {result.results['step_1'].status}")
+for name, step in result.results.items():
+    print(f"  {name}: {step.status}, tokens={step.usage.input_tokens if step.usage else 'N/A'}")
 ```
 
 ### Tabular results: pandas DataFrame
@@ -482,10 +479,10 @@ code cell should include enough comments to explain:
 Example:
 
 ```python
-# Compute degree centrality for all nodes, then filter to active institutions
-# degree = count of edges incident on a node (higher = more connected)
-degree = graph.centrality(method='degree')
-active = {k: v for k, v in degree.items() if k in institution_labels}
+# Load workflow from Excel using the 'custom' named adapter
+# The custom adapter maps 'Task' -> 'name', 'Instructions' -> 'prompt'
+spec = load_workflow_excel('workflow.xlsx', adapter='custom')
+print(f"Loaded {len(spec.steps)} steps")
 ```
 
 ## Structuring Notebooks
@@ -527,10 +524,10 @@ isolated validation.
   An object created in cell 3 is mutated by cell 7. If cell 7 runs without
   cell 3, it fails. This is by design -- do not add defensive
   re-initialization.
-- **Non-deterministic outputs**: Algorithms like label propagation or random
-  sampling produce different results across runs. In markdown cells, describe
-  results as ranges or note non-determinism explicitly. Do not hardcode exact
-  counts from a single run as permanent facts.
+- **Non-deterministic outputs**: LLM calls produce different results across
+  runs. In markdown cells, describe results as ranges or note non-determinism
+  explicitly. Do not hardcode exact token counts or response text from a
+  single run as permanent facts.
 - **Print output is cell output**: In the validation script, `print()` goes to
   stdout which the script captures. Use `print()` for values you want to appear
   as output. Use markdown cells for narrative.
@@ -620,16 +617,13 @@ from pathlib import Path
 _cwd = Path().resolve()
 _project_root = _cwd
 for _p in [_cwd, *list(_cwd.parents)]:
-    if (_p / 'pyproject.toml').is_file():   # or setup.cfg, .git, etc.
+    if (_p / 'pyproject.toml').is_file():
         _project_root = _p
         break
 
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 ```
-
-Choose a marker that uniquely identifies your project root. Common options:
-`pyproject.toml`, `setup.py`, `setup.cfg`, `.git` directory, `requirements.txt`.
 
 ### Rule 2: Import sibling modules directly
 
@@ -657,23 +651,7 @@ masks CWD-dependent failures. After the standard validation passes, also
 validate with CWD set to the notebook's directory:
 
 ```bash
-python -c "
-import nbformat, sys, os
-from pathlib import Path
-
-os.chdir('path/to/notebook/directory')
-
-nb = nbformat.read(Path('notebook.ipynb'), as_version=4)
-exec_globals = {'__name__': '__main__'}
-for i, cell in enumerate(nb.cells):
-    if cell.cell_type == 'code':
-        try:
-            exec(cell.source, exec_globals)
-        except Exception as e:
-            print(f'Cell {i} FAILED: {e}')
-            sys.exit(1)
-print('All code cells executed successfully (CWD = notebook dir)')
-"
+python nb_validate.py path/to/notebook.ipynb --cwd path/to/
 ```
 
 ### What this prevents
@@ -713,6 +691,10 @@ Generator scripts (`.py` files) are fully lintable. The `def` helper pattern
 exists partly because `ruff` flags `E731` for lambda assignments.
 
 ## Exporting to HTML and PDF
+
+Notebook **execution** uses papermill (see [Validation](#validation)). Notebook
+**export** (HTML, PDF) still uses `nbconvert` since papermill does not handle
+format conversion.
 
 ### Prerequisites
 
@@ -878,7 +860,9 @@ without duplication.
 ### Broken global Jupyter config
 
 `~/.jupyter/jupyter_nbconvert_config.json` may reference missing packages and
-break the export. Bypass with an empty config directory:
+break `nbconvert`-based tools. **Papermill is not affected** because it does
+not read nbconvert exporter config. If you must use `nbconvert` directly (e.g.
+for HTML/PDF export), bypass with an empty config directory:
 
 ```bash
 mkdir -p /tmp/empty_jupyter_config
@@ -886,7 +870,7 @@ JUPYTER_CONFIG_DIR=/tmp/empty_jupyter_config jupyter nbconvert --to webpdf \
     --no-input --execute --ExecutePreprocessor.timeout=180 notebook.ipynb
 ```
 
-Always use this bypass for `nbconvert` commands in scripts and CI.
+Always use this bypass for direct `nbconvert` commands in scripts and CI.
 
 ### Wide table handling
 
@@ -900,7 +884,7 @@ Tables with 6+ columns overflow PDF page width. Solutions:
 
 After creating or modifying notebooks, validate they execute correctly using
 **both** methods below. A notebook that passes `exec()` validation can still
-fail under `nbconvert --execute` because the two contexts have different
+fail under papermill execution because the two contexts have different
 semantics.
 
 ### Companion scripts
@@ -910,7 +894,7 @@ The skill directory includes reusable validation and execution scripts:
 | Script | Purpose |
 |--------|---------|
 | `nb_validate.py` | `exec()` validation with optional `--cwd` flag |
-| `nb_execute.py` | `nbconvert --execute` with config bypass |
+| `nb_execute.py` | papermill execution with output embedding |
 | `nb_template.py` | Minimal generator script to copy and adapt |
 
 Usage:
@@ -924,6 +908,9 @@ python nb_validate.py path/to/notebook.ipynb --cwd path/to/
 
 # Full execution with output embedding (slow, real kernel)
 python nb_execute.py path/to/notebook.ipynb --timeout 120
+
+# Specify kernel explicitly (useful when notebook lacks kernel metadata)
+python nb_execute.py path/to/notebook.ipynb --kernel python3
 ```
 
 ### Method 1: `exec()` validation (fast, no kernel)
@@ -952,34 +939,44 @@ print('All code cells executed successfully')
 Also validate with CWD set to the notebook's directory (see Import
 Robustness Rule 3).
 
-### Method 2: `nbconvert --execute` (slow, real kernel)
+### Method 2: papermill execution (slow, real kernel)
 
-Runs cells inside a real IPython kernel via nbconvert. This is the **only**
+Runs cells inside a real IPython kernel via papermill. This is the **only**
 way to verify notebooks that use async code (Jupyter kernels have an active
 event loop; `exec()` does not).
 
 ```bash
-JUPYTER_CONFIG_DIR=/tmp/empty_jupyter_config \
-    jupyter nbconvert --to notebook --execute \
-    --ExecutePreprocessor.timeout=120 \
-    path/to/notebook.ipynb \
-    --output notebook.ipynb
+# Using the companion script
+python nb_execute.py path/to/notebook.ipynb --timeout 120
+
+# Or directly via papermill CLI
+papermill path/to/notebook.ipynb path/to/notebook.ipynb -k python3
 ```
 
-This also writes the executed outputs back into the `.ipynb` file, making it
+This writes the executed outputs back into the `.ipynb` file, making it
 self-contained with embedded results.
+
+Papermill advantages over `nbconvert --execute`:
+
+- **Kernel fallback**: Auto-detects kernels; `-k` flag overrides without
+  hard-failing on missing kernel metadata in the notebook
+- **Better error output**: Reports which cell failed with full traceback
+  (`PapermillExecutionError` with `exec_count`, `ename`, `evalue`)
+- **Config-safe**: Not affected by broken `~/.jupyter/` config
+- **Parameterization**: Supports injecting variables via CLI (`-p key value`)
 
 ### Key differences between the two methods
 
-| Aspect | `exec()` | `nbconvert --execute` |
-|--------|----------|-----------------------|
+| Aspect | `exec()` | papermill |
+|--------|----------|-----------|
 | Event loop | None | Active IPython kernel |
 | `asyncio.run()` | Works | Raises `RuntimeError` |
 | `run_sync()` pattern | Works | Works (uses thread fallback) |
 | IPython display | No frontend | Full frontend |
 | Speed | Fast | Slow (kernel startup) |
 | Output embedding | No | Yes (writes to file) |
-| Config sensitivity | None | Affected by `~/.jupyter/` config |
+| Config sensitivity | None | Not affected by `~/.jupyter/` |
+| Kernel metadata | N/A | Auto-detects or `-k` override |
 
 **Critical**: Notebook cells share state. Syntax errors in one cell may not
 appear until a dependent cell executes. Always run the full notebook after

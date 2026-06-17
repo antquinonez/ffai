@@ -24,6 +24,19 @@ from .types import GenerationResult, QueryResult, SearchHit
 logger = logging.getLogger(__name__)
 
 
+def _apply_metadata_filters(
+    results: list[dict[str, Any]],
+    filters: dict[str, str] | None,
+) -> list[dict[str, Any]]:
+    """Drop results whose metadata does not match every key/value in filters."""
+    if not filters:
+        return results
+    return [
+        r for r in results
+        if all(r.get("metadata", {}).get(k) == v for k, v in filters.items())
+    ]
+
+
 class RAG:
     """End-to-end retrieval-augmented generation pipeline.
 
@@ -394,19 +407,14 @@ class RAG:
         self, query: str, top_k: int, filters: dict[str, str],
     ) -> list[dict[str, Any]]:
         if self._store is not None and self._bm25 is not None:
-            return await self._ahybrid_search(query, top_k)
+            return await self._ahybrid_search(query, top_k, filters)
 
         if self._store is not None:
             return await self._astore_search(query, top_k, where=filters or None)
 
         if self._bm25 is not None:
             results = self._bm25.search(query, top_k)
-            if filters:
-                results = [
-                    r for r in results
-                    if all(r.get("metadata", {}).get(k) == v for k, v in filters.items())
-                ]
-            return results
+            return _apply_metadata_filters(results, filters)
 
         return []
 
@@ -576,13 +584,19 @@ class RAG:
         ]
 
     async def _ahybrid_search(
-        self, query: str, n_results: int,
+        self,
+        query: str,
+        n_results: int,
+        filters: dict[str, str] | None = None,
     ) -> list[dict[str, Any]]:
         fetch_count = min(n_results * 3, 50)
-        vector_results = await self._astore_search(query, fetch_count)
+        vector_results = await self._astore_search(
+            query, fetch_count, where=filters or None,
+        )
         for r in vector_results:
             r["search_type"] = "vector"
         bm25_results = self._bm25.search(query, fetch_count)  # type: ignore[union-attr]
+        bm25_results = _apply_metadata_filters(bm25_results, filters)
         for r in bm25_results:
             r["search_type"] = "bm25"
         return reciprocal_rank_fusion(

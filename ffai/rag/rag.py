@@ -87,6 +87,7 @@ class RAG:
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
         bm25_alpha: float | None = None,
+        bm25_autorebuild: bool = True,
         reranker: str | None = None,
         query_expander: Callable[[str], list[str]] | None = None,
         generate_fn: Callable[[str], str | GenerationResult] | None = None,
@@ -103,6 +104,7 @@ class RAG:
         self._bm25: BM25Index | None = None
         self._bm25_alpha: float = 0.6
         self._bm25_rrf_k: int = 60
+        self._bm25_autorebuild: bool = bm25_autorebuild
         self._reranker: RerankerBase | None = None
         self._query_expander = query_expander
         self._generate_fn = generate_fn
@@ -158,6 +160,7 @@ class RAG:
             "chunk_size": cfg.chunk_size,
             "chunk_overlap": cfg.chunk_overlap,
             "bm25_alpha": cfg.bm25_alpha,
+            "bm25_autorebuild": cfg.bm25_autorebuild,
             "reranker": cfg.reranker,
         }
         kwargs.update(overrides)
@@ -406,6 +409,7 @@ class RAG:
     async def _araw_search(
         self, query: str, top_k: int, filters: dict[str, str],
     ) -> list[dict[str, Any]]:
+        self._ensure_bm25_consistent()
         if self._store is not None and self._bm25 is not None:
             return await self._ahybrid_search(query, top_k, filters)
 
@@ -569,6 +573,62 @@ class RAG:
         if self._bm25 is not None:
             return self._bm25.count()
         return 0
+
+    def rebuild_bm25_from_store(self) -> int:
+        """Rebuild the BM25 index from the persistent vector store.
+
+        Clears the current BM25 index and re-adds every chunk the store
+        exposes via ``get_all()``. Chunks whose ``chunking_strategy`` metadata
+        is set and differs from the current chunker are skipped (legacy
+        chunks with no strategy tag are included for backward compatibility).
+
+        Returns:
+            Number of documents added to the BM25 index.
+
+        Raises:
+            RuntimeError: if BM25 or the store is not configured.
+
+        """
+        if self._bm25 is None or self._store is None:
+            raise RuntimeError(
+                "rebuild_bm25_from_store requires both a BM25 index and a store."
+            )
+
+        self._bm25.clear()
+        added = 0
+        for doc in self._store.get_all():
+            meta = doc.get("metadata") or {}
+            strategy = meta.get("chunking_strategy")
+            if strategy is not None and strategy != self._chunker_name:
+                continue
+            self._bm25.add_document(
+                doc_id=doc.get("id", ""),
+                content=doc.get("content", ""),
+                metadata=meta,
+            )
+            added += 1
+        logger.debug("Rebuilt BM25 index from store: %d documents", added)
+        return added
+
+    def _ensure_bm25_consistent(self) -> None:
+        """Lazily rebuild BM25 from the store when a count mismatch is detected.
+
+        No-op when BM25/store is unconfigured, autorebuild is disabled, or the
+        counts already agree. Safe to call on every search.
+
+        """
+        if not self._bm25_autorebuild:
+            return
+        if self._bm25 is None or self._store is None:
+            return
+        if self._bm25.count() == self._store.count():
+            return
+        try:
+            self.rebuild_bm25_from_store()
+        except Exception as e:
+            logger.warning(
+                "BM25 rebuild failed: %s; search continues with current index", e,
+            )
 
     async def _astore_search(
         self, query: str, n_results: int, where: dict[str, Any] | None = None,

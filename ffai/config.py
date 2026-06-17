@@ -197,6 +197,9 @@ class RAGConfig(BaseSettings):
         chunk_size: Maximum characters per chunk.
         chunk_overlap: Overlap characters between adjacent chunks.
         bm25_alpha: Hybrid search alpha; ``None`` disables BM25.
+        bm25_autorebuild: Lazily rebuild the in-memory BM25 index from the
+            persistent vector store when a count mismatch is detected at search
+            time. ``False`` disables the self-heal.
         reranker: Reranker model identifier; ``None`` disables reranking.
 
     """
@@ -211,6 +214,7 @@ class RAGConfig(BaseSettings):
     chunk_size: int = 1000
     chunk_overlap: int = 200
     bm25_alpha: float | None = None
+    bm25_autorebuild: bool = True
     reranker: str | None = None
 
 

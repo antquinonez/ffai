@@ -154,7 +154,7 @@ known-first-party = ["ffai"]
 
 [tool.pyright]
 pythonVersion = "3.10"
-include = ["ffai"]
+include = ["ffai", "tests"]
 typeCheckingMode = "basic"
 reportMissingImports = true
 reportMissingTypeStubs = false

@@ -59,6 +59,7 @@ def _load_all_configs() -> dict[str, Any]:
         "model_defaults": _load_yaml_file("model_defaults.yaml").get("model_defaults", {}),
         "observability": main_yaml.get("observability", {}),
         "rag": main_yaml.get("rag", {}),
+        "memory": main_yaml.get("memory", {}),
     }
 
 
@@ -218,6 +219,46 @@ class RAGConfig(BaseSettings):
     reranker: str | None = None
 
 
+class MemoryConfig(BaseSettings):
+    """Memory vector recall configuration.
+
+    When ``enabled`` is ``True``, completed Q+A turns are embedded
+    eagerly at ``HistoryRecorder.record()`` time and made searchable
+    via ``ffai.history.search()``. Defaults match ``RAGConfig``'s
+    opt-in convention: disabled unless the user explicitly turns it on.
+
+    Attributes:
+        enabled: Whether memory vector recall is active. Defaults to
+            ``False`` (opt-in, matching ``rag.enabled``).
+        embedding_model: Embedding model identifier. ``None`` triggers
+            the resolution ladder: explicit local backend if available
+            (``local/all-MiniLM-L6-v2``), else API model keyed off
+            ``MISTRAL_API_KEY`` / ``OPENAI_API_KEY``, else disabled with
+            a warning.
+        store_backend: Vector store backend. Reserved for future
+            Chroma/Qdrant backends; Tier 1 uses the built-in in-memory
+            store. The value ``"memory"`` is the only supported option.
+        store_config: Backend-specific constructor kwargs (reserved).
+        persist_dir: Directory for the Parquet persistence file when
+            ``persist`` is ``True``.
+        collection_name: Logical name for the turn collection.
+        persist: If ``True``, the store is loaded from
+            ``<persist_dir>/<collection_name>.parquet`` on startup and
+            written after each successful embed. ``False`` (default)
+            yields an ephemeral in-memory store that dies with the
+            process.
+
+    """
+
+    enabled: bool = False
+    embedding_model: str | None = None
+    store_backend: str = "memory"
+    store_config: dict[str, Any] = Field(default_factory=dict)
+    persist_dir: str = "./ffai_data/memory"
+    collection_name: str = "ffai_turns"
+    persist: bool = False
+
+
 class Config(BaseSettings):
     """Main configuration class."""
 
@@ -234,6 +275,7 @@ class Config(BaseSettings):
     model_defaults: ModelDefaultsConfig = Field(default_factory=ModelDefaultsConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
 
     @classmethod
     def settings_customise_sources(

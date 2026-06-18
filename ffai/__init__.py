@@ -9,11 +9,13 @@ from .core.async_client_base import AsyncFFAIClientBase
 from .core.async_executor import AsyncGraphExecutor, GraphResult
 from .core.client_base import FFAIClientBase
 from .core.condition_evaluator import ConditionEvaluator
+from .core.embeddings import Embeddings
 from .core.execution_result import ExecutionResult
 from .core.graph import ExecutionGraph
 from .core.history.conversation import ConversationHistory
 from .core.history.ordered import OrderedPromptHistory
 from .core.history.permanent import PermanentHistory
+from .core.memory import Memory, TurnHit
 from .core.response_executor import ResponseExecutor
 from .core.response_options import ResponseOptions
 from .FFAI import FFAI
@@ -27,10 +29,12 @@ __all__ = [
     "AsyncGraphExecutor",
     "ConditionEvaluator",
     "ConversationHistory",
+    "Embeddings",
     "ExecutionGraph",
     "ExecutionResult",
     "FFAIClientBase",
     "GraphResult",
+    "Memory",
     "OrderedPromptHistory",
     "PermanentHistory",
     "ResponseExecutor",
@@ -39,6 +43,7 @@ __all__ = [
     "ToolCallRecord",
     "ToolDefinition",
     "ToolRegistry",
+    "TurnHit",
     "ValidationResult",
 ]
 
@@ -48,7 +53,6 @@ with contextlib.suppress(ImportError):
     from .rag import (  # noqa: F401, I001
         ClientAdapter,
         DEFAULT_RAG_PROMPT,
-        Embeddings,
         GenerationResult,
         QueryResult,
         RAG,

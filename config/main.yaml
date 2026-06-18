@@ -32,3 +32,12 @@ rag:
   chunker: recursive
   chunk_size: 1000
   chunk_overlap: 200
+
+memory:
+  enabled: false                                  # opt-in; matches rag.enabled convention
+  embedding_model: null                           # null -> resolution ladder (local backend if installed, else API key, else disabled)
+  store_backend: memory                           # reserved; Tier 1 uses built-in in-memory store
+  store_config: {}
+  persist_dir: "./ffai_data/memory"
+  collection_name: "ffai_turns"
+  persist: false                                  # ephemeral by default; set true to survive restarts

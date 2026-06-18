@@ -33,6 +33,12 @@ def ffai(mock_client):
         mock_config.paths.ffai_data = "/tmp/ffai_test_data"
         mock_config.rag = MagicMock()
         mock_config.rag.enabled = False
+        mock_config.memory = MagicMock()
+        mock_config.memory.enabled = False
+        mock_config.memory.persist = False
+        mock_config.memory.embedding_model = None
+        mock_config.memory.persist_dir = "/tmp/ffai_test_data/memory"
+        mock_config.memory.collection_name = "ffai_turns"
 
         with patch.object(_ffai_mod, "get_config", return_value=mock_config):
             return FFAI(mock_client)

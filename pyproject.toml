@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ffai"
-version = "0.1.6"
+version = "0.1.7"
 description = "Declarative LLM workflow orchestration with DAG-based parallel execution, safe conditional branching, and built-in cost tracking"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -52,6 +52,9 @@ otel = [
 ]
 rag = [
     "chromadb>=0.4.0",
+    "fastembed>=0.7.0",
+]
+memory = [
     "fastembed>=0.7.0",
 ]
 docs = [
@@ -151,7 +154,7 @@ known-first-party = ["ffai"]
 
 [tool.pyright]
 pythonVersion = "3.10"
-include = ["ffai"]
+include = ["ffai", "tests"]
 typeCheckingMode = "basic"
 reportMissingImports = true
 reportMissingTypeStubs = false

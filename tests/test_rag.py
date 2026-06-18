@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -855,3 +856,282 @@ class TestRAGRawToHitsParentContent:
         }]
         hits = rag._raw_to_hits(raw)
         assert hits[0].parent_content == "top-level parent"
+
+
+class TestRAGHybridFilters:
+    """Hybrid search must honor metadata filters across both legs (L1)."""
+
+    @staticmethod
+    def _filtering_store(hits: list[SearchHit]) -> MagicMock:
+        """A store mock whose ``asearch`` honors ``where`` against hit metadata."""
+        store = MagicMock()
+        store.count.return_value = len(hits)
+        store.needs_reindex.return_value = True
+        store.aadd = AsyncMock(return_value=len(hits))
+        store.get_all.return_value = [
+            {"id": h.id, "content": h.content,
+             "metadata": dict(h.metadata or {}, source=h.source)}
+            for h in hits
+        ]
+
+        async def _asearch(query_embedding: list[float], top_k: int = 5,
+                           where: dict[str, object] | None = None) -> list[SearchHit]:
+            out: list[SearchHit] = []
+            for h in hits:
+                meta = dict(h.metadata or {}, source=h.source)
+                if where and any(meta.get(k) != v for k, v in where.items()):
+                    continue
+                out.append(h)
+            return out[:top_k]
+
+        store.asearch = _asearch
+        return store
+
+    @staticmethod
+    def _make_rag(store: MagicMock) -> RAG:
+        embed = _make_mock_embed()
+        chunker = MagicMock()
+        chunker.chunk.return_value = []
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
+            return RAG(embed=embed, store=store, bm25_alpha=0.6)
+
+    def test_hybrid_search_applies_source_filter(self):
+        store = self._filtering_store([
+            SearchHit(id="v1", content="python vector one", score=0.9,
+                      source="doc1", metadata={"source": "doc1"}),
+            SearchHit(id="v2", content="python vector two", score=0.85,
+                      source="doc2", metadata={"source": "doc2"}),
+        ])
+        rag = self._make_rag(store)
+        bm25 = rag._bm25
+        assert bm25 is not None
+        bm25.add_document("b1", "python programming", {"source": "doc1"})
+        bm25.add_document("b2", "python snake", {"source": "doc2"})
+
+        hits = rag.search("python", source="doc1")
+
+        assert hits, "expected hybrid hits for doc1"
+        assert all(h.source == "doc1" for h in hits), [h.source for h in hits]
+
+    def test_hybrid_without_filter_returns_all_sources(self):
+        store = self._filtering_store([
+            SearchHit(id="v1", content="python vector one", score=0.9,
+                      source="doc1", metadata={"source": "doc1"}),
+            SearchHit(id="v2", content="python vector two", score=0.85,
+                      source="doc2", metadata={"source": "doc2"}),
+        ])
+        rag = self._make_rag(store)
+        bm25 = rag._bm25
+        assert bm25 is not None
+        bm25.add_document("b1", "python programming", {"source": "doc1"})
+        bm25.add_document("b2", "python snake", {"source": "doc2"})
+
+        hits = rag.search("python")
+
+        sources = {h.source for h in hits}
+        assert sources == {"doc1", "doc2"}, sources
+
+    def test_hybrid_compound_filter(self):
+        store = self._filtering_store([
+            SearchHit(id="v1", content="python recursive", score=0.9,
+                      source="doc1",
+                      metadata={"source": "doc1", "chunking_strategy": "recursive"}),
+            SearchHit(id="v2", content="python markdown", score=0.85,
+                      source="doc1",
+                      metadata={"source": "doc1", "chunking_strategy": "markdown"}),
+        ])
+        rag = self._make_rag(store)
+        bm25 = rag._bm25
+        assert bm25 is not None
+        bm25.add_document("b1", "python recursive chunk",
+                          {"source": "doc1", "chunking_strategy": "recursive"})
+        bm25.add_document("b2", "python markdown chunk",
+                          {"source": "doc1", "chunking_strategy": "markdown"})
+
+        hits = rag.search("python", source="doc1", chunking_strategy="recursive")
+
+        assert hits
+        for h in hits:
+            assert h.source == "doc1"
+            assert h.metadata.get("chunking_strategy") == "recursive"
+
+
+class TestApplyMetadataFilters:
+    """Direct unit tests for the shared _apply_metadata_filters helper (L1)."""
+
+    def test_none_filters_is_noop(self):
+        from ffai.rag.rag import _apply_metadata_filters
+
+        results = [{"id": "1", "metadata": {"source": "a"}},
+                   {"id": "2", "metadata": {"source": "b"}}]
+        assert _apply_metadata_filters(results, None) is results
+        assert _apply_metadata_filters(results, {}) is results
+
+    def test_filters_by_single_key(self):
+        from ffai.rag.rag import _apply_metadata_filters
+
+        results = [{"id": "1", "metadata": {"source": "a"}},
+                   {"id": "2", "metadata": {"source": "b"}}]
+        out = _apply_metadata_filters(results, {"source": "a"})
+        assert len(out) == 1
+        assert out[0]["id"] == "1"
+
+    def test_filters_by_multiple_keys(self):
+        from ffai.rag.rag import _apply_metadata_filters
+
+        results = [
+            {"id": "1", "metadata": {"source": "a", "k": "x"}},
+            {"id": "2", "metadata": {"source": "a", "k": "y"}},
+            {"id": "3", "metadata": {"source": "b", "k": "x"}},
+        ]
+        out = _apply_metadata_filters(results, {"source": "a", "k": "x"})
+        assert len(out) == 1
+        assert out[0]["id"] == "1"
+
+
+class TestRAGBM25Rebuild:
+    """BM25 self-heals from the persistent store (L2)."""
+
+    @staticmethod
+    def _store_with(docs: list[dict[str, Any]]) -> MagicMock:
+        store = MagicMock()
+        store.count.return_value = len(docs)
+        store.needs_reindex.return_value = True
+        store.aadd = AsyncMock(return_value=len(docs))
+        store.get_all.return_value = docs
+        store.asearch = AsyncMock(return_value=[])
+        return store
+
+    @staticmethod
+    def _make_rag(store: MagicMock, **kwargs: Any) -> RAG:
+        embed = _make_mock_embed()
+        chunker = MagicMock()
+        chunker.chunk.return_value = []
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
+            return RAG(embed=embed, store=store, bm25_alpha=0.5, **kwargs)
+
+    def test_lazy_rebuild_on_count_mismatch(self):
+        docs = [
+            {"id": "d1", "content": "alpha bravo", "metadata": {"source": "s1"}},
+            {"id": "d2", "content": "charlie delta", "metadata": {"source": "s2"}},
+            {"id": "d3", "content": "echo foxtrot", "metadata": {"source": "s3"}},
+        ]
+        store = self._store_with(docs)
+        rag = self._make_rag(store)
+        bm25 = rag._bm25
+        assert bm25 is not None
+
+        assert bm25.count() == 0
+        rag.search("alpha")
+        assert bm25.count() == 3
+        store.get_all.assert_called_once()
+
+    def test_no_rebuild_when_counts_match(self):
+        docs = [{"id": "d1", "content": "alpha", "metadata": {"source": "s1"}}]
+        store = self._store_with(docs)
+        rag = self._make_rag(store)
+        bm25 = rag._bm25
+        assert bm25 is not None
+        bm25.add_document("d1", "alpha", {"source": "s1"})
+
+        rag.search("alpha")
+
+        store.get_all.assert_not_called()
+
+    def test_autorebuild_disabled(self):
+        docs = [
+            {"id": "d1", "content": "alpha", "metadata": {"source": "s1"}},
+            {"id": "d2", "content": "bravo", "metadata": {"source": "s2"}},
+        ]
+        store = self._store_with(docs)
+        rag = self._make_rag(store, bm25_autorebuild=False)
+        bm25 = rag._bm25
+        assert bm25 is not None
+
+        rag.search("alpha")
+
+        assert bm25.count() == 0
+        store.get_all.assert_not_called()
+
+    def test_rebuild_is_idempotent(self):
+        docs = [
+            {"id": "d1", "content": "alpha bravo", "metadata": {"source": "s1"}},
+            {"id": "d2", "content": "alpha charlie", "metadata": {"source": "s2"}},
+        ]
+        store = self._store_with(docs)
+        rag = self._make_rag(store)
+        bm25 = rag._bm25
+        assert bm25 is not None
+
+        n1 = rag.rebuild_bm25_from_store()
+        score_after_first = bm25.search("alpha", n_results=5)
+        n2 = rag.rebuild_bm25_from_store()
+        score_after_second = bm25.search("alpha", n_results=5)
+
+        assert n1 == n2 == 2
+        assert bm25.count() == 2
+        assert [r["id"] for r in score_after_first] == [
+            r["id"] for r in score_after_second
+        ]
+
+    def test_strategy_filter_excludes_other_chunker(self):
+        docs = [
+            {"id": "d1", "content": "alpha recursive",
+             "metadata": {"source": "s1", "chunking_strategy": "recursive"}},
+            {"id": "d2", "content": "alpha markdown",
+             "metadata": {"source": "s2", "chunking_strategy": "markdown"}},
+            {"id": "d3", "content": "alpha legacy", "metadata": {"source": "s3"}},
+        ]
+        store = self._store_with(docs)
+        rag = self._make_rag(store)  # default chunker name "recursive"
+        bm25 = rag._bm25
+        assert bm25 is not None
+
+        rag.rebuild_bm25_from_store()
+
+        assert bm25.count() == 2
+        hits = bm25.search("alpha", n_results=5)
+        indexed_ids = {h["id"] for h in hits}
+        assert indexed_ids == {"d1", "d3"}
+
+    def test_rebuild_raises_without_bm25_or_store(self):
+        embed = _make_mock_embed()
+        chunker = MagicMock()
+        chunker.chunk.return_value = []
+        with patch("ffai.rag.rag.get_chunker", return_value=chunker):
+            rag = RAG(embed=embed, bm25_alpha=0.5)  # no store
+
+        with pytest.raises(RuntimeError):
+            rag.rebuild_bm25_from_store()
+
+    def test_ensure_consistent_swallows_rebuild_errors(self):
+        store = MagicMock()
+        store.count.return_value = 99
+        store.get_all.side_effect = RuntimeError("disk gone")
+        store.asearch = AsyncMock(return_value=[])
+        rag = self._make_rag(store)
+        bm25 = rag._bm25
+        assert bm25 is not None
+        assert bm25.count() == 0
+
+        rag._ensure_bm25_consistent()
+
+        store.get_all.assert_called_once()
+
+    def test_restart_simulation_self_heals(self):
+        docs = [
+            {"id": "s1_0", "content": "python language", "metadata": {"source": "s1"}},
+            {"id": "s2_0", "content": "rust language", "metadata": {"source": "s2"}},
+        ]
+        store = self._store_with(docs)
+        store.needs_reindex.return_value = False
+        rag = self._make_rag(store)
+        bm25 = rag._bm25
+        assert bm25 is not None
+
+        indexed = rag.index("python language", source="s1", checksum="abc")
+        assert indexed == 0
+
+        assert bm25.count() == 0
+        rag.search("python")
+        assert bm25.count() == 2

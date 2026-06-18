@@ -26,6 +26,12 @@ from ffai.core import TurnHit as CoreTurnHit
 from ffai.core import run_sync
 from ffai.core.memory import load_store
 
+# Resolve the FFAI *module* (ffai/FFAI.py) explicitly so patch.object
+# targets the module's get_config binding rather than the FFAI *class*
+# that shadows it in ffai/__init__.py. Same pattern as
+# test_dag_integration.py.
+_ffai_mod = __import__("importlib").import_module("ffai.FFAI")
+
 
 def _mock_client() -> Any:
     client = MagicMock()
@@ -255,7 +261,7 @@ class TestPersistence:
         client = _mock_client()
 
         # Patch the config so persist_dir/collection_name point to tmp_path
-        with patch("ffai.FFAI.get_config") as mock_get_config:
+        with patch.object(_ffai_mod, "get_config") as mock_get_config:
             mock_config = MagicMock()
             mock_config.paths.ffai_data = str(tmp_path)
             mock_config.rag.enabled = False
@@ -281,7 +287,7 @@ class TestPersistence:
 
         mem1 = Memory(FakeEmbeddings(dim=8))
         client = _mock_client()
-        with patch("ffai.FFAI.get_config") as mock_get_config:
+        with patch.object(_ffai_mod, "get_config") as mock_get_config:
             mock_config = MagicMock()
             mock_config.paths.ffai_data = str(tmp_path)
             mock_config.rag.enabled = False

@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
@@ -14,6 +14,9 @@ from .history.permanent import PermanentHistory
 from .history.recorder import HistoryRecorder
 from .history_exporter import HistoryExporter
 from .response_context import ResponseContext
+
+if TYPE_CHECKING:
+    from .memory import Memory, TurnHit
 
 
 class HistoryManager:
@@ -24,12 +27,14 @@ class HistoryManager:
         permanent: PermanentHistory,
         ordered: OrderedPromptHistory,
         exporter: HistoryExporter,
+        memory: Memory | None = None,
     ) -> None:
         self._recorder = recorder
         self._context = context
         self._permanent = permanent
         self._ordered = ordered
         self._exporter = exporter
+        self._memory = memory
 
     @property
     def raw(self) -> list[dict[str, Any]]:
@@ -58,6 +63,35 @@ class HistoryManager:
     @property
     def permanent(self) -> PermanentHistory:
         return self._permanent
+
+    @property
+    def memory(self) -> Memory | None:
+        """Memory vector recall instance, or ``None`` when memory is disabled."""
+        return self._memory
+
+    def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        threshold: float | None = None,
+    ) -> list[TurnHit]:
+        """Semantic search over indexed PermanentHistory turns.
+
+        Returns ``[]`` when memory is disabled (``self.memory is None``).
+        Otherwise delegates to ``Memory.search()``.
+
+        Args:
+            query: Plain-text query.
+            top_k: Maximum hits to return.
+            threshold: Optional minimum cosine similarity.
+
+        Returns:
+            List of :class:`TurnHit` sorted by score descending.
+
+        """
+        if self._memory is None:
+            return []
+        return self._memory.search(query=query, top_k=top_k, threshold=threshold)
 
     @property
     def ordered(self) -> OrderedPromptHistory:

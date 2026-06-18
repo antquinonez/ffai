@@ -4,10 +4,12 @@
 
 """Core FFAI infrastructure: client abstraction, prompt assembly, history, and export."""
 
+from ._async import run_sync
 from .async_client_base import AsyncFFAIClientBase
 from .async_executor import AsyncGraphExecutor, GraphResult
 from .client_base import FFAIClientBase
 from .condition_evaluator import ConditionEvaluator
+from .embeddings import Embeddings
 from .execution_state import ExecutionState
 from .graph import (
     DependencyEdge,
@@ -27,6 +29,7 @@ from .graph_execution_helpers import (
 )
 from .history import ConversationHistory, OrderedPromptHistory, PermanentHistory
 from .history_exporter import HistoryExporter
+from .memory import Memory, TurnHit, TurnVectorStore
 from .prompt_builder import PromptBuilder
 from .prompt_node import PromptNode
 from .prompt_utils import extract_json_field, interpolate_prompt
@@ -41,11 +44,13 @@ __all__ = [
     "ConditionEvaluator",
     "ConversationHistory",
     "DependencyEdge",
+    "Embeddings",
     "ExecutionGraph",
     "ExecutionState",
     "FFAIClientBase",
     "GraphResult",
     "HistoryExporter",
+    "Memory",
     "OrderedPromptHistory",
     "PermanentHistory",
     "PromptBuilder",
@@ -54,6 +59,8 @@ __all__ = [
     "ResponseResult",
     "StructuredOutputHandler",
     "StructuredResult",
+    "TurnHit",
+    "TurnVectorStore",
     "build_execution_graph",
     "build_execution_graph_with_edges",
     "build_graph_history_dict",
@@ -67,5 +74,6 @@ __all__ = [
     "interpolate_prompt",
     "is_abort_trigger",
     "resolve_graph_prompt",
+    "run_sync",
     "should_skip_for_failed_deps",
 ]

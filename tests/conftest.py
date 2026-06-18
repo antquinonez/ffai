@@ -135,3 +135,40 @@ class ConcreteClient(FFAIClientBase):
 def concrete_client():
     """Provide a ConcreteClient instance for tests that need a real FFAIClientBase."""
     return ConcreteClient()
+
+
+class FakeEmbeddings:
+    """Deterministic fake embeddings for testing Memory without network.
+
+    Maps each unique text to a stable synthetic vector via SHA-256 hash,
+    so identical texts produce identical vectors and different texts
+    produce uncorrelated vectors. Suitable for predictable ranking
+    assertions in unit tests.
+
+    Defined in ``tests/conftest.py`` (not as a fixture-only helper) so
+    tests can instantiate it with custom ``dim`` via direct import:
+    ``from conftest import FakeEmbeddings``. The ``fake_embeddings``
+    fixture below provides a default-dim instance.
+
+    """
+
+    def __init__(self, dim: int = 8) -> None:
+        self.dim = dim
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        return [self._vec(t) for t in texts]
+
+    async def aembed(self, texts: list[str]) -> list[list[float]]:
+        return self.embed(texts)
+
+    def _vec(self, text: str) -> list[float]:
+        import hashlib
+
+        h = hashlib.sha256(text.encode()).digest()
+        return [((h[i % len(h)] / 255.0) - 0.5) for i in range(self.dim)]
+
+
+@pytest.fixture
+def fake_embeddings():
+    """Default FakeEmbeddings instance (dim=8) for memory tests."""
+    return FakeEmbeddings(dim=8)

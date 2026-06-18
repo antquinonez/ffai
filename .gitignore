@@ -46,6 +46,9 @@ designs/
 # Issue tracking (untracked)
 .issues/
 
+# Ideas (untracked)
+_ideas/
+
 # Generated documentation
 docs/api/
 docs/sphinx/build/

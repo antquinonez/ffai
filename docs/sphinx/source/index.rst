@@ -16,6 +16,7 @@ cost/usage tracking.
    :caption: Tutorials
 
    tutorials/rag_pipeline
+   tutorials/memory_recall
    tutorials/dag_execution
    tutorials/agent_tools
    tutorials/structured_output
@@ -28,6 +29,7 @@ cost/usage tracking.
 
    guides/installation
    guides/configuration
+   guides/memory
    guides/vector_stores
    guides/rag_search
    guides/chunking

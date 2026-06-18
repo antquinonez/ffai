@@ -24,13 +24,12 @@ pip install git+https://github.com/antquinonez/ffai.git
 
 ### Optional extras
 
-| Extra | pip | uv |
-|-------|-----|----|
-| RAG | `pip install "ffai[rag]"` | `uv add "ffai[rag]"` |
-| OpenTelemetry | `pip install "ffai[otel]"` | `uv add "ffai[otel]"` |
-| Both | `pip install "ffai[rag,otel]"` | `uv add "ffai[rag,otel]"` |
-
-RAG installs ChromaDB for persistent vector storage. OpenTelemetry installs OTLP span export for tracing.
+| Extra | pip | uv | What it installs |
+|-------|-----|----|------------------|
+| RAG | `pip install "ffai[rag]"` | `uv add "ffai[rag]"` | ChromaDB + fastembed for vector search and chunking |
+| Memory | `pip install "ffai[memory]"` | `uv add "ffai[memory]"` | fastembed only — local embeddings for semantic recall over conversation history |
+| OpenTelemetry | `pip install "ffai[otel]"` | `uv add "ffai[otel]"` | OTLP span export for tracing |
+| All | `pip install "ffai[rag,otel]"` | `uv add "ffai[rag,otel]"` | All of the above |
 
 > **Note:** Quotes are required around `ffai[rag]` in zsh and some other shells, since brackets are special characters. Bash does not require quotes.
 
@@ -45,9 +44,22 @@ FFAI supports multiple vector store backends. ChromaDB is included with `ffai[ra
 | **pgvector** | `pip install psycopg asyncpg` + PostgreSQL with pgvector | Server (Docker) |
 | **SQLite-vss** | `pip install sqlite-vss` | Local files |
 
+## Documentation
+
+Full tutorials, guides, and API reference are at **[ffai.readthedocs.io](https://ffai.readthedocs.io)**. This README is a quick-reference overview; the hosted docs cover each feature in depth.
+
+| Section | What's there |
+|---------|--------------|
+| [Tutorials](https://ffai.readthedocs.io/en/latest/tutorials.html) | End-to-end walk-throughs: RAG pipeline, memory recall, DAG execution, agent tools, structured output, async patterns, condition DSL |
+| [Guides](https://ffai.readthedocs.io/en/latest/guides.html) | Reference docs: installation, configuration, memory, vector stores, RAG search, chunking, fallback, cost tracking, history, response validation |
+| [API Reference](https://ffai.readthedocs.io/en/latest/api.html) | Auto-generated from source docstrings |
+
+Runnable Jupyter notebooks live in [`examples/`](#examples) — see the table near the end of this README.
+
 ## Features
 
 - **Declarative context assembly** — reference earlier responses by name using `{{prompt_name.response}}` interpolation
+- **Memory vector recall** — semantic search over completed Q+A pairs; embed each turn eagerly, retrieve by meaning, persist across restarts. [Tutorial](https://ffai.readthedocs.io/en/latest/tutorials/memory_recall.html) · [Guide](https://ffai.readthedocs.io/en/latest/guides/memory.html)
 - **RAG (Retrieval-Augmented Generation)** — chunking, embeddings, vector search, BM25 hybrid, reranking, query expansion, hierarchical indexing, deduplication, contextual embeddings, and `FFAI.query()` for one-shot retrieval-augmented answers
 - **DAG execution** — dependency graph with topological-parallel prompt execution and condition-based branching, with graph validation via `validate_graph()`
 - **Async support** — async client base, async DAG executor, and async RAG methods (`aquery`, `aindex`, `asearch`)
@@ -136,91 +148,45 @@ from ffai.rag import RAG
 rag = RAG.from_config()                        # reads config/main.yaml + MISTRAL_API_KEY
 rag.index("Python is a high-level programming language...", source="python_intro")
 
-# Search for relevant chunks
-hits = rag.search("programming language")
+hits = rag.search("programming language")      # raw vector search
 for hit in hits:
     print(f"[{hit.score:.2f}] {hit.content[:80]}...")
-# [0.78] Python is a high-level programming language...
 
-# One-shot retrieval-augmented answer via FFAI
 ffai_with_rag = FFAI(client, rag=rag)
-result = ffai_with_rag.query("What is Python?")
+result = ffai_with_rag.query("What is Python?")  # one-shot retrieval-augmented answer
 print(result.answer)
-# Python is a high-level programming language known for its readability
-# and versatility. It supports multiple paradigms...
-print(result.sources)
-# ['python_intro']
+print(result.sources)                          # ['python_intro']
 ```
 
-You can also pass an API key explicitly:
+RAG supports BM25 hybrid search, reranking, query expansion, hierarchical chunking, multiple vector store backends (ChromaDB, Qdrant, pgvector, SQLite-vss), and local embedding models. For the full pipeline walk-through, see the **[RAG pipeline tutorial](https://ffai.readthedocs.io/en/latest/tutorials/rag_pipeline.html)**. For backend configuration, see the **[vector stores guide](https://ffai.readthedocs.io/en/latest/guides/vector_stores.html)**.
+
+### Memory: Semantic Recall Over Conversation History
+
+Memory embeds each completed Q+A pair and lets you retrieve past turns by **meaning** rather than exact keyword match. Opt-in via `memory_enabled=True`; embeddings run on a fire-and-forget background thread.
 
 ```python
-rag = RAG.from_config(api_key="your-key")
-```
+ffai = FFAI(client, memory_enabled=True)
 
-Or construct each component manually for full control:
-
-```python
-from ffai.rag.embed import Embeddings
-from ffai.rag.store import VectorStore
-
-embed = Embeddings("mistral/mistral-embed", api_key="your-key")
-store = VectorStore(collection_name="my_kb", dir="./chroma_db")
-
-rag = RAG(embed=embed, store=store, chunk_size=500, chunk_overlap=100)
-```
-
-#### Switching vector store backends
-
-Use `get_store()` to pick a backend, or set `store_backend` in `config/main.yaml`:
-
-```python
-from ffai.rag.stores import get_store
-
-# Qdrant local mode (no server needed)
-store = get_store("qdrant", path="./qdrant_db", embedding_dim=1024)
-
-# ChromaDB (default)
-store = get_store("chroma", collection_name="my_kb", dir="./chroma_db")
-
-rag = RAG(embed=embed, store=store)
-```
-
-Or via config:
-
-```yaml
-# config/main.yaml
-rag:
-  store_backend: qdrant
-  store_config:
-    path: "./qdrant_db"
-    embedding_dim: 1024
-```
-
-All backends implement the same `VectorStoreBase` interface — swap backends without changing any other code.
-
-RAG supports BM25 hybrid search (`bm25_alpha`), result reranking (`reranker="diversity"`), query expansion via LLM (`query_expander`), hierarchical chunking with parent-context retrieval (`chunker="hierarchical"`), local embedding models (`local/` prefix via `sentence-transformers`), embedding caching, and custom prompt templates.
-
-You can also manage the RAG lifecycle directly through FFAI:
-
-```python
-ffai.rag.index(text, source="doc1")               # index a document -> int
-ffai.rag.index(text, source="doc2", checksum="a") # skip if checksum unchanged -> int
-count = ffai.rag.count()                           # get chunk count
-print(f"Indexed {count} chunks")               # "Indexed 3 chunks"
-hits = ffai.rag.search("query", top_k=5)           # raw search without generation
-print(f"Found {len(hits)} hits")               # "Found 2 hits"
-ffai.rag.delete("doc1")                            # remove by source
-result = ffai.rag.query("question",                # retrieval-augmented answer
-    top_k=5,
-    max_context_chars=4000,
-    allow_llm_on_empty=False,
-    generate_timeout=30.0,
+ffai.workflow.generate_response(
+    prompt="Let's debug the Postgres migration",
+    prompt_name="postgres_debug",
 )
-print(result.answer)       # "Based on the indexed documents..."
-print(result.sources)      # ["doc2"]
-print(f"${result.cost_usd:.6f}")
+ffai.workflow.generate_response(
+    prompt="Now update the user table schema",
+    prompt_name="schema_update",
+)
+
+# Semantic recall: "database issue" finds schema/postgres turns
+# even though neither word appears in those prompts.
+hits = ffai.history.search("the database issue from earlier", top_k=3)
+for hit in hits:
+    print(f"[{hit.score:.3f}] {hit.metadata['prompt_name']}")
+    print(f"   {hit.text[:80]}...")
 ```
+
+Local embeddings work offline via `pip install "ffai[memory]"` (pulls `fastembed`). Memory is **ephemeral by default** — set `memory_persist=True` to load and write a Parquet file across process restarts.
+
+For the full walk-through, see the **[memory recall tutorial](https://ffai.readthedocs.io/en/latest/tutorials/memory_recall.html)**. For configuration, persistence, and troubleshooting, see the **[memory guide](https://ffai.readthedocs.io/en/latest/guides/memory.html)**.
 
 ### Configuration with ResponseOptions
 
@@ -562,7 +528,7 @@ if not result.passed:
 
 ```
 ffai/
-  FFAI.py                          # High-level declarative wrapper + RAG lifecycle
+  FFAI.py                          # High-level declarative wrapper + RAG/memory lifecycle
   FFAIClientBase.py                # Re-export: ffai.core.client_base.FFAIClientBase
   ConversationHistory.py           # Re-export: ffai.core.history.conversation.ConversationHistory
   OrderedPromptHistory.py          # Re-export: ffai.core.history.ordered.OrderedPromptHistory
@@ -572,6 +538,8 @@ ffai/
     client_base.py                 # Abstract base class for all providers
     async_client_base.py           # Async abstract base class
     async_executor.py              # Async DAG executor (asyncio.gather per level)
+    embeddings.py                  # Embeddings (API + local/ models, LRU caching, cosine similarity)
+    _async.py                      # run_sync() — safe async-in-sync (handles Jupyter event loops)
     response_executor.py           # Orchestration: prompt resolve + condition + retry
     prompt_builder.py              # {{name.response}} interpolation engine
     prompt_utils.py                # Regex-based prompt substitution
@@ -594,7 +562,13 @@ ffai/
       ordered.py                   # Ordered prompt-response history (sequence numbers)
       permanent.py                 # Chronological turn history (timestamps, incremental)
       conversation.py              # Provider-facing message history (structured content blocks)
-      recorder.py                  # History recording coordinator (all stores)
+      recorder.py                  # History recording coordinator (all stores + memory embed)
+    memory/
+      __init__.py                  # Public exports: Memory, TurnHit, TurnVectorStore, persist/load
+      types.py                     # TurnHit (frozen dataclass), Entry (NamedTuple), EmbeddingBackend Protocol
+      turn_store.py                # In-memory append-only vector store with cosine search
+      memory.py                    # Memory facade: index_turn, search, reindex (sync + async)
+      persist.py                   # persist_store, load_store — Parquet round-trip
   Clients/
     BaseLiteLLMClient.py           # Shared mixin for sync/async LiteLLM clients
     FFLiteLLMClient.py             # Sync universal client (100+ providers, fallback chains)
@@ -603,7 +577,8 @@ ffai/
     model_defaults.py              # Per-model defaults + register_model_defaults()
   rag/
     rag.py                         # RAG class — index, index_many, chunk, search, query, delete, from_config
-    embed.py                       # Embeddings (API + local/ models, LRU caching, cosine similarity)
+    embed.py                       # Backward-compat shim — re-exports ffai.core.embeddings.Embeddings
+    _async.py                      # Backward-compat shim — re-exports ffai.core._async.run_sync
     store.py                       # VectorStore backward-compat shim (re-exports ChromaVectorStore)
     stores/
       __init__.py                  # Registry, get_store(), list_stores(), list_available_stores()
@@ -616,7 +591,6 @@ ffai/
     format.py                      # format_hits() for prompt injection
     prompts.py                     # DEFAULT_RAG_PROMPT template
     client_adapter.py              # ClientAdapter — wraps FFAIClientBase as callable
-    _async.py                      # run_sync() — safe async-in-sync (handles Jupyter event loops)
     splitters/
       factory.py                   # get_chunker(), list_chunkers()
       base.py                      # ChunkerBase abstract class
@@ -770,6 +744,37 @@ rag = RAG.from_config()
 rag = RAG.from_config(api_key="your-key")
 ```
 
+### Memory configuration
+
+Memory reads settings from `config/main.yaml` under the `memory:` key:
+
+```yaml
+memory:
+  enabled: false                    # opt-in; matches rag.enabled convention
+  embedding_model: null             # null -> resolution ladder (see below)
+  store_backend: memory             # reserved; Tier 1 uses built-in in-memory store
+  store_config: {}
+  persist_dir: "./ffai_data/memory"
+  collection_name: "ffai_turns"
+  persist: false                    # ephemeral by default; set true to survive restarts
+```
+
+When `embedding_model` is null, FFAI resolves a backend at construction time:
+
+1. If `fastembed` or `sentence-transformers` is importable → use `local/all-MiniLM-L6-v2`
+2. Else if `MISTRAL_API_KEY` is set → use `mistral/mistral-embed`
+3. Else if `OPENAI_API_KEY` is set → use `openai/text-embedding-3-small`
+4. Else → memory disabled with a warning
+
+You can also enable memory via constructor:
+
+```python
+ffai = FFAI(client, memory_enabled=True)
+ffai = FFAI(client, memory_enabled=True, memory_persist=True)  # persist across restarts
+```
+
+For the full configuration reference, embedding backend details, and troubleshooting, see the **[memory guide](https://ffai.readthedocs.io/en/latest/guides/memory.html)**.
+
 ### Model defaults
 
 Define per-model defaults in `config/model_defaults.yaml`:
@@ -838,22 +843,24 @@ The top-level `ffai` package exports:
 | `GraphResult` | `ffai.core.async_executor` |
 | `AsyncGraphExecutor` | `ffai.core.async_executor` |
 | `AgentLoop` | `ffai.agent.agent_loop` |
-| `AgentResult` | `ffai.agent.agent_result` |
-| `ToolCallRecord` | `ffai.agent.agent_result` |
-| `ResponseValidator` | `ffai.agent.response_validator` |
-| `ValidationResult` | `ffai.agent.response_validator` |
-| `ToolRegistry` | `ffai.tools.tool_registry` |
-| `ToolDefinition` | `ffai.tools.tool_registry` |
-| `ConversationHistory` | `ffai.core.history.conversation` |
-| `OrderedPromptHistory` | `ffai.core.history.ordered` |
-| `PermanentHistory` | `ffai.core.history.permanent` |
+ | `AgentResult` | `ffai.agent.agent_result` |
+ | `ToolCallRecord` | `ffai.agent.agent_result` |
+ | `ResponseValidator` | `ffai.agent.response_validator` |
+ | `ValidationResult` | `ffai.agent.response_validator` |
+ | `ToolRegistry` | `ffai.tools.tool_registry` |
+ | `ToolDefinition` | `ffai.tools.tool_registry` |
+ | `ConversationHistory` | `ffai.core.history.conversation` |
+ | `OrderedPromptHistory` | `ffai.core.history.ordered` |
+ | `PermanentHistory` | `ffai.core.history.permanent` |
+ | `Memory` | `ffai.core.memory.memory` |
+ | `TurnHit` | `ffai.core.memory.types` |
+ | `Embeddings` | `ffai.core.embeddings` |
 
 With `pip install -e ".[rag]"`, additional RAG exports are available:
 
 | Symbol | Module |
 |--------|--------|
 | `RAG` | `ffai.rag.rag` |
-| `Embeddings` | `ffai.rag.embed` |
 | `VectorStoreBase` | `ffai.rag.stores.base` |
 | `get_store` | `ffai.rag.stores` |
 | `list_stores` | `ffai.rag.stores` |

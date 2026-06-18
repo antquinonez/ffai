@@ -663,6 +663,9 @@ Runnable Jupyter notebooks in `examples/`:
 | `multi_turn_sequence/` | Multi-turn conversation with history and DataFrame export |
 | `vector_stores/` | Vector store backends: Qdrant (memory, local, server, cloud), ChromaDB vs Qdrant comparison |
 | `dag_validation/` | DAG topology validation, cycle detection, dependency analysis |
+| `memory_basics/` | Memory vector recall: semantic search over Q+A pairs with local embeddings |
+| `memory_persistence/` | Cross-session memory via Parquet: persist, load, round-trip verification |
+| `memory_ffai_integration/` | Eager embedding at record() time, search, metadata propagation, persistence |
 | `message_stack.ipynb` | Conversation history stack inspection |
 | `message_stack_live.ipynb` | Live conversation history stack demo |
 

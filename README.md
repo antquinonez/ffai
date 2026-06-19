@@ -29,7 +29,7 @@ pip install git+https://github.com/antquinonez/ffai.git
 | RAG | `pip install "ffai[rag]"` | `uv add "ffai[rag]"` | ChromaDB + fastembed for vector search and chunking |
 | Memory | `pip install "ffai[memory]"` | `uv add "ffai[memory]"` | fastembed only — local embeddings for semantic recall over conversation history |
 | OpenTelemetry | `pip install "ffai[otel]"` | `uv add "ffai[otel]"` | OTLP span export for tracing |
-| All | `pip install "ffai[rag,otel]"` | `uv add "ffai[rag,otel]"` | All of the above |
+| All | `pip install "ffai[rag,memory,otel]"` | `uv add "ffai[rag,memory,otel]"` | All of the above |
 
 > **Note:** Quotes are required around `ffai[rag]` in zsh and some other shells, since brackets are special characters. Bash does not require quotes.
 
@@ -60,7 +60,7 @@ Runnable Jupyter notebooks live in [`examples/`](#examples) — see the table ne
 
 - **Declarative context assembly** — reference earlier responses by name using `{{prompt_name.response}}` interpolation
 - **Memory vector recall** — semantic search over completed Q+A pairs; embed each turn eagerly, retrieve by meaning, persist across restarts. [Tutorial](https://ffai.readthedocs.io/en/latest/tutorials/memory_recall.html) · [Guide](https://ffai.readthedocs.io/en/latest/guides/memory.html)
-- **RAG (Retrieval-Augmented Generation)** — chunking, embeddings, vector search, BM25 hybrid, reranking, query expansion, hierarchical indexing, deduplication, contextual embeddings, and `FFAI.query()` for one-shot retrieval-augmented answers
+- **RAG (Retrieval-Augmented Generation)** — chunking, embeddings, vector search, BM25 hybrid, reranking, query expansion, hierarchical indexing, deduplication, contextual embeddings, and `RAG.query()` for one-shot retrieval-augmented answers
 - **DAG execution** — dependency graph with topological-parallel prompt execution and condition-based branching, with graph validation via `validate_graph()`
 - **Async support** — async client base, async DAG executor, and async RAG methods (`aquery`, `aindex`, `asearch`)
 - **Agentic execution loop** — multi-round tool-call-driven execution with automatic tool dispatch, per-tool timeouts, and error continuation
@@ -153,7 +153,7 @@ for hit in hits:
     print(f"[{hit.score:.2f}] {hit.content[:80]}...")
 
 ffai_with_rag = FFAI(client, rag=rag)
-result = ffai_with_rag.query("What is Python?")  # one-shot retrieval-augmented answer
+result = ffai_with_rag.rag.query("What is Python?")  # one-shot retrieval-augmented answer
 print(result.answer)
 print(result.sources)                          # ['python_intro']
 ```
@@ -541,6 +541,7 @@ ffai/
     embeddings.py                  # Embeddings (API + local/ models, LRU caching, cosine similarity)
     _async.py                      # run_sync() — safe async-in-sync (handles Jupyter event loops)
     response_executor.py           # Orchestration: prompt resolve + condition + retry
+    workflow_engine.py             # WorkflowEngine — ffai.workflow namespace (generate, DAG, graph)
     prompt_builder.py              # {{name.response}} interpolation engine
     prompt_utils.py                # Regex-based prompt substitution
     graph.py                       # Dependency graph construction and condition eval
@@ -558,6 +559,7 @@ ffai/
     response_utils.py              # Response cleaning, JSON extraction (json-repair)
     usage.py                       # TokenUsage dataclass
     history_exporter.py            # Polars DataFrame export + Parquet persistence
+    history_manager.py             # HistoryManager — ffai.history namespace (queries, export, memory)
     history/
       ordered.py                   # Ordered prompt-response history (sequence numbers)
       permanent.py                 # Chronological turn history (timestamps, incremental)
@@ -591,6 +593,7 @@ ffai/
     format.py                      # format_hits() for prompt injection
     prompts.py                     # DEFAULT_RAG_PROMPT template
     client_adapter.py              # ClientAdapter — wraps FFAIClientBase as callable
+    litellm_generate.py            # litellm_generate_fn — LiteLLM-backed generate_fn for RAG.query()
     splitters/
       factory.py                   # get_chunker(), list_chunkers()
       base.py                      # ChunkerBase abstract class
@@ -612,6 +615,14 @@ ffai/
     agent_loop.py                  # Multi-round tool-call loop (timeouts, error continuation)
     agent_result.py                # AgentResult, ToolCallRecord (to_dict/from_dict)
     response_validator.py          # LLM-as-judge validation + re-execution
+  workflow/
+    __init__.py                    # Public exports: WorkflowSpec, load_workflow, WorkflowExecutor
+    spec.py                        # WorkflowSpec, PromptStep, ClientRef, WorkflowDefaults dataclasses
+    loader.py                      # load_workflow / load_workflow_file (YAML), WorkflowValidationError
+    tabular.py                     # load_workflow_rows — tabular rows to workflow steps
+    tabular_csv.py                 # load_workflow_csv / load_workflow_csv_file (CSV workflows)
+    executor.py                    # WorkflowExecutor, WorkflowResult (async YAML/CSV execution)
+    client_factory.py              # ClientFactory — builds clients from config + ClientRef
   tools/
     tool_registry.py               # Declarative tools, python: dynamic imports, from_dict
   observability/
@@ -640,6 +651,10 @@ Runnable Jupyter notebooks in `examples/`:
 | `memory_basics/` | Memory vector recall: semantic search over Q+A pairs with local embeddings |
 | `memory_persistence/` | Cross-session memory via Parquet: persist, load, round-trip verification |
 | `memory_ffai_integration/` | Eager embedding at record() time, search, metadata propagation, persistence |
+| `conversation_management/` | Conversation history: get/set/add/clear, suspend/restore, client message stack |
+| `history_analytics/` | History queries, usage stats, DataFrame export, cross-analysis, and reporting |
+| `workflow_basics/` | YAML workflow loading, validation, interpolation, and condition branching |
+| `workflow_multi_client/` | Multi-client YAML workflows with per-step client overrides |
 | `message_stack.ipynb` | Conversation history stack inspection |
 | `message_stack_live.ipynb` | Live conversation history stack demo |
 
